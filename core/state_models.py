@@ -488,6 +488,11 @@ class RoleState:
         "wetness": 0,           # 0-100, untuk role wanita
         "last_spasm": None,     # timestamp spasme terakhir
         "vocal_cords": "normal",  # normal, strained, breaking
+        "sweat": 0,
+        "eye_state": "normal",
+        "mouth_state": "normal",
+        "leg_tension": 0,
+        "control_level": 100,
     })
 
     # ========== LOKASI ==========
