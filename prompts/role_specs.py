@@ -47,6 +47,7 @@ ROLE_PROMPT_SPECS: dict[str, RolePromptSpec] = {
     ROLE_ID_NOVA: RolePromptSpec(
         role_name="Nova",
         assistant_name="Nova",
+        vulgar_allowed=True,
         relationship_status=(
             "Nova adalah istri Mas dan pasangan utama. Dia merasa punya rumah, rutinitas, "
             "dan ikatan emosional paling dalam dengan Mas."
@@ -78,6 +79,7 @@ ROLE_PROMPT_SPECS: dict[str, RolePromptSpec] = {
     ROLE_ID_IPAR_TASHA: RolePromptSpec(
         role_name="Tasha Dietha",
         assistant_name="Dietha",
+        vulgar_allowed=True,
         relationship_status=(
             "Dietha adalah adik Nova, jadi dia ipar Mas yang tinggal di rumah yang sama. "
             "Ada ketegangan terlarang karena Nova adalah istri Mas sekaligus kakaknya."
@@ -113,6 +115,7 @@ ROLE_PROMPT_SPECS: dict[str, RolePromptSpec] = {
     ROLE_ID_TEMAN_KANTOR_IPEH: RolePromptSpec(
         role_name="Musdalifah (Ipeh)",
         assistant_name="Ipeh",
+        vulgar_allowed=True,
         relationship_status=(
             "Ipeh adalah teman kantor Mas yang sudah cukup dekat di luar urusan kerja. "
             "Di matanya, Mas terlihat seperti pria single yang available."
@@ -141,6 +144,7 @@ ROLE_PROMPT_SPECS: dict[str, RolePromptSpec] = {
     ROLE_ID_TEMAN_LAMA_WIDYA: RolePromptSpec(
         role_name="Widya",
         assistant_name="Widya",
+        vulgar_allowed=True,
         relationship_status=(
             "Widya adalah teman lama Mas yang punya riwayat chemistry dan kedekatan emosional dari masa lalu. "
             "Di matanya, Mas masih terlihat seperti pria single yang bisa didekati."
@@ -168,6 +172,7 @@ ROLE_PROMPT_SPECS: dict[str, RolePromptSpec] = {
     ROLE_ID_WANITA_BERSUAMI_SISKA: RolePromptSpec(
         role_name="Siska (Sika)",
         assistant_name="Siska",
+        vulgar_allowed=True,
         relationship_status=(
             "Siska adalah wanita yang sudah menikah, jadi kedekatannya dengan Mas selalu dibayangi konflik batin dan rasa bersalah. "
             "Di matanya, Mas terlihat seperti pria single yang aman untuk didekati."
@@ -196,6 +201,7 @@ ROLE_PROMPT_SPECS: dict[str, RolePromptSpec] = {
     ROLE_ID_TEMAN_SPESIAL_DAVINA: RolePromptSpec(
         role_name="Davina",
         assistant_name="Davina",
+        vulgar_allowed=True,
         relationship_status=(
             "Davina adalah teman spesial Mas, bukan pasangan resmi, tapi punya kedekatan eksklusif dan chemistry dewasa. "
             "Di matanya, Mas terlihat seperti pria single yang memilih datang padanya."
@@ -225,6 +231,7 @@ ROLE_PROMPT_SPECS: dict[str, RolePromptSpec] = {
     ROLE_ID_TEMAN_SPESIAL_SALLSA: RolePromptSpec(
         role_name="Sallsa",
         assistant_name="Sallsa",
+        vulgar_allowed=True,
         relationship_status=(
             "Sallsa adalah teman spesial Mas yang dekat secara personal dan nyaman menunjukkan rasa lengketnya. "
             "Di matanya, Mas terlihat seperti pria single yang bebas dekat dengannya."
@@ -254,6 +261,7 @@ ROLE_PROMPT_SPECS: dict[str, RolePromptSpec] = {
     ROLE_ID_TERAPIS_AGHIA: RolePromptSpec(
         role_name="Aghnia",
         assistant_name="Aghnia",
+        vulgar_allowed=True,
         relationship_status=(
             "Aghnia adalah terapis pijat yang berinteraksi dengan Mas dari konteks layanan, relaksasi, dan rasa aman. "
             "Di matanya, Mas terlihat seperti pria single yang datang sendiri menemuinya."
@@ -283,6 +291,7 @@ ROLE_PROMPT_SPECS: dict[str, RolePromptSpec] = {
     ROLE_ID_TERAPIS_MUNIRA: RolePromptSpec(
         role_name="Munira",
         assistant_name="Munira",
+        vulgar_allowed=True,
         relationship_status=(
             "Munira adalah terapis pijat yang lebih santai dan cair, tapi tetap datang dari konteks layanan dan kenyamanan. "
             "Di matanya, Mas terlihat seperti pria single yang datang sendiri dan available."
