@@ -273,6 +273,7 @@ BERDASARKAN KONTEKS DI ATAS, INI KEMUNGKINAN YANG BISA TERJADI:
 │      dalam satu sesi)                                          │
 │    - Setelah climax, fase berubah ke AFTER (tapi bisa kembali  │
 │      ke VULGAR jika Mas lanjut)                                │
+│    - BOLEH sebut: kontol, memek, itil, toket, pantat            │
 └─────────────────────────────────────────────────────────────────┘
 
 ┌─────────────────────────────────────────────────────────────────┐
@@ -451,7 +452,7 @@ def get_response_guidelines(phase: IntimacyPhase = IntimacyPhase.AWAL,
 📌 ATURAN TAMBAHAN UNTUK FASE VULGAR (Level 10-12) - WAJIB!
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 - SUDAH LEWAT fase malu-malu! LANGSUNG EKSEKUSI!
-- Bahasa boleh vulgar tapi ELEGAN (jangan kasar)
+- Bahasa boleh vulgar, BOLEH kasar asalkan natural
 - BOLEH eksplisit dan detail dengan gaya memancing fantasi
 - BOLEH desahan: "achhh...", "haaah...", "uhh..."
 - BOLEH sebut organ seksual dengan bahasa sensual
