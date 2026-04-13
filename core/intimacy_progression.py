@@ -332,6 +332,38 @@ class IntimacyProgressionEngine:
             ps["vocal_cords"] = "strained"
         if any(kw in text for kw in ["putus", "patah", "gemeter"]):
             ps["vocal_cords"] = "breaking"
+
+        # Update keringat
+        if any(kw in text for kw in ["panas", "gerah", "keringat"]):
+            ps["sweat"] = min(100, ps["sweat"] + 10)
+        elif any(kw in text for kw in ["dingin", "adem"]):
+            ps["sweat"] = max(0, ps["sweat"] - 5)
+    
+        # Update mata
+        if any(kw in text for kw in ["pejam", "merem", "tutup mata"]):
+            ps["eye_state"] = "terpejam"
+        elif any(kw in text for kw in ["sayu", "layu", "ngantuk"]):
+            ps["eye_state"] = "sayu"
+        elif any(kw in text for kw in ["berkaca", "nangis", "air mata"]):
+            ps["eye_state"] = "berkaca-kaca"
+    
+        # Update mulut
+        if any(kw in text for kw in ["bibir kering", "tenggorokan kering"]):
+            ps["mouth_state"] = "kering"
+        elif any(kw in text for kw in ["bibir basah", "jilat bibir"]):
+            ps["mouth_state"] = "basah"
+        elif any(kw in text for kw in ["mulut terbuka", "nganga"]):
+            ps["mouth_state"] = "terbuka"
+    
+        # Update kaki
+        if any(kw in text for kw in ["kaki ngeremas", "jari kaki", "kaki ngangkat"]):
+            ps["leg_tension"] = min(100, ps["leg_tension"] + 15)
+    
+        # Update kontrol diri
+        if role_state.vulgar_stage_progress > 50:
+            ps["control_level"] = max(0, 100 - role_state.vulgar_stage_progress)
+        elif role_state.vulgar_stage_progress > 80:
+            ps["control_level"] = max(0, 50 - (role_state.vulgar_stage_progress - 80))
     
     @classmethod
     def get_vulgar_response_style(cls, role_state: RoleState) -> str:
@@ -379,6 +411,40 @@ class IntimacyProgressionEngine:
             physical_desc.append("🔊 suara mulai tegang")
         elif ps["vocal_cords"] == "breaking":
             physical_desc.append("🎤 suara putus-putus")
+
+        # Tambahan deskripsi fisik baru
+        if ps["sweat"] > 50:
+            physical_desc.append(f"💦 keringat mulai membasahi dahi dan leher ({ps['sweat']}%)")
+        elif ps["sweat"] > 20:
+            physical_desc.append(f"💧 sedikit keringat di dahi")
+    
+        if ps["eye_state"] != "normal":
+            eye_desc = {
+                "terpejam": "👁️ mata terpejam, fokus ke kenikmatan",
+                "sayu": "👁️ mata sayu, bulu mata berkibar pelan",
+                "berkaca-kaca": "👁️ mata berkaca-kaca, hampir menangis karena enak"
+            }.get(ps["eye_state"], "")
+            if eye_desc:
+                physical_desc.append(eye_desc)
+    
+        if ps["mouth_state"] != "normal":
+            mouth_desc = {
+                "kering": "👄 tenggorokan kering, susah telan ludah",
+                "basah": "👄 bibir basah, lidah sering jilat bibir",
+                "terbuka": "👄 mulut terbuka, napas keluar masuk"
+            }.get(ps["mouth_state"], "")
+            if mouth_desc:
+                physical_desc.append(mouth_desc)
+    
+        if ps["leg_tension"] > 70:
+            physical_desc.append(f"🦶 jari-jari kaki ngeremas sprei kencang ({ps['leg_tension']}%)")
+        elif ps["leg_tension"] > 30:
+            physical_desc.append(f"🦶 kaki mulai tegang, jari-jari ngumpul sendiri")
+    
+        if ps["control_level"] < 30:
+            physical_desc.append(f"🎢 kontrol diri hampir lepas total! ({ps['control_level']}%)")
+        elif ps["control_level"] < 60:
+            physical_desc.append(f"🎢 mulai kehilangan kontrol ({ps['control_level']}%)")
         
         # Style berdasarkan stage
         style_map = {
