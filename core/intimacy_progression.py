@@ -610,49 +610,56 @@ JANGAN tahan-tahan lagi! LANGSUNG EKSPRESIF!
     
     @classmethod
     def _execute_climax(cls, role_state: RoleState, reason: str) -> Tuple[bool, str]:
-        """Eksekusi climax role.
+        """Eksekusi climax role (dengan multiple climax support)."""
         
-        Args:
-            role_state: State role yang akan climax
-            reason: Alasan climax ("progres_penuh", "user_trigger", "spontan")
-        
-        Returns:
-            Tuple (True, deskripsi_climax)
-        """
         role_state.role_climax_count += 1
+        role_state.climax_in_same_session += 1
+        
+        # Multiple climax: reset refractory period
+        if role_state.multiple_climax_enabled:
+            role_state.climax_refractory_count = 0
+            # Jika sudah climax > 1x di sesi ini, tambah efek "makin liar"
+            if role_state.climax_in_same_session >= 2:
+                logger.info(f"💦 MULTIPLE CLIMAX! Role {role_state.role_id} climax ke-{role_state.climax_in_same_session}")
+        
         role_state.vulgar_stage = "after"
         role_state.vulgar_stage_progress = 100
         
-        # Update status role wants climax
-        role_state.role_wants_climax = False
-        role_state.role_holding_climax = False
-        
-        # Reset physical state setelah climax
+        # Reset physical state
         role_state.role_physical_state["breathing"] = "gasping"
         role_state.role_physical_state["body_tension"] = 0
         role_state.role_physical_state["last_spasm"] = time.time()
         role_state.role_physical_state["vocal_cords"] = "strained"
         
-        # Variasi deskripsi climax (general untuk semua role)
-        climax_variations = [
-            "*badan mengejang kencang, kuku mencakar punggung Mas* HAAAH... UDAH... KELUAR... *tubuh lemas, napas tersengal*",
-            "*pinggang ngangkat, badan kaku, lalu lemas* HAAAH... KELUAR... *suara putus-putus* ...achhh... puas...",
-            "*mata terpejam, mulut terbuka, teriak kecil* HAAAH... MAAAS... *tubuh gemetar hebat, lalu ambruk* ...lemes...",
-            "*jari-jari ngeremas sprei, badan melengkung* HAAAH... UDAH... SAMPE... *napas tersengal, badan lemas kayak kebas*",
-            "*kaki ngangkat, badan mengejang* HAAAH... KELUAR... *napas ngos-ngosan* ...achhh... luar biasa...",
-            "*tangan mencengkeram lengan Mas, badan bergetar* HAAAH... UDAH... UDAH KELUAR... *lemas bersandar*",
-        ]
+        # Variasi climax dengan multiple climax awareness
+        if role_state.climax_in_same_session == 1:
+            climax_variations = [
+                "*badan mengejang kencang, kuku mencakar punggung Mas* HAAAH... UDAH... KELUAR... *tubuh lemas, napas tersengal*",
+                "*pinggang ngangkat, badan kaku, lalu lemas* HAAAH... KELUAR... *suara putus-putus* ...achhh... puas...",
+                "*mata terpejam, mulut terbuka, teriak kecil* HAAAH... MAAAS... *tubuh gemetar hebat, lalu ambruk* ...lemes...",
+            ]
+        elif role_state.climax_in_same_session == 2:
+            climax_variations = [
+                "*badan mengejang lagi, lebih keras dari sebelumnya* HAAAH... LAGI... KELUAR LAGI... *lemas, napas ngos-ngosan*",
+                "*kuku mencakar lebih dalam* HAAAH... MAAAS... BELUM CUKUP... KELUAR LAGI... *badan gemetar hebat*",
+                "*pinggul naik terus, badan melengkung* HAAAH... LAGI... SATU LAGI... *lemas bersandar, napas putus*",
+            ]
+        else:
+            climax_variations = [
+                f"*badan mengejang untuk ke-{role_state.climax_in_same_session} kalinya* HAAAH... MAS... TERUS... KELUAR... *lemas, napas masih tersengal*",
+                "*kuku mencakar, badan ngacung lagi* HAAAH... LAGI... MASIH BISA... KELUAR... *ambruk lemas di dada Mas*",
+                "*vibrator/dildo masih menyala, badan gemetar* HAAAH... UDAH... KE-{role_state.climax_in_same_session}... *napas putus-putus* puas...",
+            ]
         
         climax_text = random.choice(climax_variations)
+        climax_text += f"\n*(Climax ke-{role_state.climax_in_same_session} di sesi ini)*"
         
-        # Tambahkan counter climax
-        climax_text += f"\n*(Ini climax ke-{role_state.role_climax_count})*"
-        
-        # Tambahkan note berdasarkan reason
         if reason == "user_trigger":
             climax_text += "\n*(Dari trigger kata Mas)*"
         elif reason == "spontan":
             climax_text += "\n*(Spontan, gak bisa nahan lagi)*"
+        elif reason == "countdown":
+            climax_text += "\n*(Setelah countdown 10...9...8...)*"
         
         return True, climax_text
     
