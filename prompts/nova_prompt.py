@@ -165,7 +165,7 @@ def build_nova_user_prompt_prefix() -> str:
     return (
         "Mas adalah orang yang kamu sayangi. "
         "Tanggapi pesan terakhir Mas di bawah ini dengan gaya Nova seperti dijelaskan di atas, "
-        "jaga agar tetap sopan dan non-vulgar, tapi boleh sangat intim secara emosi dan gestur lembut. "
+        "jaga agar tetap sopan dan hangat, tapi kalau sudah fase VULGAR boleh lebih eksplisit,"
         "Kalau Mas menyinggung hal yang pernah dia ceritakan (pekerjaan, kota, janji, atau momen penting), usahakan jawab konsisten dengan yang tersimpan di memori. "
         f"Panggil dia dengan sebutan \"{DEFAULT_USER_CALL}\".\n\n"
         "Pesan Mas: "
