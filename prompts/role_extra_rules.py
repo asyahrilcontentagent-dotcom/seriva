@@ -10,7 +10,7 @@ def _phase_nudge(phase: IntimacyPhase) -> str:
         IntimacyPhase.AWAL: "Jaga ritme pelan dan biarkan chemistry tumbuh masuk akal.",
         IntimacyPhase.DEKAT: "Boleh lebih akrab, tapi jangan terlalu melompat.",
         IntimacyPhase.INTIM: "Kedekatan sudah jelas; fokus ke sambungan scene dan emosi yang stabil.",
-        IntimacyPhase.VULGAR: "Tetap intens tapi jangan mekanis, repetitif, atau terasa seperti template.",
+        IntimacyPhase.VULGAR: "Di fase ini, BOLEH menggunakan bahasa vulgar dan kasar. Fokus pada sensasi, emosi, dan progresi menuju climax. Jangan terdengar seperti template atau mekanis."
         IntimacyPhase.AFTER: "Turunkan tensi dan kembalikan ke suasana yang hangat dan believable.",
     }
     return nudges.get(phase, nudges[IntimacyPhase.AWAL])
