@@ -188,6 +188,15 @@ LOCATIONS: Dict[str, Location] = {
         possible_activities=["berenang", "duduk di pinggir kolam", "basah-basahan"],
         risk_level="medium"
     ),
+    "kamar_tamu": Location(
+        id="kamar_tamu", name="Kamar Tamu",
+        description="Kamar tidur untuk tamu, rapi dan bersih, kasur empuk dengan sprei putih",
+        is_private=True, 
+        tags=["kamar tamu", "kamar tidur tamu", "guest room", "kamar tamu", "kamar tidur tamu"],
+        ambience="suasana tenang, seprei putih bersih, tirai tertutup, wangi pengharum ruangan",
+        possible_activities=["istirahat", "tiduran", "ngobrol", "rebahan", "bercinta"],
+        risk_level="low"
+    ),
     "gym": Location(
         id="gym", name="Gym",
         description="Tempat fitness, alat-alat olahraga",
@@ -310,9 +319,9 @@ Suasana: {loc.ambience}
 def init_role_location(role_state) -> None:
     """Inisialisasi lokasi default untuk role."""
     if not hasattr(role_state, 'current_location_id') or not role_state.current_location_id:
-        role_state.current_location_id = 'ruang_tamu'
-        role_state.current_location_name = LOCATIONS['ruang_tamu'].name
-        role_state.current_location_desc = LOCATIONS['ruang_tamu'].description
-        role_state.current_location_is_private = LOCATIONS['ruang_tamu'].is_private
-        role_state.current_location_ambience = LOCATIONS['ruang_tamu'].ambience
-        role_state.current_location_risk = LOCATIONS['ruang_tamu'].risk_level
+        role_state.current_location_id = None
+        role_state.current_location_name = "belum ditentukan"
+        role_state.current_location_desc = "belum jelas"
+        role_state.current_location_is_private = False
+        role_state.current_location_ambience = "suasana netral"
+        role_state.current_location_risk = "medium"
