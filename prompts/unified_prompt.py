@@ -603,7 +603,7 @@ ATURAN TAMBAHAN:
 
     # ========== ATURAN PAKAIAN DINAMIS ==========
     clothing_rules = """
-👗 ATURAN PAKAIAN (WAJIB DIIKUTI):
+ATURAN PAKAIAN (WAJIB DIIKUTI):
 
 1. AWAL SESI (Mas datang):
    - Role akan INISIATIF ganti baju sendiri TANPA diminta
