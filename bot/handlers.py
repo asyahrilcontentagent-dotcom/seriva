@@ -1,4 +1,4 @@
-﻿"""Telegram handlers for SERIVA bot.
+"""Telegram handlers for SERIVA bot.
 
 Menghubungkan Telegram update dengan Orchestrator SERIVA.
 """
@@ -21,7 +21,6 @@ logger = logging.getLogger(__name__)
 PROCESSED_UPDATES = set()
 P = ParamSpec("P")
 R = TypeVar("R")
-
 
 
 # ==============================
@@ -78,15 +77,15 @@ def start_handler(orchestrator: Orchestrator, admin_id: str):
         await chat.send_message(
             "Halo Mas, ini SERIVA.\n\n"
             "Ketik aja seperti ngobrol biasa, atau pakai command:\n"
-            "- /nova â†’ balik ke Nova\n"
-            "- /role â†’ lihat daftar role\n"
-            "- /role <id> â†’ pindah ke role tertentu\n"
-            "- /pause â†’ pause sesi intens saat ini\n"
-            "- /resume â†’ lanjutkan sesi yang di-pause\n"
-            "- /batal, /end, /close â†’ akhiri sesi khusus & balik ke chat biasa\n"
-            "- /status â†’ lihat ringkasan perasaan & adegan role aktif\n"
-            "- /flashback â†’ minta role cerita ulang momen indah kalian\n"
-            "- /nego <harga>, /deal, /mulai â†’ alur khusus untuk terapis & teman spesial"
+            "- /nova → balik ke Nova\n"
+            "- /role → lihat daftar role\n"
+            "- /role <id> → pindah ke role tertentu\n"
+            "- /pause → pause sesi intens saat ini\n"
+            "- /resume → lanjutkan sesi yang di-pause\n"
+            "- /batal, /end, /close → akhiri sesi khusus & balik ke chat biasa\n"
+            "- /status → lihat ringkasan perasaan & adegan role aktif\n"
+            "- /flashback → minta role cerita ulang momen indah kalian\n"
+            "- /nego <harga>, /deal, /mulai → alur khusus untuk terapis & teman spesial"
         )
 
     return _handler
@@ -103,17 +102,17 @@ def help_handler(orchestrator: Orchestrator, admin_id: str):
             return
         await chat.send_message(
             "Daftar command SERIVA:\n"
-            "- /nova â†’ ngobrol dengan Nova (pasangan utama)\n"
-            "- /role â†’ lihat daftar role yang tersedia\n"
-            "- /role <id> â†’ pindah ke role tertentu (misal: /role teman_spesial_davina)\n"
-            "- /pause â†’ pause sesi intens saat ini (roleplay/provider)\n"
-            "- /resume â†’ lanjutkan sesi yang di-pause dari posisi terakhir\n"
-            "- /batal, /end, atau /close â†’ akhiri sesi khusus dan kembali ke mode normal\n"
-            "- /status â†’ lihat ringkasan perasaan & adegan role aktif\n"
-            "- /flashback â†’ minta role cerita ulang satu momen indah/khas dengan Mas\n"
-            "- /nego <harga> â†’ nego harga dengan terapis/teman spesial aktif\n"
-            "- /deal â†’ konfirmasi setelah nego\n"
-            "- /mulai â†’ mulai sesi setelah /deal"
+            "- /nova → ngobrol dengan Nova (pasangan utama)\n"
+            "- /role → lihat daftar role yang tersedia\n"
+            "- /role <id> → pindah ke role tertentu (misal: /role teman_spesial_davina)\n"
+            "- /pause → pause sesi intens saat ini (roleplay/provider)\n"
+            "- /resume → lanjutkan sesi yang di-pause dari posisi terakhir\n"
+            "- /batal, /end, atau /close → akhiri sesi khusus dan kembali ke mode normal\n"
+            "- /status → lihat ringkasan perasaan & adegan role aktif\n"
+            "- /flashback → minta role cerita ulang satu momen indah/khas dengan Mas\n"
+            "- /nego <harga> → nego harga dengan terapis/teman spesial aktif\n"
+            "- /deal → konfirmasi setelah nego\n"
+            "- /mulai → mulai sesi setelah /deal"
         )
 
     return _handler
@@ -269,157 +268,133 @@ def status_handler(orchestrator: Orchestrator, admin_id: str):
         s = role_state.scene
         intimacy = role_state.intimacy_detail
         
+        # Role display name
+        role_names = {
+            "nova": "Nova",
+            "ipar_tasha": "Tasha Dietha",
+            "teman_kantor_ipeh": "Ipeh",
+            "teman_lama_widya": "Widya",
+            "wanita_bersuami_siska": "Siska",
+            "teman_spesial_davina": "Davina",
+            "teman_spesial_sallsa": "Sallsa",
+            "terapis_aghia": "Aghnia",
+            "terapis_munira": "Munira",
+        }
+        role_display = role_names.get(role_id, role_id)
+        
         # ========== STATUS PAKAIAN ==========
         user_clothes = intimacy.user_clothing_removed
         role_clothes = intimacy.role_clothing_removed
         
-        user_shirt = "âœ… LEPAS" if "baju" in user_clothes else "âŒ masih pake"
-        user_pants = "âœ… LEPAS" if "celana" in user_clothes else "âŒ masih pake"
-        user_underwear = "âœ… LEPAS" if "celana dalam" in user_clothes else "âŒ masih pake"
+        def status_icon(condition):
+            return "✅" if condition else "❌"
         
-        role_shirt = "âœ… LEPAS" if ("baju" in role_clothes or "bra" in role_clothes) else "âŒ masih pake"
-        role_pants = "âœ… LEPAS" if "celana" in role_clothes else "âŒ masih pake"
-        role_underwear = "âœ… LEPAS" if "celana dalam" in role_clothes else "âŒ masih pake"
+        user_shirt_off = "baju" in user_clothes
+        user_pants_off = "celana" in user_clothes
+        user_underwear_off = "celana dalam" in user_clothes
         
-        # ========== STATUS LOKASI TERBARU ==========
+        role_shirt_off = ("baju" in role_clothes or "bra" in role_clothes)
+        role_pants_off = "celana" in role_clothes
+        role_underwear_off = "celana dalam" in role_clothes
+        
+        # ========== STATUS LOKASI ==========
         current_location = getattr(role_state, 'current_location_name', s.location or "belum ditentukan")
-        location_private = "ðŸ”’ PRIVAT" if getattr(role_state, 'current_location_is_private', False) else "ðŸ‘€ PUBLIK/SEMI PRIVAT"
-        household_summary = getattr(world_state, "current_household_note", "-")
-        nova_home = "YA" if getattr(world_state, "nova_is_home", True) else "TIDAK"
-        
-        # ========== STATUS POSISI & INTIMASI ==========
-        position = intimacy.position.value if intimacy.position else "belum ada"
-        dominance = intimacy.dominance.value if intimacy.dominance else "netral"
-        intensity = intimacy.intensity.value if intimacy.intensity else "foreplay"
-        
-        # ========== STATUS SENTUHAN & AKTIVITAS ==========
-        last_touch = s.last_touch or "belum ada"
-        last_action = intimacy.last_action or "belum ada"
-        last_pleasure = intimacy.last_pleasure or "belum ada"
+        location_private = getattr(role_state, 'current_location_is_private', False)
+        location_icon = "🔒 PRIVAT" if location_private else "👀 PUBLIK"
+        nova_home = "✅ Ada" if getattr(world_state, "nova_is_home", True) else "❌ Tidak ada"
         
         # ========== STATUS HANDUK ==========
         handuk_tersedia = getattr(role_state, 'handuk_tersedia', False)
-        handuk_status = "âœ… SEDANG DIPAKAI" if handuk_tersedia else "âŒ TIDAK ADA/TIDAK DIPAKAI"
+        handuk_status = "✅ Sedang dipakai" if handuk_tersedia else "❌ Tidak ada"
         
-        # ========== STATUS CLIMAX & EJAKULASI ==========
+        # ========== STATUS CLIMAX ==========
         role_climax_count = getattr(role_state, 'role_climax_count', 0)
         mas_has_climaxed = getattr(role_state, 'mas_has_climaxed', False)
-        prefer_buang_di_dalam = getattr(role_state, 'prefer_buang_di_dalam', None)
-        last_ejakulasi_inside = getattr(role_state, 'last_ejakulasi_inside', False)
-        provider_service = role_state.session.provider_service_label or "-"
-        provider_price = role_state.session.negotiated_price or "-"
-        provider_deal = "YA" if role_state.session.deal_confirmed else "BELUM"
+        prefer_buang = getattr(role_state, 'prefer_buang_di_dalam', None)
         
-        role_wants_climax = getattr(role_state, 'role_wants_climax', False)
-        mas_wants_climax = getattr(role_state, 'mas_wants_climax', False)
-        role_holding_climax = getattr(role_state, 'role_holding_climax', False)
-        mas_holding_climax = getattr(role_state, 'mas_holding_climax', False)
-        pending_ejakulasi_question = getattr(role_state, 'pending_ejakulasi_question', False)
-        aftercare_active = getattr(role_state, 'aftercare_active', False)
-        
-        # Status climax role
-        if role_wants_climax:
-            role_climax_status = "ðŸ”¥ MAU CLIMAX"
-        elif role_holding_climax:
-            role_climax_status = "â¸ï¸ MENAHAN CLIMAX"
+        if prefer_buang is True:
+            prefer_text = "💦 DI DALAM"
+        elif prefer_buang is False:
+            prefer_text = "💦 DI LUAR"
         else:
-            role_climax_status = "âŒ TIDAK"
+            prefer_text = "❓ Belum ditentukan"
         
-        # Status climax Mas
-        if mas_wants_climax:
-            mas_climax_status = "ðŸ”¥ MAU CLIMAX"
-        elif mas_holding_climax:
-            mas_climax_status = "â¸ï¸ MENAHAN CLIMAX"
-        elif mas_has_climaxed:
-            mas_climax_status = "âœ… SUDAH CLIMAX"
-        else:
-            mas_climax_status = "âŒ BELUM"
+        # Mood emoji
+        mood_emoji = {
+            "neutral": "😐",
+            "happy": "😊",
+            "sad": "😢",
+            "playful": "😏",
+            "annoyed": "😤",
+            "jealous": "😒",
+            "tired": "😴",
+            "tender": "🥰",
+        }.get(e.mood.value, "😐")
         
-        # Preferensi buang
-        if prefer_buang_di_dalam is True:
-            preferensi_buang = "DI DALAM"
-        elif prefer_buang_di_dalam is False:
-            preferensi_buang = "DI LUAR"
-        else:
-            preferensi_buang = "BELUM DITENTUKAN"
+        # Position emoji
+        position_emoji = {
+            "missionary": "🛌",
+            "cowgirl": "🐎",
+            "doggy": "🐕",
+            "spoon": "🥄",
+            "sitting": "🪑",
+            "standing": "🧍",
+            "edge": "🛏️",
+            "car": "🚗",
+        }.get(intimacy.position.value if intimacy.position else "", "💑")
         
-        # Ejakulasi terakhir
-        if getattr(role_state, 'last_ejakulasi_timestamp', None) is None:
-            last_ejakulasi_text = "BELUM PERNAH"
-        else:
-            last_ejakulasi_text = "DI DALAM" if last_ejakulasi_inside else "DI LUAR"
-        
-        # ========== BUILD PESAN STATUS ==========
+        # ========== BUILD PESAN ==========
         text_lines = [
-            "ðŸŽ­ ROLE AKTIF: " + role_id,
+            f"🎭 *{role_display}* (Role aktif)",
             "",
-            "â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”",
-            "ðŸ“Š EMOSI & HUBUNGAN",
-            "â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”",
-            "â–ª Level hubungan: " + str(r.relationship_level) + "/12",
-            "â–ª Love: " + str(e.love),
-            "â–ª Longing (kangen): " + str(e.longing),
-            "â–ª Jealousy (cemburu): " + str(e.jealousy),
-            "â–ª Comfort (nyaman): " + str(e.comfort),
-            "â–ª Intimacy intensity: " + str(e.intimacy_intensity) + "/12",
-            "â–ª Mood: " + str(e.mood.value),
+            "📊 *EMOSI & HUBUNGAN*",
+            f"   ❤️ Level hubungan: {r.relationship_level}/12",
+            f"   💕 Love: {e.love}",
+            f"   🥺 Kangen: {e.longing}",
+            f"   😤 Cemburu: {e.jealousy}",
+            f"   🛋️ Nyaman: {e.comfort}",
+            f"   🔥 Intimacy: {e.intimacy_intensity}/12",
+            f"   {mood_emoji} Mood: {e.mood.value}",
             "",
-            "â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”",
-            "ðŸ“ LOKASI & SCENE",
-            "â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”",
-            "â–ª Lokasi: " + current_location + " " + location_private,
-            "â–ª Household: " + household_summary,
-            "â–ª Nova di rumah: " + nova_home,
-            "â–ª Posture: " + (s.posture or "-"),
-            "â–ª Aktivitas: " + (s.activity or "-"),
-            "â–ª Suasana: " + (s.ambience or "-"),
-            "â–ª Waktu: " + (s.time_of_day.value if s.time_of_day else "-"),
-            "â–ª Jarak fisik: " + (s.physical_distance or "-"),
-            "â–ª Sentuhan terakhir: " + last_touch,
+            "📍 *LOKASI & SCENE*",
+            f"   🏠 Lokasi: {current_location} ({location_icon})",
+            f"   🏡 Nova di rumah: {nova_home}",
+            f"   🪑 Postur: {s.posture or '-'}",
+            f"   🎬 Aktivitas: {s.activity or '-'}",
+            f"   🌅 Suasana: {s.ambience or '-'}",
+            f"   ⏰ Waktu: {s.time_of_day.value if s.time_of_day else '-'}",
+            f"   📏 Jarak: {s.physical_distance or '-'}",
+            f"   ✋ Sentuhan: {s.last_touch or '-'}",
             "",
-            "â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”",
-            "ðŸ‘• STATUS PAKAIAN",
-            "â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”",
-            "â–ª MAS:",
-            "   - Baju: " + user_shirt,
-            "   - Celana: " + user_pants,
-            "   - Celana dalam: " + user_underwear,
+            "👕 *STATUS PAKAIAN*",
             "",
-            "â–ª ROLE:",
-            "   - Baju/Bra: " + role_shirt,
-            "   - Celana: " + role_pants,
-            "   - Celana dalam: " + role_underwear,
+            "   👨 *Mas:*",
+            f"      👚 Baju: {status_icon(user_shirt_off)}",
+            f"      👖 Celana: {status_icon(user_pants_off)}",
+            f"      🩲 Celana dalam: {status_icon(user_underwear_off)}",
             "",
-            "â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”",
-            "ðŸ§º STATUS HANDUK",
-            "â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”",
-            "â–ª " + handuk_status,
+            f"   👩 *{role_display}:*",
+            f"      👚 Baju/Bra: {status_icon(role_shirt_off)}",
+            f"      👖 Celana: {status_icon(role_pants_off)}",
+            f"      🩲 Celana dalam: {status_icon(role_underwear_off)}",
             "",
-            "â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”",
-            "ðŸ›ï¸ ADEGAN INTIM",
-            "â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”",
-            "â–ª Posisi: " + position,
-            "â–ª Dominasi: " + dominance,
-            "â–ª Intensitas: " + intensity,
-            "â–ª Aksi terakhir: " + last_action,
-            "â–ª Perasaan terakhir: " + last_pleasure,
+            "🧺 *HANDUK*",
+            f"   {handuk_status}",
             "",
-            "â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”",
-            "ðŸ’¦ STATUS CLIMAX & EJAKULASI",
-            "â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”â”",
-            "â–ª Role climax count: " + str(role_climax_count) + "x",
-            "â–ª Role climax status: " + role_climax_status,
-            "â–ª Mas climax status: " + mas_climax_status,
-            "â–ª Preferensi buang: " + preferensi_buang,
-            "â–ª Provider service: " + str(provider_service),
-            "â–ª Provider deal: " + provider_deal,
-            "â–ª Harga deal: " + str(provider_price),
-            "â–ª Ejakulasi terakhir: " + last_ejakulasi_text,
-            "- Preferensi akhir pending: " + ("YA" if pending_ejakulasi_question else "TIDAK"),
-            "- Aftercare aktif: " + ("YA" if aftercare_active else "TIDAK"),
+            "🛏️ *ADEGAN INTIM*",
+            f"   {position_emoji} Posisi: {intimacy.position.value if intimacy.position else '-'}",
+            f"   👑 Dominasi: {intimacy.dominance.value if intimacy.dominance else '-'}",
+            f"   🔥 Intensitas: {intimacy.intensity.value if intimacy.intensity else '-'}",
+            f"   🎬 Aksi: {intimacy.last_action or '-'}",
+            f"   💭 Perasaan: {intimacy.last_pleasure or '-'}",
+            "",
+            "💦 *CLIMAX & EJAKULASI*",
+            f"   🔥 Role climax: {role_climax_count}x",
+            f"   👨 Mas climax: {'✅ Sudah' if mas_has_climaxed else '❌ Belum'}",
+            f"   📍 Preferensi buang: {prefer_text}",
         ]
 
-        await chat.send_message("\n".join(text_lines))
+        await chat.send_message("\n".join(text_lines), parse_mode="Markdown")
 
     return _handler
 
@@ -446,7 +421,7 @@ def pause_handler(orchestrator: Orchestrator, admin_id: str):
         user_state.global_session_mode = SessionMode.NORMAL
         orchestrator._save_all(user_state, orchestrator._load_or_init_world_state())  # type: ignore[attr-defined]
 
-        await chat.send_message("â¸ï¸ Sesi dihentikan sementara. Ketik /resume untuk lanjut.")
+        await chat.send_message("⏸️ Sesi dihentikan sementara. Ketik /resume untuk lanjut.")
 
     return _handler
 
@@ -469,7 +444,7 @@ def resume_handler(orchestrator: Orchestrator, admin_id: str):
         orchestrator._save_all(user_state, orchestrator._load_or_init_world_state())  # type: ignore[attr-defined]
 
         await chat.send_message(
-            "â–¶ï¸ Sesi dilanjutkan! Silakan lanjut ngobrol, role akan melanjutkan dari suasana terakhir."
+            "▶️ Sesi dilanjutkan! Silakan lanjut ngobrol, role akan melanjutkan dari suasana terakhir."
         )
 
     return _handler
@@ -635,5 +610,3 @@ def message_handler(orchestrator: Orchestrator, admin_id: str):
         await chat.send_message(out.reply_text)
 
     return _handler
-
-
