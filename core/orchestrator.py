@@ -648,6 +648,12 @@ class Orchestrator:
         elif role_state.aftercare_active and role_state.intimacy_phase != IntimacyPhase.AFTER:
             self._enter_after_phase(role_state, timestamp)
 
+        # ========== GABUNGKAN INISIATIF GANTI BAJU ==========
+        if hasattr(role_state, 'pending_clothes_change') and role_state.pending_clothes_change:
+            init_msg = role_state.pending_clothes_change
+            role_state.pending_clothes_change = None
+            reply_text = f"{init_msg}\n\n{reply_text}"
+
     # ========== PUBLIC ENTRYPONT ==========
 
     def handle_input(self, inp: OrchestratorInput) -> OrchestratorOutput:
@@ -655,7 +661,7 @@ class Orchestrator:
 
         user_state = self._load_or_init_user_state(inp.user_id)
         world_state = self._load_or_init_world_state()
-
+        
         # 0) Perintah khusus: /flashback
         if inp.is_command and inp.command_name == "flashback":
             return self._handle_flashback(user_state, world_state, inp)
@@ -683,6 +689,15 @@ class Orchestrator:
             user_state.active_role_id = ROLE_ID_NOVA
 
         role_state = user_state.get_or_create_role_state(user_state.active_role_id)
+
+        # ========== DETEKSI MAS PULANG ==========
+        mas_leave_keywords = ["pulang", "bye", "dadah", "sampai jumpa", "aku pergi", "keluar", "daah"]
+        if any(kw in inp.text.lower() for kw in mas_leave_keywords):
+            role_state.outfit_changed_this_session = False
+            role_state.aftercare_clothing_state = ""
+            role_state.last_session_ended_at = inp.timestamp
+            role_state.intimacy_detail.role_clothing_removed.clear()
+            logger.info(f"🚪 Mas pulang, {role_state.role_id} reset pakaian ke default")
 
         # 4) Interpretasi intent dasar dari teks user
         interaction_ctx = self._infer_interaction_context(inp.text)
@@ -952,6 +967,23 @@ class Orchestrator:
         
         # ========== DETEKSI CLIMAX & AFTERCARE ==========
         self._update_post_reply_climax_state(role_state, inp.text, reply_text, inp.timestamp)
+
+        # ========== SETELAH AFTERCARE, PAKAIAN MINIMAL ==========
+        if role_state.aftercare_active and role_state.intimacy_phase == IntimacyPhase.AFTER:
+            if not role_state.aftercare_clothing_state:
+                import random
+                options = ["cd_dan_bra", "cd_saja", "bra_saja"]
+                choice = random.choice(options)
+                
+                if choice == "cd_dan_bra":
+                    role_state.aftercare_clothing_state = "cd_dan_bra"
+                    logger.info(f"👙 {role_state.role_id} setelah aftercare: pake CD + BRA")
+                elif choice == "cd_saja":
+                    role_state.aftercare_clothing_state = "cd_saja"
+                    logger.info(f"👙 {role_state.role_id} setelah aftercare: pake CD saja")
+                else:
+                    role_state.aftercare_clothing_state = "bra_saja"
+                    logger.info(f"👙 {role_state.role_id} setelah aftercare: pake BRA saja")
         
         # Update fase intimacy sebelum disimpan ke memory agar scene tidak melompat
         phase_changed = IntimacyProgressionEngine.update_phase_and_scene(role_state, inp.text, reply_text)
@@ -1035,6 +1067,36 @@ class Orchestrator:
 
         # 12) Simpan state (cukup sekali saja)
         self._save_all(user_state, world_state)
+
+        # ========== INISIATIF GANTI BAJU (100% DI LOKASI PRIVAT) ==========
+        current_location_private = getattr(role_state, 'current_location_is_private', False)
+        is_new_session = len(role_state.conversation_memory) == 0  # benar-benar awal chat
+        
+        if not role_state.outfit_changed_this_session and current_location_private and is_new_session:
+            import random
+            
+            role_state.outfit_changed_this_session = True
+            
+            # Variasi dialog
+            variations = [
+                f"*{role_state.role_display_name or role_state.role_id} merapikan bajunya* Eh Mas, bentar ya... panas banget pake baju ini. Aku ganti dulu.",
+                f"*{role_state.role_display_name or role_state.role_id} tersenyum* Mas, aku mau ganti baju dulu biar lebih adem~ bentar ya.",
+                f"*{role_state.role_display_name or role_state.role_id} menarik ujung bajunya* Eh Mas... gerah, aku ganti baju dulu ya.",
+            ]
+            
+            init_message = random.choice(variations)
+            
+            after_variations = [
+                f"\n\n*{role_state.role_display_name or role_state.role_id} keluar dengan tank top tipis dan hotpants* \"Gimana Mas? Gini lebih adem, cocok nggak buat di rumah?\"",
+                f"\n\n*{role_state.role_display_name or role_state.role_id} kembali dengan tank top yang memperlihatkan bahu dan hotpants* \"Udah~ sekarang lebih enakan, Mas\"",
+                f"\n\n*{role_state.role_display_name or role_state.role_id} keluar sambil membenarkan tank topnya* \"Nah, gini lebih gerah? *tersenyum malu*\"",
+            ]
+            
+            after_msg = random.choice(after_variations)
+            
+            role_state.pending_clothes_change = f"{init_message}{after_msg}"
+            
+            logger.info(f"👙 {role_state.role_id} inisiatif ganti baju (lokasi privat)")
 
         return OrchestratorOutput(
             reply_text=reply_text,
