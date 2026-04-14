@@ -503,6 +503,12 @@ class RoleState:
     current_location_ambience: str = "suasana netral"
     current_location_risk: str = "medium"  # low, medium, high
 
+    # ========== SISTEM PAKAIAN DINAMIS ==========
+    outfit_changed_this_session: bool = False  # sudah ganti ke tank top+hotpants di sesi ini
+    aftercare_clothing_state: str = ""  # "minimal", "semi", "full" (setelah aftercare)
+    last_session_ended_at: Optional[float] = None  # kapan terakhir Mas pulang
+    pending_clothes_change: Optional[str] = None  # pesan inisiatif ganti baju
+
     # ========== HANDUK ==========
     handuk_tersedia: bool = False
     handuk_dikasih: bool = False
@@ -649,6 +655,11 @@ class RoleState:
         self.mas_holding_climax = False
         self.pending_ejakulasi_question = False
         self.aftercare_active = False
+
+        # Reset pakaian dinamis
+        self.outfit_changed_this_session = False
+        self.aftercare_clothing_state = ""
+        self.pending_clothes_change = None
         
         # Reset handuk
         self.handuk_tersedia = False
