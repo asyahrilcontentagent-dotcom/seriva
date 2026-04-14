@@ -26,8 +26,6 @@ Terapis pijat TIDAK diberi milestone-milestone ini.
 
 from __future__ import annotations
 
-from typing import Iterable
-
 from config.constants import (
     ROLE_ID_NOVA,
     ROLE_ID_IPAR_TASHA,
@@ -37,10 +35,8 @@ from config.constants import (
     ROLE_ID_TEMAN_SPESIAL_DAVINA,
     ROLE_ID_TEMAN_SPESIAL_SALLSA,
 )
-from core.orchestrator import OrchestratorInput
 from core.state_models import RoleState, UserState
 from memory.milestones import MilestoneStore
-from core.orchestrator import OrchestratorInput
 
 
 # ==============================
@@ -138,11 +134,10 @@ ROLES_WITH_SOUL_BONDED_MOMENT: set[str] = ROMANTIC_ROLES.copy()
 # ENTRYPOINT
 # ==============================
 
-
 def apply_auto_milestones(
     user_state: UserState,
     role_state: RoleState,
-    inp: OrchestratorInput,
+    inp,
     milestone_store: MilestoneStore,
 ) -> None:
     """Terapkan semua aturan auto-milestone untuk satu interaksi.
@@ -164,11 +159,10 @@ def apply_auto_milestones(
 # FIRST CONFESSION
 # ==============================
 
-
 def _maybe_first_confession(
     user_state: UserState,
     role_state: RoleState,
-    inp: OrchestratorInput,
+    inp,
     milestone_store: MilestoneStore,
 ) -> None:
     """Catat first_confession untuk role-role yang relevan."""
@@ -245,11 +239,10 @@ def _maybe_first_confession(
 # FIRST HUG
 # ==============================
 
-
 def _maybe_first_hug(
     user_state: UserState,
     role_state: RoleState,
-    inp: OrchestratorInput,
+    inp,
     milestone_store: MilestoneStore,
 ) -> None:
     """Catat first_hug (pelukan pertama) untuk role-role yang relevan."""
@@ -325,11 +318,10 @@ def _maybe_first_hug(
 # FIRST KISS (SOFT)
 # ==============================
 
-
 def _maybe_first_kiss_soft(
     user_state: UserState,
     role_state: RoleState,
-    inp: OrchestratorInput,
+    inp,
     milestone_store: MilestoneStore,
 ) -> None:
     """Catat first_kiss_soft untuk role-role yang relevan.
@@ -406,11 +398,10 @@ def _maybe_first_kiss_soft(
 # FIRST DATE MEAL
 # ==============================
 
-
 def _maybe_first_date_meal(
     user_state: UserState,
     role_state: RoleState,
-    inp: OrchestratorInput,
+    inp,
     milestone_store: MilestoneStore,
 ) -> None:
     """Catat first_date_meal (makan/date pertama)."""
@@ -485,11 +476,10 @@ def _maybe_first_date_meal(
 # FIRST MOVIE NIGHT
 # ==============================
 
-
 def _maybe_first_movie_night(
     user_state: UserState,
     role_state: RoleState,
-    inp: OrchestratorInput,
+    inp,
     milestone_store: MilestoneStore,
 ) -> None:
     """Catat first_movie_night (nonton bareng pertama)."""
@@ -564,11 +554,10 @@ def _maybe_first_movie_night(
 # FIRST SLEEPOVER (SOFT)
 # ==============================
 
-
 def _maybe_first_sleepover_soft(
     user_state: UserState,
     role_state: RoleState,
-    inp: OrchestratorInput,
+    inp,
     milestone_store: MilestoneStore,
 ) -> None:
     """Catat first_sleepover_soft (malam panjang pertama, versi halus)."""
@@ -643,11 +632,10 @@ def _maybe_first_sleepover_soft(
 # SOUL-BONDED MOMENT
 # ==============================
 
-
 def _maybe_soul_bonded_moment(
     user_state: UserState,
     role_state: RoleState,
-    inp: OrchestratorInput,
+    inp,
     milestone_store: MilestoneStore,
 ) -> None:
     """Catat soul_bonded_moment (deep intimacy emosional)."""
