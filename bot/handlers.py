@@ -343,58 +343,84 @@ def status_handler(orchestrator: Orchestrator, admin_id: str):
             "car": "🚗",
         }.get(intimacy.position.value if intimacy.position else "", "💑")
         
-        # ========== BUILD PESAN ==========
+        # ========== AMBIL NILAI DENGAN AMAN (CEGAH None) ==========
+        def safe_str(value, default="-"):
+            return str(value) if value is not None and str(value).strip() else default
+        
+        relationship_level = getattr(r, 'relationship_level', 0)
+        love = getattr(e, 'love', 0)
+        longing = getattr(e, 'longing', 0)
+        jealousy = getattr(e, 'jealousy', 0)
+        comfort = getattr(e, 'comfort', 0)
+        intimacy_intensity = getattr(e, 'intimacy_intensity', 0)
+        mood_value = getattr(e.mood, 'value', 'neutral') if e.mood else 'neutral'
+        
+        posture = safe_str(getattr(s, 'posture', None))
+        activity = safe_str(getattr(s, 'activity', None))
+        ambience = safe_str(getattr(s, 'ambience', None))
+        time_of_day = getattr(s.time_of_day, 'value', '-') if s.time_of_day else '-'
+        physical_distance = safe_str(getattr(s, 'physical_distance', None))
+        last_touch = safe_str(getattr(s, 'last_touch', None))
+        
+        position_value = safe_str(getattr(intimacy.position, 'value', None) if intimacy.position else None)
+        dominance_value = safe_str(getattr(intimacy.dominance, 'value', None) if intimacy.dominance else None)
+        intensity_value = safe_str(getattr(intimacy.intensity, 'value', None) if intimacy.intensity else None)
+        last_action = safe_str(getattr(intimacy, 'last_action', None))
+        last_pleasure = safe_str(getattr(intimacy, 'last_pleasure', None))
+        
+        # ========== BUILD PESAN (TANPA MARKDOWN) ==========
         text_lines = [
-            f"🎭 *{role_display}* (Role aktif)",
+            f"🎭 {role_display} (Role aktif)",
             "",
-            "📊 *EMOSI & HUBUNGAN*",
-            f"   ❤️ Level hubungan: {r.relationship_level}/12",
-            f"   💕 Love: {e.love}",
-            f"   🥺 Kangen: {e.longing}",
-            f"   😤 Cemburu: {e.jealousy}",
-            f"   🛋️ Nyaman: {e.comfort}",
-            f"   🔥 Intimacy: {e.intimacy_intensity}/12",
-            f"   {mood_emoji} Mood: {e.mood.value}",
+            "📊 EMOSI & HUBUNGAN",
+            f"   ❤️ Level hubungan: {relationship_level}/12",
+            f"   💕 Love: {love}",
+            f"   🥺 Kangen: {longing}",
+            f"   😤 Cemburu: {jealousy}",
+            f"   🛋️ Nyaman: {comfort}",
+            f"   🔥 Intimacy: {intimacy_intensity}/12",
+            f"   {mood_emoji} Mood: {mood_value}",
             "",
-            "📍 *LOKASI & SCENE*",
+            "📍 LOKASI & SCENE",
             f"   🏠 Lokasi: {current_location} ({location_icon})",
             f"   🏡 Nova di rumah: {nova_home}",
-            f"   🪑 Postur: {s.posture or '-'}",
-            f"   🎬 Aktivitas: {s.activity or '-'}",
-            f"   🌅 Suasana: {s.ambience or '-'}",
-            f"   ⏰ Waktu: {s.time_of_day.value if s.time_of_day else '-'}",
-            f"   📏 Jarak: {s.physical_distance or '-'}",
-            f"   ✋ Sentuhan: {s.last_touch or '-'}",
+            f"   🪑 Postur: {posture}",
+            f"   🎬 Aktivitas: {activity}",
+            f"   🌅 Suasana: {ambience}",
+            f"   ⏰ Waktu: {time_of_day}",
+            f"   📏 Jarak: {physical_distance}",
+            f"   ✋ Sentuhan: {last_touch}",
             "",
-            "👕 *STATUS PAKAIAN*",
+            "👕 STATUS PAKAIAN",
             "",
-            "   👨 *Mas:*",
+            "   👨 Mas:",
             f"      👚 Baju: {status_icon(user_shirt_off)}",
             f"      👖 Celana: {status_icon(user_pants_off)}",
             f"      🩲 Celana dalam: {status_icon(user_underwear_off)}",
             "",
-            f"   👩 *{role_display}:*",
+            f"   👩 {role_display}:",
             f"      👚 Baju/Bra: {status_icon(role_shirt_off)}",
             f"      👖 Celana: {status_icon(role_pants_off)}",
             f"      🩲 Celana dalam: {status_icon(role_underwear_off)}",
             "",
-            "🧺 *HANDUK*",
+            "🧺 HANDUK",
             f"   {handuk_status}",
             "",
-            "🛏️ *ADEGAN INTIM*",
-            f"   {position_emoji} Posisi: {intimacy.position.value if intimacy.position else '-'}",
-            f"   👑 Dominasi: {intimacy.dominance.value if intimacy.dominance else '-'}",
-            f"   🔥 Intensitas: {intimacy.intensity.value if intimacy.intensity else '-'}",
-            f"   🎬 Aksi: {intimacy.last_action or '-'}",
-            f"   💭 Perasaan: {intimacy.last_pleasure or '-'}",
+            "🛏️ ADEGAN INTIM",
+            f"   {position_emoji} Posisi: {position_value}",
+            f"   👑 Dominasi: {dominance_value}",
+            f"   🔥 Intensitas: {intensity_value}",
+            f"   🎬 Aksi: {last_action}",
+            f"   💭 Perasaan: {last_pleasure}",
             "",
-            "💦 *CLIMAX & EJAKULASI*",
+            "💦 CLIMAX & EJAKULASI",
             f"   🔥 Role climax: {role_climax_count}x",
             f"   👨 Mas climax: {'✅ Sudah' if mas_has_climaxed else '❌ Belum'}",
             f"   📍 Preferensi buang: {prefer_text}",
         ]
 
-        await chat.send_message("\n".join(text_lines), parse_mode="Markdown")
+        # Kirim tanpa parse_mode untuk menghindari error markdown
+        await chat.send_message("\n".join(text_lines))
 
     return _handler
 
