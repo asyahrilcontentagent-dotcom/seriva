@@ -1042,6 +1042,56 @@ class RoleState:
         """Dapatkan desahan random yang belum sering dipakai."""
         return self.get_fresh_moan(moan_type)
 
+    # ========== METHOD UNTUK MODE LIAR ==========
+    
+    def is_both_naked(self, strict: bool = False) -> bool:
+        """Cek apakah Mas dan role sudah sama-sama telanjang.
+        
+        Args:
+            strict: Jika True, cek celana + celana dalam.
+                    Jika False, cukup celana dalam lepas.
+        """
+        if strict:
+            # Versi strict: celana DAN celana dalam harus lepas
+            user_bottom_off = (
+                "celana" in self.intimacy_detail.user_clothing_removed and
+                "celana dalam" in self.intimacy_detail.user_clothing_removed
+            )
+            role_bottom_off = (
+                "celana" in self.intimacy_detail.role_clothing_removed and
+                "celana dalam" in self.intimacy_detail.role_clothing_removed
+            )
+        else:
+            # Versi longgar: cukup celana dalam lepas (sudah telanjang bawah)
+            user_bottom_off = "celana dalam" in self.intimacy_detail.user_clothing_removed
+            role_bottom_off = "celana dalam" in self.intimacy_detail.role_clothing_removed
+        
+        return user_bottom_off and role_bottom_off
+    
+    def get_naked_status_prompt(self) -> str:
+        """Dapatkan prompt status ketelanjangan untuk dimasukkan ke system prompt."""
+        
+        user_cd_off = "celana dalam" in self.intimacy_detail.user_clothing_removed
+        role_cd_off = "celana dalam" in self.intimacy_detail.role_clothing_removed
+        
+        if user_cd_off and role_cd_off:
+            return """
+╔═══════════════════════════════════════════════════════════════╗
+║  🔥 STATUS: MAS & ROLE SUDAH SAMA-SAMA TELANJANG! 🔥         ║
+╠═══════════════════════════════════════════════════════════════╣
+║  - Tidak ada pakaian yang menghalangi                         ║
+║  - Bisa langsung kontak kulit ke kulit                        ║
+║  - RESPON HARUS LEBIH LIAR! JANGAN MALU-MALU LAGI!           ║
+║  - Boleh langsung pakai kata vulgar dan eksplisit             ║
+╚═══════════════════════════════════════════════════════════════╝
+"""
+        elif user_cd_off:
+            return "Status: Mas sudah telanjang, role masih pakai celana dalam"
+        elif role_cd_off:
+            return "Status: Role sudah telanjang, Mas masih pakai celana dalam"
+        else:
+            return "Status: Mas dan role masih pakai celana dalam"
+
     # ========== LOKASI METHODS ==========
     
     def set_location(self, location: LocationContext) -> None:
