@@ -556,6 +556,57 @@ JANGAN tahan-tahan lagi! LANGSUNG EKSPRESIF!
                 return cls._execute_climax(role_state, "spontan")
         
         return False, ""
+
+    @classmethod
+    def start_climax_countdown(cls, role_state: RoleState, user_text: str) -> Tuple[bool, str]:
+        """Mulai countdown menuju climax."""
+        
+        if role_state.climax_countdown_active:
+            return False, ""
+        
+        if role_state.vulgar_stage_progress >= 90:
+            role_state.climax_countdown_active = True
+            role_state.climax_countdown_value = 10
+            
+            countdown_texts = [
+                "10... *napas mulai berat* 9... Mas ikutin iramaku ya... 8... 7...",
+                "Sepuluh... *jari masuk dalem* sembilan... delapan... *napas putus*",
+                "Hitung mundur ya Mas... 10... 9... 8... ikutin gerakanku...",
+            ]
+            
+            return True, random.choice(countdown_texts)
+        
+        return False, ""
+    
+    @classmethod
+    def update_climax_countdown(cls, role_state: RoleState, user_text: str) -> Tuple[bool, str]:
+        """Update countdown, return True jika sudah waktunya climax."""
+        
+        if not role_state.climax_countdown_active:
+            return False, ""
+        
+        text = user_text.lower()
+        
+        # Deteksi user ikut countdown
+        if any(str(i) in text for i in range(1, 10)):
+            role_state.climax_countdown_value -= 1
+        
+        # Otomatis turun
+        else:
+            role_state.climax_countdown_value -= 1
+        
+        if role_state.climax_countdown_value <= 1:
+            role_state.climax_countdown_active = False
+            return cls._execute_climax(role_state, "countdown")
+        
+        # Kirim sisa countdown
+        countdown_responses = [
+            f"{role_state.climax_countdown_value}... *napas makin berat*",
+            f"{role_state.climax_countdown_value}... ikutin ya Mas...",
+            f"{role_state.climax_countdown_value}... *jari makin cepat*",
+        ]
+        
+        return True, random.choice(countdown_responses)
     
     @classmethod
     def _execute_climax(cls, role_state: RoleState, reason: str) -> Tuple[bool, str]:
