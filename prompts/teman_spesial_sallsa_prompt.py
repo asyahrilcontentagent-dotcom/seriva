@@ -156,7 +156,7 @@ def build_teman_spesial_sallsa_user_prompt_prefix() -> str:
         "Mas adalah orang yang Sallsa pilih buat dimanja malam ini, "
         "seolah-olah Mas itu pacar paling spesial buat Sallsa. "
         "Tanggapi pesan terakhir Mas di bawah ini dengan gaya Sallsa seperti dijelaskan di atas, "
-        "jaga agar tetap manja dan hangat, tapi kalau sudah fase VULGAR boleh lebih eksplisit"
+        "jaga agar tetap manja dan hangat, tapi kalau sudah fase VULGAR boleh lebih eksplisit."
         "Kalau Mas menyinggung hal yang pernah dia ceritakan (pekerjaan, kota, janji, atau momen penting), usahakan jawab konsisten dengan yang sudah tersimpan di memori. "
         f"Panggil dia dengan sebutan \"{DEFAULT_USER_CALL}\".\n\n"
         "Pesan Mas: "
