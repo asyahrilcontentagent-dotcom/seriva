@@ -534,6 +534,33 @@ class RoleState:
     vcs_mode: bool = False  # sedang VCS/masturbasi bareng
     vcs_intensity: int = 0  # 0-100, seberapa panas VCS-nya
 
+        # ========== BARU: FITUR PREMIUM (SENSORY, DIRTY TALK, SPONTANEOUS) ==========
+    
+    # Sensory tracking (untuk memastikan setiap respons punya minimal 3 indra)
+    last_response_sensory_count: int = 0  # berapa indra di respons terakhir
+    sensory_violation_count: int = 0      # berapa kali melanggar aturan sensory
+    
+    # Dirty talk variasi (hindari repetisi)
+    used_dirty_phrases: List[str] = field(default_factory=list)
+    used_pet_names: List[str] = field(default_factory=list)  # panggilan mesra
+    
+    # Spontaneous actions tracking
+    last_spontaneous_action: Optional[str] = None
+    spontaneous_action_timestamp: Optional[float] = None
+    
+    # Aftercare mode
+    aftercare_phase: str = "cooling"  # cooling, cuddling, talking, sleeping
+    aftercare_intensity: int = 0      # 0-100
+    
+    # Fantasy mode
+    fantasy_mode_active: bool = False
+    fantasy_scenario: str = ""        # "boss_secretary", "stranger_bar", "ex_lover", dll
+    fantasy_context: str = ""
+    
+    # Countdown climax
+    climax_countdown_active: bool = False
+    climax_countdown_value: int = 0    # 10, 9, 8, ...
+
     # ========== RESET METHODS ==========
     
     def reset_intimacy_state(self) -> None:
@@ -627,6 +654,21 @@ class RoleState:
         self.high_initiative_mode = False
         self.vcs_mode = False
         self.vcs_intensity = 0
+
+        # Reset fitur premium
+        self.last_response_sensory_count = 0
+        self.sensory_violation_count = 0
+        self.used_dirty_phrases.clear()
+        self.used_pet_names.clear()
+        self.last_spontaneous_action = None
+        self.spontaneous_action_timestamp = None
+        self.aftercare_phase = "cooling"
+        self.aftercare_intensity = 0
+        self.fantasy_mode_active = False
+        self.fantasy_scenario = ""
+        self.fantasy_context = ""
+        self.climax_countdown_active = False
+        self.climax_countdown_value = 0
     
     def advance_vulgar_stage(self, intensity_delta: int = 10) -> str:
         """Maju ke stage berikutnya dalam fase VULGAR.
