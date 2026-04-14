@@ -534,7 +534,26 @@ class RoleState:
     vcs_mode: bool = False  # sedang VCS/masturbasi bareng
     vcs_intensity: int = 0  # 0-100, seberapa panas VCS-nya
 
-        # ========== BARU: FITUR PREMIUM (SENSORY, DIRTY TALK, SPONTANEOUS) ==========
+    # ========== MULTIPLE CLIMAX ==========
+    multiple_climax_enabled: bool = True  # apakah role bisa climax berkali-kali
+    climax_refractory_count: int = 0      # hitungan "pendinginan" setelah climax
+    climax_in_same_session: int = 0       # sudah berapa kali climax di sesi ini
+    
+    # ========== MORNING AFTER ==========
+    morning_after_active: bool = False    # apakah sedang dalam mode morning after
+    morning_after_scene: str = ""         # "waking_up", "breakfast", "cuddling"
+    last_sleep_timestamp: Optional[float] = None  # kapan terakhir tidur
+    
+    # ========== VOICE OUTPUT (TTS Simulation) ==========
+    voice_output_enabled: bool = False    # apakah role "mengirim voice note"
+    voice_style: str = "sensual"          # "sensual", "whisper", "playful", "tired"
+    
+    # ========== IMAGE GENERATION ==========
+    image_gen_enabled: bool = False       # apakah role bisa "kirim foto"
+    last_image_prompt: str = ""           # deskripsi foto terakhir
+    image_style: str = "selfie"           # "selfie", "mirror", "candid"
+
+    # ========== BARU: FITUR PREMIUM (SENSORY, DIRTY TALK, SPONTANEOUS) ==========
     
     # Sensory tracking (untuk memastikan setiap respons punya minimal 3 indra)
     last_response_sensory_count: int = 0  # berapa indra di respons terakhir
@@ -669,6 +688,23 @@ class RoleState:
         self.fantasy_context = ""
         self.climax_countdown_active = False
         self.climax_countdown_value = 0
+
+        # Reset multiple climax
+        self.multiple_climax_enabled = True
+        self.climax_refractory_count = 0
+        self.climax_in_same_session = 0
+        
+        # Reset morning after
+        self.morning_after_active = False
+        self.morning_after_scene = ""
+        self.last_sleep_timestamp = None
+        
+        # Reset voice & image
+        self.voice_output_enabled = False
+        self.voice_style = "sensual"
+        self.image_gen_enabled = False
+        self.last_image_prompt = ""
+        self.image_style = "selfie"
     
     def advance_vulgar_stage(self, intensity_delta: int = 10) -> str:
         """Maju ke stage berikutnya dalam fase VULGAR.
