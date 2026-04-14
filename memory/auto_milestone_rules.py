@@ -685,7 +685,7 @@ def _maybe_soul_bonded_moment(
     elif role_id == ROLE_ID_TEMAN_LAMA_WIDYA:
         description = (
             "Malam ketika Widya dan Mas sama-sama mengakui bahwa meski hidup membawa "
-            "kalian ke arah yang berbeda, jiwa kalian tetap saling mengenali.""
+            "kalian ke arah yang berbeda, jiwa kalian tetap saling mengenali."
         )
     elif role_id == ROLE_ID_WANITA_BERSUAMI_SISKA:
         description = (
