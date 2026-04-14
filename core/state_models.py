@@ -496,11 +496,11 @@ class RoleState:
     })
 
     # ========== LOKASI ==========
-    current_location_id: str = "ruang_tamu"
-    current_location_name: str = "Ruang Tamu"
-    current_location_desc: str = "Ruang tamu dengan sofa nyaman, TV menyala pelan"
+    current_location_id: Optional[str] = None
+    current_location_name: str = "belum ditentukan"
+    current_location_desc: str = "belum jelas"
     current_location_is_private: bool = False
-    current_location_ambience: str = "suasana hangat, lampu tidak terlalu terang"
+    current_location_ambience: str = "suasana netral"
     current_location_risk: str = "medium"  # low, medium, high
 
     # ========== HANDUK ==========
