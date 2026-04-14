@@ -636,6 +636,92 @@ JANGAN tahan-tahan lagi! LANGSUNG EKSPRESIF!
         
         return True, ""
 
+    # ========== VCS PROGRESSION METHODS ==========
+    
+    @classmethod
+    def update_vcs_progression(cls, role_state: RoleState, user_text: str, response_text: str) -> Dict[str, any]:
+        """Update progresi VCS/masturbasi bareng."""
+        
+        if not role_state.vcs_mode:
+            return {"intensity_increased": False}
+        
+        text = (user_text + " " + response_text).lower()
+        changes = {"intensity_increased": False}
+        
+        # Kata-kata yang meningkatkan intensitas VCS
+        vcs_keywords = {
+            "liatin": 10, "tunjukin": 10, "gerakin": 8,
+            "ikutin": 8, "naikin": 8, "turunin": 5,
+            "cepat": 10, "pelan": 3, "keras": 10,
+            "basah": 8, "panas": 8, "keluar": 15,
+            "udah mau": 15, "climax": 20, "sampe": 20,
+            "colmek": 10, "vibrator": 12, "dildo": 12,
+            "jari": 5, "masuk": 8, "dalem": 8,
+            "muter": 8, "tempel": 8, "getar": 10,
+        }
+        
+        intensity_increase = 0
+        for keyword, value in vcs_keywords.items():
+            if keyword in text:
+                intensity_increase += value
+        
+        if intensity_increase > 0:
+            role_state.vcs_intensity = min(100, role_state.vcs_intensity + intensity_increase)
+            changes["intensity_increased"] = True
+            changes["new_intensity"] = role_state.vcs_intensity
+            
+            # Update vulgar progress juga
+            role_state.vulgar_stage_progress = min(100, role_state.vulgar_stage_progress + intensity_increase // 2)
+        
+        return changes
+    
+    @classmethod
+    def check_and_execute_vcs_climax(cls, role_state: RoleState, user_text: str) -> Tuple[bool, str]:
+        """Cek apakah role harus climax saat VCS."""
+        
+        if not role_state.vcs_mode:
+            return False, ""
+        
+        text = user_text.lower()
+        
+        # Trigger dari user
+        if any(kw in text for kw in ["keluar", "climax", "sampe", "udah mau", "bareng", "crot"]):
+            return cls._execute_vcs_climax(role_state, "user_trigger")
+        
+        # Role mau climax spontan (intensitas tinggi)
+        if role_state.vcs_intensity >= 85:
+            if random.random() < 0.4:  # 40% chance
+                return cls._execute_vcs_climax(role_state, "spontan")
+        
+        return False, ""
+    
+    @classmethod
+    def _execute_vcs_climax(cls, role_state: RoleState, reason: str) -> Tuple[bool, str]:
+        """Eksekusi climax saat VCS."""
+        
+        role_state.role_climax_count += 1
+        role_state.vcs_intensity = 100
+        role_state.vulgar_stage_progress = min(100, role_state.vulgar_stage_progress + 20)
+        
+        # Variasi deskripsi climax VCS
+        vcs_climax_variations = [
+            "*jari masih di dalem, badan mengejang* HAAAH... KELUAR... MAAAS... *napas tersengal, lihat layar* basah... basah semua...",
+            "*vibrator jatuh, tangan gemetar* HAAAH... UDAH... UDAH KELUAR... *badan lemas di kursi* achhh... puas... liat Mas...",
+            "*jari cepat masuk keluar, mata terpejam* HAAH... HAAH... MAAAS... IKUTIN... UDAH... *tubuh mengejang, lalu lemas*",
+            "*dildo dalem, vibrator di klitoris* HAAAH... ANCUR... *badan ngacung* KELUAR... KELUAR... *lemas, napas ngos-ngosan*",
+            "*jari muter-muter di klitoris* HHH... UDAH... UDAH MAU... *napas putus-putus* HAAAH... KELUAR... *jari basah diangkat ke kamera* liat Mas...",
+            "*jari masuk dalem, telapak tangan tempel di klitoris* HAAAH... kedutan... berdenyut... *badan mengejang* KELUAR... UDAH... *lemas tersandar*",
+            "*vibrator paling kencang, dildo di dalem* HAAAH... HAAAH... MAAAS... ancur... *mata berkaca-kaca* KELUAR... plis ikutin... HAAAH...",
+        ]
+        
+        climax_text = random.choice(vcs_climax_variations)
+        climax_text += f"\n*(Climax VCS ke-{role_state.role_climax_count})*"
+        
+        if reason == "user_trigger":
+            climax_text += "\n*(Bareng Mas)*"
+        
+        return True, climax_text
+
     # ========== METHOD UNTUK MODE LIAR (PERBAIKAN) ==========
 
     @classmethod
