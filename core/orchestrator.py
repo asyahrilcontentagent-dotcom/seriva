@@ -958,6 +958,26 @@ class Orchestrator:
         if phase_changed:
             logger.info(f"User {inp.user_id} role {role_state.role_id} moved to {role_state.intimacy_phase}")
 
+        # ========== MORNING AFTER DETECTION ==========
+        # Deteksi user bilang "tidur" atau "pagi"
+        if any(kw in inp.text.lower() for kw in ["tidur", "bobo", "istirahat"]):
+            if not role_state.morning_after_active:
+                role_state.morning_after_active = True
+                role_state.last_sleep_timestamp = inp.timestamp
+                role_state.morning_after_scene = "sleeping"
+                logger.info(f"🌙 {role_state.role_id} masuk mode MORNING AFTER (tidur)")
+        
+        # Deteksi user bilang "pagi" atau "bangun"
+        if any(kw in inp.text.lower() for kw in ["pagi", "bangun", "subuh"]):
+            if role_state.morning_after_active:
+                role_state.morning_after_scene = "waking_up"
+                logger.info(f"🌅 {role_state.role_id} mode MORNING AFTER - bangun tidur")
+        
+        # Reset morning after setelah beberapa chat
+        if role_state.morning_after_active and role_state.morning_after_scene == "waking_up":
+            # Setelah 3-5 chat, kembali normal
+            pass  # Biarkan tetap aktif sampai user move on
+
         # Simpan conversation turn ke memory
         new_sequence = role_state.current_sequence or role_state.get_next_sequence(inp.text)
         conv_turn = ConversationTurn(
@@ -2221,5 +2241,3 @@ def _shorten_for_summary(s: str, max_len: int = 200) -> str:
     if len(s) <= max_len:
         return s
     return s[: max_len - 3] + "..."
-
-
