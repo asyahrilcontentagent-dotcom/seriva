@@ -529,6 +529,11 @@ class RoleState:
     pending_ejakulasi_question: bool = False  # role sudah nanya "buang di dalam/luar?"
     aftercare_active: bool = False
 
+    # ========== INISIATIF & VCS MODE ==========
+    high_initiative_mode: bool = False  # role ambil inisiatif sendiri tanpa diminta
+    vcs_mode: bool = False  # sedang VCS/masturbasi bareng
+    vcs_intensity: int = 0  # 0-100, seberapa panas VCS-nya
+
     # ========== RESET METHODS ==========
     
     def reset_intimacy_state(self) -> None:
@@ -617,6 +622,11 @@ class RoleState:
         
         # Reset riwayat sexual moments (biarkan memory percakapan biasa tetap ada)
         self.sexual_moments.clear()
+
+        # Reset inisiatif & VCS mode
+        self.high_initiative_mode = False
+        self.vcs_mode = False
+        self.vcs_intensity = 0
     
     def advance_vulgar_stage(self, intensity_delta: int = 10) -> str:
         """Maju ke stage berikutnya dalam fase VULGAR.
