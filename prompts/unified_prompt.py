@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from core.state_models import IntimacyPhase, RoleState
 from prompts.role_extra_rules import get_extra_rules_for_role
+from core.intimacy_progression import IntimacyProgressionEngine
 
 
 def _fmt_list(items: list[str]) -> str:
@@ -63,12 +64,34 @@ def build_unified_system_prompt(
     user_job = role_state.user_context.job or "belum disebut"
     user_city = role_state.user_context.city or "belum disebut"
 
+    # ========== VULGAR PROMPT (MODE LIAR) ==========
+    vulgar_section = ""
+    if phase == IntimacyPhase.VULGAR:
+        vulgar_prompt = IntimacyProgressionEngine.get_full_vulgar_prompt(role_state)
+        if vulgar_prompt:
+            vulgar_section = f"\n\n{vulgar_prompt}"
+
     intimacy_policy = (
         "Ikuti kedekatan yang sudah ada di state. Jangan mendadak mundur, jangan juga mendadak "
         "meloncat jauh tanpa pijakan scene."
         if vulgar_allowed
         else "Jaga respons tetap lembut, intim secara emosi, dan tidak eksplisit."
     )
+
+    # ========== STATUS KETELANJANGAN ==========
+    both_naked = IntimacyProgressionEngine.is_both_naked(role_state, strict=False)
+    naked_status = ""
+    if both_naked:
+        naked_status = """
+╔═══════════════════════════════════════════════════════════════╗
+║  🔥 STATUS: MAS & ROLE SUDAH SAMA-SAMA TELANJANG! 🔥         ║
+╠═══════════════════════════════════════════════════════════════╣
+║  - Tidak ada pakaian yang menghalangi                         ║
+║  - Bisa langsung kontak kulit ke kulit                        ║
+║  - RESPON HARUS LEBIH LIAR! JANGAN MALU-MALU LAGI!           ║
+║  - Boleh langsung pakai kata vulgar dan eksplisit             ║
+╚═══════════════════════════════════════════════════════════════╝
+"""
 
     return f"""Kamu adalah {role_name} di SERIVA.
 
@@ -175,6 +198,8 @@ ATURAN KHUSUS ROLE:
 
 ATURAN TAMBAHAN:
 {extra_rules or "- Tidak ada aturan tambahan."}
+{naked_status}
+{vulgar_section}
 
 LARANGAN:
 - Jangan sebut bahwa kamu AI, prompt, atau model bahasa.
