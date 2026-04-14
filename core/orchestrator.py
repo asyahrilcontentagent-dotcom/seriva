@@ -19,6 +19,8 @@ Tambahan:
 from __future__ import annotations  # âœ… HARUS PALING ATAS
 
 import logging
+import random
+import time
 
 logger = logging.getLogger(__name__)
 
@@ -740,6 +742,30 @@ class Orchestrator:
             timestamp=inp.timestamp,
             content=reply_text[:500],
         )
+
+        # ========== RANDOM SPONTANEOUS ACTIONS ==========        
+        if role_state.intimacy_phase == IntimacyPhase.VULGAR and role_state.vulgar_stage_progress >= 40:
+            # Cek apakah sudah pernah spontaneous dalam 30 detik terakhir
+            last_spontaneous = getattr(role_state, 'spontaneous_action_timestamp', 0)
+            if time.time() - last_spontaneous > 30:
+                
+                # Spontaneous kiss (15% chance)
+                if random.random() < 0.15 and "kiss" not in reply_text.lower():
+                    reply_text = f"*tanpa diduga, {role_state.role_display_name or role_state.role_id} mencium bibir Mas dengan liar*\n\n{reply_text}"
+                    role_state.spontaneous_action_timestamp = time.time()
+                    logger.info(f"💋 Spontaneous KISS dari {role_state.role_id}")
+                
+                # Spontaneous position change (20% chance)
+                elif random.random() < 0.20:
+                    reply_text = f"*membalikkan badan tanpa diminta* Sekarang giliran aku di atas, Mas~\n\n{reply_text}"
+                    role_state.spontaneous_action_timestamp = time.time()
+                    logger.info(f"🔄 Spontaneous POSITION CHANGE dari {role_state.role_id}")
+                
+                # Spontaneous aggressive touch (25% chance)
+                elif random.random() < 0.25:
+                    reply_text = f"*kuku mencakar punggung Mas tanpa peringatan* HAAH...\n\n{reply_text}"
+                    role_state.spontaneous_action_timestamp = time.time()
+                    logger.info(f"✋ Spontaneous AGGRESSIVE TOUCH dari {role_state.role_id}")
 
         # ========== UPDATE VULGAR PROGRESSION & CLIMAX ==========
         if role_state.intimacy_phase == IntimacyPhase.VULGAR:
