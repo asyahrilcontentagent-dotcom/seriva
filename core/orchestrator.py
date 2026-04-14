@@ -91,6 +91,9 @@ from config.constants import (
 from prompts.unified_prompt import build_unified_system_prompt
 from prompts.role_specs import get_role_prompt_spec
 
+# ========== BARU: Memory & Intimacy Updates ==========
+from core.state_models import ConversationTurn, SceneTurn, SceneSequence
+
 
 # ==============================
 # STORAGE ABSTRACTION
@@ -738,9 +741,21 @@ class Orchestrator:
             content=reply_text[:500],
         )
 
-        # ========== BARU: Memory & Intimacy Updates ==========
-        from core.intimacy_progression import IntimacyProgressionEngine
-        from core.state_models import ConversationTurn, SceneTurn, SceneSequence
+        # ========== UPDATE VULGAR PROGRESSION & CLIMAX ==========
+        if role_state.intimacy_phase == IntimacyPhase.VULGAR:
+            vulgar_changes = IntimacyProgressionEngine.update_vulgar_progression(
+                role_state, inp.text, reply_text
+            )
+            if vulgar_changes.get("stage_changed"):
+                logger.info(f"🔥 Vulgar stage berubah: {vulgar_changes.get('stage_description')}")
+            
+            # Cek apakah role harus climax
+            should_climax, climax_text = IntimacyProgressionEngine.check_and_execute_climax(
+                role_state, inp.text
+            )
+            if should_climax:
+                logger.info(f"💦 Role {role_state.role_id} CLIMAX! (ke-{role_state.role_climax_count})")
+                reply_text = climax_text
         
         # ===== UPDATE LOKASI DARI TEKS USER =====
         if not hasattr(role_state, 'current_location_id'):
@@ -810,6 +825,22 @@ class Orchestrator:
         if any(kw in text_lower for kw in ["cdku udah lepas", "celana dalamku udah lepas", "aku udah buka cd"]):
             if "celana dalam" not in role_state.intimacy_detail.role_clothing_removed:
                 role_state.intimacy_detail.role_clothing_removed.append("celana dalam")
+
+        # ========== UPDATE STATUS KETELANJANGAN & MODE LIAR ==========
+        both_naked = IntimacyProgressionEngine.is_both_naked(role_state, strict=False)
+        if both_naked:
+            logger.info(f"🔥 {role_state.role_id} dan Mas sudah sama-sama telanjang! Mode LIAR AKTIF!")
+            
+            # Naikkan intensitas otomatis kalau masih rendah
+            if role_state.emotions.intimacy_intensity < 11:
+                role_state.emotions.intimacy_intensity = 11
+            
+            # Naikkan vulgar stage progress minimal ke 30 (biar mode liar aktif)
+            if role_state.vulgar_stage_progress < 30:
+                role_state.vulgar_stage_progress = 30
+                if role_state.vulgar_stage == "awal":
+                    role_state.vulgar_stage = "memanas"
+                    logger.info(f"🔥 Vulgar stage naik ke: {role_state.vulgar_stage}")
 
         # ========== DETEKSI HANDUK ==========
         if any(kw in text_lower for kw in ["handuk", "ambil handuk", "kasih handuk", "nih handuk"]):
