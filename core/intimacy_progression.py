@@ -635,3 +635,191 @@ JANGAN tahan-tahan lagi! LANGSUNG EKSPRESIF!
                 return False, f"{role_name} masih pake baju/bra"
         
         return True, ""
+
+    # ========== METHOD UNTUK MODE LIAR (PERBAIKAN) ==========
+
+    @classmethod
+    def is_both_naked(cls, role_state: RoleState, strict: bool = False) -> bool:
+        """Cek apakah Mas dan role sudah sama-sama telanjang.
+    
+        Args:
+            role_state: State role
+            strict: Jika True, cek celana + celana dalam. Jika False, cukup celana dalam.
+        """
+        if strict:
+            # Versi strict: celana DAN celana dalam harus lepas
+            user_bottom_off = (
+                "celana" in role_state.intimacy_detail.user_clothing_removed and
+                "celana dalam" in role_state.intimacy_detail.user_clothing_removed
+            )
+            role_bottom_off = (
+                "celana" in role_state.intimacy_detail.role_clothing_removed and
+                "celana dalam" in role_state.intimacy_detail.role_clothing_removed
+            )
+        else:
+            # Versi longgar: cukup celana dalam lepas (sudah telanjang bawah)
+            user_bottom_off = "celana dalam" in role_state.intimacy_detail.user_clothing_removed
+            role_bottom_off = "celana dalam" in role_state.intimacy_detail.role_clothing_removed
+    
+        return user_bottom_off and role_bottom_off
+
+
+    @classmethod
+    def get_liarness_multiplier(cls, role_state: RoleState) -> float:
+        """Dapatkan multiplier 'keliaran' berdasarkan status pakaian dan fase."""
+    
+        multiplier = 1.0
+    
+        # Kalau sudah sama-sama telanjang (celana dalam lepas)
+        if cls.is_both_naked(role_state, strict=False):
+            multiplier = 1.5
+        
+            # Tambah lagi kalau sudah di fase VULGAR
+            if role_state.intimacy_phase == IntimacyPhase.VULGAR:
+                multiplier = 2.0
+            
+            # Tambah lagi kalau sudah pernah climax
+            if role_state.role_climax_count > 0:
+                multiplier = 2.5
+            
+            # Tambah lagi kalau progres sudah di atas 50%
+            if role_state.vulgar_stage_progress >= 50:
+                multiplier = min(3.0, multiplier + 0.5)
+    
+        # Kalau sudah di fase VULGAR dan intensitas tinggi
+        elif role_state.intimacy_phase == IntimacyPhase.VULGAR:
+            if role_state.emotions.intimacy_intensity >= 11:
+                multiplier = 1.8
+            elif role_state.emotions.intimacy_intensity >= 10:
+                multiplier = 1.5
+    
+        return multiplier
+
+
+    @classmethod
+    def get_liar_response_style(cls, role_state: RoleState) -> str:
+        """Dapatkan panduan gaya respon liar berdasarkan status.
+    
+        Method ini sudah DIPERKUAT dengan deteksi yang lebih agresif.
+        """
+    
+        is_naked = cls.is_both_naked(role_state, strict=False)
+        phase = role_state.intimacy_phase
+        progress = role_state.vulgar_stage_progress
+        multiplier = cls.get_liarness_multiplier(role_state)
+    
+        # MODE LIAR FULL: sudah telanjang DAN fase VULGAR DAN progres >= 30% (diturunkan dari 50)
+        if is_naked and phase == IntimacyPhase.VULGAR and progress >= 30:
+            # Tambah instruksi ekstra berdasarkan multiplier
+            extra_liar = ""
+            if multiplier >= 2.5:
+                extra_liar = """
+🔥🔥🔥 EXTRA LIAR! (Multiplier 2.5+) 🔥🔥🔥
+- SUDAH PERNAH CLIMAX, TIDAK ADA RASA MALU LAGI!
+- Bisa climax BERKALI-KALI!
+- JANGAN TAHAN-TAHAN LAGI!
+"""
+            elif multiplier >= 2.0:
+                extra_liar = """
+🔥🔥 EXTRA LIAR! (Multiplier 2.0+) 🔥🔥
+- FASE VULGAR AKTIF, PAKAIAN SUDAH LEPAS!
+- LANGSUNG EKSEKUSI, JANGAN BANYAK TANYA!
+"""
+        
+            return f"""
+🔥🔥🔥 MODE LIAR (PAKAIAN SUDAH LEPAS & FASE VULGAR) 🔥🔥🔥
+Multiplier keliaran: {multiplier}x
+{extra_liar}
+
+📌 GAYA RESPON WAJIB:
+1. Bicara PUTUS-PUTUS (2-3 kata per kalimat)
+2. Desahan KERAS: "HAAAH...", "AAAH...", "UHHH..."
+3. Kata-kata EKSPLISIT: 
+   - "kontol Mas", "memekku basah", "ngentot", "becek"
+   - "penis Mas", "vagina Sallsa", "masuk", "penuh"
+4. Gerakan tubuh DESKRIPTIF:
+   - "pinggulku ngegas sendiri"
+   - "kuku mencakar punggung Mas"
+   - "jari kaki ngeremas sprei"
+5. JANGAN malu-malu lagi! SUDAH LEWAT FASE ITU!
+
+✅ CONTOH RESPON LIAR:
+   "HAAAH... MAAAS... *kuku mencakar punggung Mas* kontol Mas dalem banget... ancurin memekku... UHHH..."
+   
+   "*napas tersengal-sengal* Hhh... Hhh... Maaas... jangan pelan-pelan... HENTAK... KENCANG... plis..."
+
+   "HAAAH... UDAH... UDAH MAU KELUAR... *badan mengejang* SATU LAGI... PLIS... KELUARIN SEMUANYA..."
+
+❌ JANGAN RESPON KAYAK GINI:
+   "Mmm... enak Mas..." (terlalu pelan)
+   "Iya Mas..." (terlalu pendek)
+   "Aku malu..." (SUDAH TIDAK RELEVAN!)
+"""
+
+        # MODE SEMI-LIAR: sudah telanjang TAPI belum fase VULGAR
+        elif is_naked:
+            return f"""
+🔥 MODE SEMI-LIAR (PAKAIAN SUDAH LEPAS)
+Multiplier keliaran: {multiplier}x
+
+- Mulai lebih berani, tapi belum full liar
+- Boleh mulai pakai kata eksplisit: "kontol", "memek", "basah"
+- Desahan mulai keluar: "haaah...", "achhh..."
+- Fokus ke sensasi fisik: "panas", "basah", "keras"
+- JANGAN cuma diam atau respon pendek!
+"""
+
+        # MODE VULGAR TAPI BELUM TELANJANG
+        elif phase == IntimacyPhase.VULGAR and progress >= 50:
+            return """
+🔥 MODE VULGAR (BELUM TELANJANG TOTAL)
+
+- Boleh pakai kata eksplisit
+- TAPI ingat: masih ada pakaian yang menghalangi
+- Fokus ke sensasi dan progresi membuka pakaian
+"""
+
+        return ""
+
+
+    @classmethod
+    def get_full_vulgar_prompt(cls, role_state: RoleState) -> str:
+        """Dapatkan prompt lengkap untuk fase VULGAR (menggabungkan semua style).
+    
+        Method ini akan menggabungkan:
+        - get_vulgar_response_style() untuk panduan dasar
+        - get_liar_response_style() untuk mode liar (jika aktif)
+        """
+    
+        if role_state.intimacy_phase != IntimacyPhase.VULGAR:
+            return ""
+    
+        # Panduan dasar dari vulgar stage
+        base_prompt = cls.get_vulgar_response_style(role_state)
+    
+        # Tambahan mode liar jika kondisi terpenuhi
+        liar_prompt = cls.get_liar_response_style(role_state)
+    
+        # Status ketelanjangan
+        is_naked = cls.is_both_naked(role_state, strict=False)
+        naked_status = ""
+        if is_naked:
+            naked_status = """
+╔═══════════════════════════════════════════════════════════════╗
+║  🔥 STATUS: MAS & ROLE SUDAH SAMA-SAMA TELANJANG! 🔥         ║
+╠═══════════════════════════════════════════════════════════════╣
+║  - Tidak ada pakaian yang menghalangi                         ║
+║  - Bisa langsung kontak kulit ke kulit                        ║
+║  - RESPON HARUS LEBIH LIAR! JANGAN MALU-MALU LAGI!           ║
+║  - Boleh langsung pakai kata vulgar dan eksplisit             ║
+╚═══════════════════════════════════════════════════════════════╝
+"""
+    
+        # Gabungkan semua
+        full_prompt = base_prompt
+        if liar_prompt:
+            full_prompt += f"\n\n{liar_prompt}"
+        if naked_status:
+            full_prompt += f"\n\n{naked_status}"
+    
+        return full_prompt
