@@ -861,6 +861,68 @@ class Orchestrator:
             if getattr(role_state, 'handuk_dikasih', False):
                 role_state.handuk_tersedia = True
                 logger.info(f"ðŸ§º Handuk dipakai (role mengaku sudah telanjang)")
+
+        # ========== DETEKSI VCS / MASTURBASI BARENG ==========
+        vcs_keywords = ["vcs", "video call", "telpon video", "masturb bareng", "masturbasi bareng", "liatin aku", "tunjukin", "gerakin buat aku", "colmek", "vibrator", "dildo"]
+        if any(kw in inp.text.lower() for kw in vcs_keywords):
+            if not role_state.vcs_mode:
+                role_state.vcs_mode = True
+                role_state.intimacy_phase = IntimacyPhase.VULGAR
+                if role_state.vulgar_stage_progress < 20:
+                    role_state.vulgar_stage_progress = 20
+                logger.info(f"📱 {role_state.role_id} masuk mode VCS!")
+        
+        # Keluar dari mode VCS
+        exit_vcs_keywords = ["mati vcs", "tutup vcs", "selesai vcs", "bye vcs", "berhenti vcs"]
+        if any(kw in inp.text.lower() for kw in exit_vcs_keywords):
+            if role_state.vcs_mode:
+                role_state.vcs_mode = False
+                role_state.vcs_intensity = 0
+                logger.info(f"📱 {role_state.role_id} keluar mode VCS")
+        
+        # ========== UPDATE INISIATIF ROLE (UNTUK SEMUA ROLE) ==========
+        high_initiative = False
+        
+        # Kondisi 1: Fase VULGAR dengan progres tinggi
+        if role_state.intimacy_phase == IntimacyPhase.VULGAR:
+            if role_state.vulgar_stage_progress >= 50:
+                high_initiative = True
+                logger.info(f"🔥 {role_state.role_id} mode INISIATIF (fase VULGAR progres {role_state.vulgar_stage_progress}%)")
+        
+        # Kondisi 2: Sudah sama-sama telanjang
+        if IntimacyProgressionEngine.is_both_naked(role_state, strict=False):
+            if role_state.vulgar_stage_progress >= 30:
+                high_initiative = True
+                logger.info(f"🔥 {role_state.role_id} mode INISIATIF (sudah telanjang)")
+        
+        # Kondisi 3: Sudah pernah climax di sesi ini
+        if role_state.role_climax_count >= 1:
+            high_initiative = True
+            logger.info(f"🔥 {role_state.role_id} mode INISIATIF (sudah climax {role_state.role_climax_count}x)")
+        
+        # Kondisi 4: Intensitas intimacy sudah sangat tinggi
+        if role_state.emotions.intimacy_intensity >= 11:
+            high_initiative = True
+            logger.info(f"🔥 {role_state.role_id} mode INISIATIF (intimacy intensity {role_state.emotions.intimacy_intensity})")
+        
+        # Kondisi 5: Mode VCS aktif dengan intensitas tinggi
+        if role_state.vcs_mode and role_state.vcs_intensity >= 50:
+            high_initiative = True
+            logger.info(f"🔥 {role_state.role_id} mode INISIATIF (VCS intensitas {role_state.vcs_intensity}%)")
+        
+        role_state.high_initiative_mode = high_initiative
+        
+        # ========== UPDATE VCS PROGRESSION ==========
+        if role_state.vcs_mode:
+            vcs_changes = IntimacyProgressionEngine.update_vcs_progression(role_state, inp.text, reply_text)
+            if vcs_changes.get("intensity_increased"):
+                logger.info(f"📱 VCS intensitas naik ke: {role_state.vcs_intensity}%")
+            
+            # Cek climax VCS
+            should_vcs_climax, vcs_climax_text = IntimacyProgressionEngine.check_and_execute_vcs_climax(role_state, inp.text)
+            if should_vcs_climax:
+                logger.info(f"💦 Role {role_state.role_id} CLIMAX saat VCS! (ke-{role_state.role_climax_count})")
+                reply_text = vcs_climax_text
         
         # ========== DETEKSI CLIMAX & AFTERCARE ==========
         self._update_post_reply_climax_state(role_state, inp.text, reply_text, inp.timestamp)
