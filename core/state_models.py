@@ -539,6 +539,9 @@ class RoleState:
     high_initiative_mode: bool = False  # role ambil inisiatif sendiri tanpa diminta
     vcs_mode: bool = False  # sedang VCS/masturbasi bareng
     vcs_intensity: int = 0  # 0-100, seberapa panas VCS-nya
+    communication_mode: Optional[str] = None  # None, chat, call, vps
+    communication_mode_turns: int = 0
+    communication_mode_started_at: Optional[float] = None
 
     # ========== MULTIPLE CLIMAX ==========
     multiple_climax_enabled: bool = True  # apakah role bisa climax berkali-kali
@@ -684,6 +687,9 @@ class RoleState:
         self.high_initiative_mode = False
         self.vcs_mode = False
         self.vcs_intensity = 0
+        self.communication_mode = None
+        self.communication_mode_turns = 0
+        self.communication_mode_started_at = None
 
         # Reset fitur premium
         self.last_response_sensory_count = 0
