@@ -1552,7 +1552,7 @@ class Orchestrator:
             )
 
         return (
-            f"Harganya baru dicatat di {role_state.session.negotiated_price}, tapi belum aku kunci sebagai deal. "
+            "Tawarannya sudah aku catat, tapi belum aku kunci sebagai deal. "
             f"Kalau mau lanjut dengan paket {service_label}, konfirmasi dulu pakai /deal. "
             f"Selama belum deal, aku tetap pegang batas ini: {profile.boundaries}."
         )
@@ -1581,7 +1581,7 @@ class Orchestrator:
 
     @staticmethod
     def _is_special_friend_role(role_id: str) -> bool:
-        return role_id in {ROLE_ID_TEMAN_SPESIAL_DAVINA, ROLE_ID_TEMAN_SPESIAL_SALLSA}
+        return role_id in {ROLE_ID_BO_DAVINA, ROLE_ID_BO_SALLSA}
 
     def _resolve_provider_location_choice(self, role_state: RoleState, text: str) -> Optional[str]:
         lowered = text.lower()
@@ -1644,7 +1644,7 @@ class Orchestrator:
                 return OrchestratorOutput(
                     reply_text=(
                         f"Untuk {profile.service_label}, angka {offered_price} masih terlalu rendah, Mas. "
-                        f"Aku bisa pertimbangkan mulai dari {min_price}, sementara harga idealnya {profile.base_price}. "
+                        "Naikin sedikit lagi kalau mau aku pertimbangkan, nanti kalau sudah cocok baru kita kunci deal-nya. "
                         "Kalau mau, kirim /nego lagi dengan angka yang lebih masuk."
                     ),
                     active_role_id=user_state.active_role_id,
@@ -1679,7 +1679,7 @@ class Orchestrator:
             self._save_all(user_state, world_state)
             return OrchestratorOutput(
                 reply_text=(
-                    f"Oke, untuk {profile.service_label} kita catat dulu di {offered_price}. "
+                    f"Oke, untuk {profile.service_label} aku catat dulu tawarannya. "
                     f"Yang termasuk: {profile.included_summary}. "
                     f"Tambahan di luar itu tetap dibahas terpisah dan harus lewat deal yang jelas. "
                     "Kalau cocok, lanjutkan dengan /deal."
@@ -1707,7 +1707,7 @@ class Orchestrator:
             if self._is_therapist_role(role_id):
                 return OrchestratorOutput(
                     reply_text=(
-                        f"Deal. {profile.service_label} sudah disepakati di {role_state.session.negotiated_price} "
+                        f"Deal. {profile.service_label} sudah kita sepakati "
                         f"untuk sekitar {profile.duration_minutes} menit. "
                         f"Include utamanya: {profile.included_summary}. "
                         "Pertemuannya kita set sebagai kunjungan Mas ke tempat kerja terapis. "
@@ -1720,7 +1720,7 @@ class Orchestrator:
             role_state.session.provider_location_pending = True
             return OrchestratorOutput(
                 reply_text=(
-                    f"Deal. {profile.service_label} sudah disepakati di {role_state.session.negotiated_price} "
+                    f"Deal. {profile.service_label} sudah kita sepakati "
                     f"untuk sekitar {profile.duration_minutes} menit. "
                     f"Include utamanya: {profile.included_summary}. "
                     "Sebelum mulai, tentukan dulu venue-nya: `hotel` atau `apartemen Mas`. "
