@@ -391,6 +391,9 @@ class RoleSessionState:
     provider_upgrade_summary: Optional[str] = None
     provider_boundaries: Optional[str] = None
     last_negotiation_summary: Optional[str] = None
+    provider_meeting_point: Optional[str] = None
+    provider_location_choice: Optional[str] = None
+    provider_location_pending: bool = False
 
 
 # ==============================
