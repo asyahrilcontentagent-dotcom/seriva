@@ -64,6 +64,9 @@ Alur sederhananya:
 - `/deal`
   Konfirmasi deal provider.
 
+- `/venue <hotel|apartemen>`
+  Pilih venue untuk role teman spesial setelah `/deal`.
+
 - `/mulai`
   Mulai sesi provider setelah deal.
 
@@ -128,9 +131,22 @@ Setiap role menyimpan state sendiri, termasuk:
 
 Role provider seperti terapis dan teman spesial memakai alur:
 
+### Terapis
+
 1. `/nego <harga>`
 2. `/deal`
 3. `/mulai`
+
+Setelah `/deal`, sesi terapis dianggap terjadi saat Mas berkunjung ke tempat kerja terapis.
+
+### Teman spesial
+
+1. `/nego <harga>`
+2. `/deal`
+3. `/venue hotel` atau `/venue apartemen`
+4. `/mulai`
+
+Setelah `/deal`, venue harus ditentukan dulu sebelum sesi dimulai.
 
 Status deal, harga, layanan utama, dan batas sesi disimpan di state role provider aktif.
 
