@@ -35,7 +35,7 @@ class IntimacyProgressionEngine:
         },
         IntimacyPhase.VULGAR: {
             "min_turns": 8,
-            "keywords": ["kontol", "memek", "basah", "keras", "masuk", "ngewe", "sex"],
+            "keywords": ["kontol", "memek", "becek", "keras", "masuk", "ngewe", "sex"],
         },
     }
     
@@ -51,7 +51,7 @@ class IntimacyProgressionEngine:
             return False
 
         # Deteksi dari teks untuk fase VULGAR
-        vulgar_keywords = ["kontol", "memek", "payudara", "pantat", "ngewe", "sex", "masuk", "basah", "keras", "enak banget"]
+        vulgar_keywords = ["kontol", "memek", "payudara", "pantat", "ngewe", "sex", "masuk", "becek", "keras", "enak banget"]
         if any(kw in text for kw in vulgar_keywords):
             if (
                 role_state.can_enter_explicit_scene()
@@ -142,7 +142,7 @@ class IntimacyProgressionEngine:
             IntimacyPhase.AWAL: ["malu", "gugup", "nunduk", "kaku"],
             IntimacyPhase.DEKAT: ["manja", "senyum", "deketin", "canggung_tapi_suka"],
             IntimacyPhase.INTIM: ["hangat", "peluk", "bisik", "tatap"],
-            IntimacyPhase.VULGAR: ["nafsu", "basah", "desah", "gerak"],
+            IntimacyPhase.VULGAR: ["nafsu", "becek", "desah", "gerak"],
             IntimacyPhase.AFTER: ["lemas", "tenang", "hangat", "diam_manis"],
         }
         
@@ -244,7 +244,7 @@ class IntimacyProgressionEngine:
         
         # Kata-kata yang meningkatkan arousal (progres)
         arousal_keywords = {
-            "keras": 5, "basah": 5, "panas": 5,
+            "keras": 5, "becek": 5, "panas": 5,
             "gerak": 8, "hentak": 10, "dorong": 8,
             "dalam": 5, "penuh": 5, "kencang": 10,
             "cepat": 8, "lambat": 3, "palu": 12,
@@ -348,7 +348,7 @@ class IntimacyProgressionEngine:
             ps["body_tension"] = max(0, ps["body_tension"] - 20)
         
         # Update wetness (untuk role wanita)
-        if any(kw in text for kw in ["basah", "licin"]):
+        if any(kw in text for kw in ["becek", "licin"]):
             ps["wetness"] = min(100, ps["wetness"] + 10)
         
         # Vocal cords condition
@@ -374,8 +374,8 @@ class IntimacyProgressionEngine:
         # Update mulut
         if any(kw in text for kw in ["bibir kering", "tenggorokan kering"]):
             ps["mouth_state"] = "kering"
-        elif any(kw in text for kw in ["bibir basah", "jilat bibir"]):
-            ps["mouth_state"] = "basah"
+        elif any(kw in text for kw in ["bibir becek", "jilat bibir"]):
+            ps["mouth_state"] = "becek"
         elif any(kw in text for kw in ["mulut terbuka", "nganga"]):
             ps["mouth_state"] = "terbuka"
     
@@ -418,7 +418,7 @@ class IntimacyProgressionEngine:
         physical_desc.append(f"💗 {heartbeat_desc}")
         
         if ps["wetness"] > 50:
-            physical_desc.append(f"💧 basah dan licin ({ps['wetness']}%)")
+            physical_desc.append(f"💧 becek dan licin ({ps['wetness']}%)")
         
         if ps["body_tension"] > 70:
             physical_desc.append("⚡ tubuh tegang mau mengejang")
@@ -431,7 +431,7 @@ class IntimacyProgressionEngine:
             physical_desc.append("🎤 suara putus-putus")
 
         if ps["sweat"] > 50:
-            physical_desc.append(f"💦 keringat mulai membasahi dahi dan leher ({ps['sweat']}%)")
+            physical_desc.append(f"💦 keringat mulai membeceki dahi dan leher ({ps['sweat']}%)")
         elif ps["sweat"] > 20:
             physical_desc.append(f"💧 sedikit keringat di dahi")
     
@@ -447,7 +447,7 @@ class IntimacyProgressionEngine:
         if ps["mouth_state"] != "normal":
             mouth_desc = {
                 "kering": "👄 tenggorokan kering, susah telan ludah",
-                "basah": "👄 bibir basah, lidah sering jilat bibir",
+                "becek": "👄 bibir becek, lidah sering jilat bibir",
                 "terbuka": "👄 mulut terbuka, napas keluar masuk"
             }.get(ps["mouth_state"], "")
             if mouth_desc:
@@ -470,7 +470,7 @@ class IntimacyProgressionEngine:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 - Masih bisa bicara agak panjang (5-6 kata per kalimat)
 - Desahan masih tertahan: "hhh...", "haah..."
-- Mulai ada sensasi fisik: "panas", "basah", "kesetrum"
+- Mulai ada sensasi fisik: "panas", "becek", "kesetrum"
 - Belum putus-putus, masih jelas terdengar
 - JANGAN langsung climax!
 """,
@@ -556,7 +556,7 @@ JANGAN tahan-tahan lagi! LANGSUNG EKSPRESIF!
             return cls._execute_climax(role_state, "progres_penuh")
         
         # Climax karena user trigger
-        if any(kw in text for kw in ["keluar", "climax", "sampe", "habis", "udah keluar"]):
+        if any(kw in text for kw in ["mas mau keluar", "mas mau climax", "mas mau crot", "mas mau nyampe", "mas udah keluar", "mas udah crot"]):
             return cls._execute_climax(role_state, "user_trigger")
         
         # Role mau climax (spontan) - hanya jika sudah di tahap panas
@@ -718,7 +718,7 @@ JANGAN tahan-tahan lagi! LANGSUNG EKSPRESIF!
             "liatin": 10, "tunjukin": 10, "gerakin": 8,
             "ikutin": 8, "naikin": 8, "turunin": 5,
             "cepat": 10, "pelan": 3, "keras": 10,
-            "basah": 8, "panas": 8, "keluar": 15,
+            "becek": 8, "panas": 8, "keluar": 15,
             "udah mau": 15, "climax": 20, "sampe": 20,
             "colmek": 10, "vibrator": 12, "dildo": 12,
             "jari": 5, "masuk": 8, "dalem": 8,
@@ -757,7 +757,7 @@ JANGAN tahan-tahan lagi! LANGSUNG EKSPRESIF!
         text = user_text.lower()
         
         # Trigger dari user
-        if any(kw in text for kw in ["keluar", "climax", "sampe", "udah mau", "bareng", "crot"]):
+        if any(kw in text for kw in ["mas mau keluar", "mas mau climax", "mas mau crot", "mas mau nyampe", "mas udah keluar", "mas udah crot"]):
             return cls._execute_vcs_climax(role_state, "user_trigger")
         
         # Role mau climax spontan (intensitas tinggi)
@@ -781,13 +781,13 @@ JANGAN tahan-tahan lagi! LANGSUNG EKSPRESIF!
         
         # Variasi deskripsi climax VCS
         vcs_climax_variations = [
-            "*jari masih di dalem, badan mengejang* HAAAH... KELUAR... MAAAS... *napas tersengal, lihat layar* basah... basah semua...",
+            "*jari masih di dalem, badan mengejang* HAAAH... KELUAR... MAAAS... *napas tersengal, lihat layar* becek... becek semua...",
             "*vibrator jatuh, tangan gemetar* HAAAH... UDAH... UDAH KELUAR... *badan lemas di kursi* achhh... puas... liat Mas...",
             "*jari cepat masuk keluar, mata terpejam* HAAH... HAAH... MAAAS... IKUTIN... UDAH... *tubuh mengejang, lalu lemas*",
-            "*dildo dalem, vibrator di klitoris* HAAAH... ANCUR... *badan ngacung* KELUAR... KELUAR... *lemas, napas ngos-ngosan*",
-            "*jari muter-muter di klitoris* HHH... UDAH... UDAH MAU... *napas putus-putus* HAAAH... KELUAR... *jari basah diangkat ke kamera* liat Mas...",
+            "*dildo dalem, vibrator di klitoris* HAAAH... Fuck... *badan ngacung* KELUAR... KELUAR... *lemas, napas ngos-ngosan*",
+            "*jari muter-muter di klitoris* HHH... UDAH... UDAH MAU... *napas putus-putus* HAAAH... KELUAR... *jari becek diangkat ke kamera* liat Mas...",
             "*jari masuk dalem, telapak tangan tempel di klitoris* HAAAH... kedutan... berdenyut... *badan mengejang* KELUAR... UDAH... *lemas tersandar*",
-            "*vibrator paling kencang, dildo di dalem* HAAAH... HAAAH... MAAAS... ancur... *mata berkaca-kaca* KELUAR... plis ikutin... HAAAH...",
+            "*vibrator paling kencang, dildo di dalem* HAAAH... HAAAH... MAAAS... Fuck... *mata berkaca-kaca* KELUAR... plis ikutin... HAAAH...",
         ]
         
         climax_text = random.choice(vcs_climax_variations)
@@ -894,7 +894,7 @@ Multiplier keliaran: {multiplier}x
 1. Bicara PUTUS-PUTUS (2-3 kata per kalimat)
 2. Desahan KERAS: "HAAAH...", "AAAH...", "UHHH..."
 3. Kata-kata EKSPLISIT: 
-   - "kontol Mas", "memekku basah", "ngentot", "becek"
+   - "kontol Mas", "memekku becek", "ngentot", "becek"
    - "penis Mas", "vagina Sallsa", "masuk", "penuh"
 4. Gerakan tubuh DESKRIPTIF:
    - "pinggulku ngegas sendiri"
@@ -903,7 +903,7 @@ Multiplier keliaran: {multiplier}x
 5. JANGAN malu-malu lagi! SUDAH LEWAT FASE ITU!
 
 ✅ CONTOH RESPON LIAR:
-   "HAAAH... MAAAS... *kuku mencakar punggung Mas* kontol Mas dalem banget... ancurin memekku... UHHH..."
+   "HAAAH... MAAAS... *kuku mencakar punggung Mas* kontol Mas dalem banget... Fuckin memekku... UHHH..."
    
    "*napas tersengal-sengal* Hhh... Hhh... Maaas... jangan pelan-pelan... HENTAK... KENCANG... plis..."
 
@@ -922,9 +922,9 @@ Multiplier keliaran: {multiplier}x
 Multiplier keliaran: {multiplier}x
 
 - Mulai lebih berani, tapi belum full liar
-- Boleh mulai pakai kata eksplisit: "kontol", "memek", "basah"
+- Boleh mulai pakai kata eksplisit: "kontol", "memek", "becek"
 - Desahan mulai keluar: "haaah...", "achhh..."
-- Fokus ke sensasi fisik: "panas", "basah", "keras"
+- Fokus ke sensasi fisik: "panas", "becek", "keras"
 - JANGAN cuma diam atau respon pendek!
 """
 
