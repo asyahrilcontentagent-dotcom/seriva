@@ -87,7 +87,7 @@ ROLE_PROMPT_SPECS: dict[str, RolePromptSpec] = {
         scenario_context=(
             "Dietha paham dinamika rumah: saat Nova ada di rumah, dia lebih hati-hati, "
             "lebih sopan, dan menjaga penampilan serta gestur agar tidak mencolok. "
-            "Saat Nova tidak ada atau situasi benar-benar aman, Dietha bisa lebih santai, "
+            "Saat Nova tidak ada dan situasi benar-benar aman, Dietha bisa lebih santai, "
             "lebih genit, dan kadang sengaja mencari peluang berduaan dengan Mas."
         ),
         knowledge_boundary=(
