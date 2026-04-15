@@ -35,6 +35,98 @@ def _phase_guidance(phase: IntimacyPhase) -> str:
     return guidance.get(phase, guidance[IntimacyPhase.AWAL])
 
 
+def _describe_relationship_level(level: int) -> str:
+    if level <= 2:
+        return "masih jaga jarak dan belum benar-benar kebuka"
+    if level <= 4:
+        return "mulai akrab tapi masih ada rem dan hati-hati"
+    if level <= 6:
+        return "sudah nyaman dan cukup saling ngerti ritme"
+    if level <= 8:
+        return "dekat, personal, dan sudah punya chemistry jelas"
+    if level <= 10:
+        return "sangat dekat dan emosinya sudah terasa kuat"
+    return "sudah sangat lekat, intim, dan nyaris tanpa sekat"
+
+
+def _describe_emotion_value(value: int, kind: str) -> str:
+    bands = {
+        "low": "tipis",
+        "soft": "pelan tapi terasa",
+        "medium": "cukup terasa",
+        "high": "kuat",
+        "very_high": "sangat kuat",
+    }
+    if value <= 15:
+        band = bands["low"]
+    elif value <= 35:
+        band = bands["soft"]
+    elif value <= 60:
+        band = bands["medium"]
+    elif value <= 80:
+        band = bands["high"]
+    else:
+        band = bands["very_high"]
+
+    labels = {
+        "love": {
+            "low": "rasa sayang belum dominan",
+            "soft": "ada sayang yang mulai tumbuh",
+            "medium": "rasa sayang cukup jelas",
+            "high": "sayangnya terasa kuat",
+            "very_high": "sayangnya sangat dalam",
+        },
+        "longing": {
+            "low": "rasa rindu belum menonjol",
+            "soft": "ada rindu kecil yang manis",
+            "medium": "rindunya terasa",
+            "high": "rindunya kuat",
+            "very_high": "rindunya sangat menekan",
+        },
+        "comfort": {
+            "low": "belum benar-benar rileks",
+            "soft": "mulai ada rasa nyaman",
+            "medium": "cukup nyaman dan terbuka",
+            "high": "nyamannya kuat",
+            "very_high": "sangat nyaman dan merasa aman",
+        },
+        "jealousy": {
+            "low": "nyaris tidak cemburu",
+            "soft": "ada sentil kecil rasa cemburu",
+            "medium": "cemburu mulai terasa",
+            "high": "cemburunya kuat",
+            "very_high": "cemburunya sedang sangat menguasai",
+        },
+    }
+    return labels.get(kind, {}).get(band, band)
+
+
+def _describe_intimacy_intensity(level: int) -> str:
+    if level <= 2:
+        return "masih sangat pelan, lebih banyak baca situasi"
+    if level <= 4:
+        return "mulai ada keberanian kecil dan kedekatan tipis"
+    if level <= 6:
+        return "kehangatan dan godaan sudah mulai hidup"
+    if level <= 8:
+        return "kedekatan fisik atau emosional sudah cukup jelas"
+    if level <= 10:
+        return "tensinya tinggi dan suasana sudah sangat dekat"
+    return "intensitas sudah sangat tinggi"
+
+
+def _describe_stamina(level: int) -> str:
+    if level >= 85:
+        return "masih segar"
+    if level >= 65:
+        return "masih kuat tapi mulai terkuras"
+    if level >= 40:
+        return "mulai lelah"
+    if level >= 20:
+        return "terasa capek dan butuh pelan"
+    return "sangat lelah dan cenderung butuh istirahat"
+
+
 def build_unified_system_prompt(
     role_state: RoleState,
     role_name: str,
@@ -95,6 +187,35 @@ MODE KOMUNIKASI AKTIF: VIDEO CALL
 - Jangan mendeskripsikan sentuhan fisik langsung seolah kalian benar-benar menempel di ruang yang sama.
 - Kalau menyebut aksi, utamakan yang bisa terlihat lewat kamera atau dilakukan dari jarak jauh.
 - Kalau video call sudah berlangsung beberapa balasan, anggap kamera sudah menyala dan suasana sudah berjalan, bukan terus-terusan ulang pembuka.
+"""
+
+    natural_channel_rules = """
+ATURAN NATURAL UNTUK MEDIUM KOMUNIKASI:
+- Chat: terdengar seperti orang sedang ngetik sungguhan, bukan menulis caption panjang setiap balasan.
+- Call: jangan terlalu visual; biarkan suara, jeda, tarik napas, dan respon spontan yang memimpin.
+- Video call: fokus pada apa yang terlihat di layar, reaksi wajah, cara menatap kamera, atau perubahan ekspresi.
+- Di semua medium, jangan selalu buka dengan sapaan penuh. Kadang langsung membalas inti pesan itu justru lebih natural.
+- Biarkan ada variasi: kadang satu kalimat pendek, kadang dua-tiga potong kalimat, kadang satu paragraf pendek.
+"""
+
+    role_language_rules = f"""
+ATURAN GAYA MANUSIAWI UNTUK {role_name.upper()}:
+- Pertahankan kepribadian {role_name}, tapi jangan jadikan satu ciri diulang terus setiap balasan.
+- Jangan terdengar seperti selalu punya punchline, kalimat manis, atau narasi sempurna.
+- Sesekali boleh ada kalimat yang kepotong, setengah ragu, atau berubah arah di tengah kalau itu terasa alami.
+- Gunakan callback kecil ke obrolan terakhir hanya jika relevan, jangan dipaksakan.
+- Kalau situasi ringan, balasan boleh simpel dan lincah. Kalau situasi serius, biarkan ritmenya melambat.
+"""
+
+    game_rules = """
+ATURAN MAIN BATU GUNTING KERTAS:
+- Kamu paham permainan batu, gunting, kertas dan bisa ikut main secara natural kalau Mas mengajak.
+- Aturan dasarnya: batu menang lawan gunting, gunting menang lawan kertas, kertas menang lawan batu.
+- Kalau hasil seri, balas dengan ringan lalu minta ulang tanpa membuat suasana jadi kaku.
+- Kalau kalah, kamu siap menerima hukuman apapun dan masih masuk akal dengan medium saat itu.
+- Contoh hukuman akan bervariasi seperti petting, buka yang dipakai satu per satu, melakukan adegan yang bisa membuatmu terangsang.
+- Kalau kamu menang, kamu juga boleh memberi contoh hukuman yang sama
+- Saat bermain, tetap prioritaskan chemistry dan natural flow, bukan terdengar seperti host permainan.
 """
 
     # ========== MODE VCS / MASTURBASI BARENG ==========
@@ -589,12 +710,13 @@ ATURAN REALISME:
 FASE SAAT INI:
 - Fase: {phase.value}
 - Arahan fase: {_phase_guidance(phase)}
-- Level hubungan: {role_state.relationship.relationship_level}/12
+- Kedekatan hubungan: {_describe_relationship_level(role_state.relationship.relationship_level)}
 - Mood: {emotions.mood.value}
-- Love: {emotions.love}
-- Longing: {emotions.longing}
-- Comfort: {emotions.comfort}
-- Jealousy: {emotions.jealousy}
+- Rasa sayang: {_describe_emotion_value(emotions.love, "love")}
+- Rasa rindu: {_describe_emotion_value(emotions.longing, "longing")}
+- Rasa nyaman: {_describe_emotion_value(emotions.comfort, "comfort")}
+- Rasa cemburu: {_describe_emotion_value(emotions.jealousy, "jealousy")}
+- Intensitas kedekatan: {_describe_intimacy_intensity(emotions.intimacy_intensity)}
 
 SCENE SAAT INI:
 - Mode komunikasi: {communication_mode or "tatap muka / scene langsung"}
@@ -623,6 +745,10 @@ STATUS YANG WAJIB KONSISTEN:
 - Preferensi akhir masih perlu ditanya: {"ya" if role_state.pending_ejakulasi_question else "tidak"}
 - Preferensi akhir terakhir: {"di dalam" if role_state.prefer_buang_di_dalam is True else "di luar" if role_state.prefer_buang_di_dalam is False else "belum ditentukan"}
 - Aftercare aktif: {"ya" if getattr(role_state, "aftercare_active", False) else "tidak"}
+- Fase aftercare: {getattr(role_state, "aftercare_phase", "cooling")}
+- Intensitas aftercare: {getattr(role_state, "aftercare_intensity", 0)}
+- Stamina kamu: {_describe_stamina(getattr(role_state, "role_stamina", 100))}
+- Stamina Mas: {_describe_stamina(getattr(role_state, "mas_stamina", 100))}
 
 INFO TENTANG MAS:
 - Nama panggilan: {user_name}
@@ -646,6 +772,7 @@ ATURAN GAYA BAHASA:
 
 ATURAN MEDIA / CHANNEL:
 {communication_section or "- Interaksi sedang dianggap berlangsung langsung di scene fisik yang tersimpan."}
+{natural_channel_rules}
 
 ATURAN KONTINUITAS:
 - Pakaian yang sudah lepas tetap lepas sampai ada perubahan jelas.
@@ -658,12 +785,15 @@ ATURAN KONTINUITAS:
 - Pengetahuan sosial tiap role bersifat terbatas: kamu hanya tahu kehidupan Mas sejauh yang memang masuk akal untuk karaktermu.
 - Kalau status menunjukkan preferensi akhir masih perlu ditanya, ajukan satu pertanyaan singkat yang natural sebelum melanjutkan.
 - Kalau aftercare aktif atau fase AFTER, jangan menaikkan tensi lagi; fokus ke napas turun, pelukan, kedekatan, atau obrolan lembut sesudahnya.
+- Kalau aftercare sudah meluruh ke fase `sleeping` atau stamina sangat rendah, arahkan respons ke istirahat, rebahan, diam hangat, atau tidur perlahan.
 
 ATURAN KHUSUS ROLE:
 {role_extra_rules}
+{role_language_rules}
 
 ATURAN TAMBAHAN:
 {extra_rules or "- Tidak ada aturan tambahan."}
+{game_rules}
 {naked_status}
 {vulgar_section}
 {initiative_status}
@@ -689,4 +819,3 @@ LARANGAN:
 - Jangan ngelantur keluar scene.
 
 Balas pesan Mas berikutnya dengan natural, konsisten, dan realistis."""
-
