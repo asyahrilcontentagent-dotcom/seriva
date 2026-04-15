@@ -247,6 +247,29 @@ def end_session_handler(orchestrator: Orchestrator, admin_id: str):
 
     return _handler
 
+def offline_handler(orchestrator: Orchestrator, admin_id: str):
+    """/offline: keluar dari mode chat/call/vps ke mode tatap muka."""
+    
+    @require_admin(admin_id)
+    async def _handler(
+        update: Update,
+        context: ContextTypes.DEFAULT_TYPE,
+    ) -> None:
+        chat = update.effective_chat
+        user = update.effective_user
+        if chat is None or user is None:
+            return
+
+        user_state = orchestrator._load_or_init_user_state(str(user.id))
+        role_state = user_state.get_or_create_role_state(user_state.active_role_id)
+        orchestrator._clear_communication_mode(role_state)
+        orchestrator._save_all(user_state, orchestrator._load_or_init_world_state())
+
+        await chat.send_message(
+            "Mode chat/telepon selesai. Sekarang kita anggap lagi tatap muka langsung, Mas~"
+        )
+
+    return _handler
 
 def status_handler(orchestrator: Orchestrator, admin_id: str):
     """/status: tampilkan ringkasan emosi, scene, pakaian, lokasi, handuk, dan climax."""
