@@ -1666,7 +1666,8 @@ class Orchestrator:
             total_price = offered_price + extra_total
 
             role_state.session.deal_confirmed = False
-            role_state.session.negotiated_price = offered_price
+            role_state.session.negotiated_price = total_price
+            role_state.session.requested_extras = requested_extras  # ← tambah ini
             role_state.session.last_negotiation_summary = (
                 f"Mas menawar {offered_price} untuk {profile['service_label']}."
             )
