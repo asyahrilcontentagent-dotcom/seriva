@@ -19,6 +19,7 @@ from bot.handlers import (
     set_role_handler,
     start_handler,
     status_handler,
+    venue_handler,
 )
 from core.llm_client import LLMClient, LLMConfig
 from core.orchestrator import Orchestrator
@@ -104,6 +105,7 @@ def build_application(
 
     app.add_handler(CommandHandler("nego", nego_handler(orchestrator, admin_id)))
     app.add_handler(CommandHandler("deal", deal_handler(orchestrator, admin_id)))
+    app.add_handler(CommandHandler("venue", venue_handler(orchestrator, admin_id)))
     app.add_handler(CommandHandler("mulai", mulai_handler(orchestrator, admin_id)))
 
     app.add_handler(
