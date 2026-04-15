@@ -67,6 +67,40 @@ class TimeOfDay(str, Enum):
     NIGHT = "night"
     LATE_NIGHT = "late_night"
 
+# Tambahkan di bagian atas file, setelah imports (sekitar line 1-20)
+
+# ==============================
+# MAPPING INTIMACY INTENSITY KE VULGAR PROGRESS
+# ==============================
+
+# Mapping 1-12 ke progress 0-100
+INTENSITY_TO_PROGRESS = {
+    1: 0,      # AWAL - belum ada progres
+    2: 0,
+    3: 5,
+    4: 10,     # DEKAT - mulai ada sedikit
+    5: 15,
+    6: 20,
+    7: 30,     # INTIM - mulai hangat
+    8: 40,
+    9: 50,
+    10: 60,    # VULGAR - mulai panas
+    11: 75,
+    12: 90,    # VULGAR MAX - hampir climax
+}
+
+PROGRESS_TO_INTENSITY = {
+    0: 1,
+    10: 4,
+    20: 6,
+    30: 7,
+    40: 8,
+    50: 9,
+    60: 10,
+    75: 11,
+    90: 12,
+    100: 12,
+}
 
 # ==============================
 # INTIMACY & POSITION ENUMS
@@ -606,13 +640,22 @@ class RoleState:
 
     # ========== RESET METHODS ==========
     
+        # ========== RESET METHODS ==========
+    
     def reset_intimacy_state(self) -> None:
         """Reset semua state intimasi ke default untuk sesi baru.
         
         Dipanggil saat /end, /batal, atau /close.
         Mempertahankan: relationship_level, emotions (love/longing/comfort),
         user_context (nama, pekerjaan), dan lokasi dasar.
+        
+        PERBAIKAN: aftercare_clothing_state TIDAK direset agar pakaian minimal tetap terjaga.
         """
+        
+        # Simpan aftercare clothing state sebelum reset
+        saved_aftercare_clothing = self.aftercare_clothing_state
+        saved_handuk_tersedia = self.handuk_tersedia
+        saved_handuk_dikasih = self.handuk_dikasih
         
         # Reset fase intimacy
         self.intimacy_phase = IntimacyPhase.AWAL
@@ -661,7 +704,6 @@ class RoleState:
         }
         
         # Sesi baru selalu mulai aman; kedekatan emosional tidak otomatis
-        # berarti bahasa atau adegan langsung melompat.
         self.sexual_language_level = SexualLanguageLevel.SAFE
         
         # Reset desahan
@@ -679,14 +721,14 @@ class RoleState:
         self.pending_ejakulasi_question = False
         self.aftercare_active = False
 
-        # Reset pakaian dinamis
+        # Reset pakaian dinamis - TAPI simpan aftercare clothing!
         self.outfit_changed_this_session = False
-        self.aftercare_clothing_state = ""
+        self.aftercare_clothing_state = saved_aftercare_clothing
         self.pending_clothes_change = None
         
-        # Reset handuk
-        self.handuk_tersedia = False
-        self.handuk_dikasih = False
+        # Reset handuk - TAPI simpan status handuk!
+        self.handuk_tersedia = saved_handuk_tersedia
+        self.handuk_dikasih = saved_handuk_dikasih
         
         # Reset scene (tapi retain lokasi jika ada)
         if self.current_location:
@@ -700,7 +742,7 @@ class RoleState:
         self.scene.outfit = None
         self.scene.ambience = self.current_location_ambience if hasattr(self, 'current_location_ambience') else ""
         
-        # Reset riwayat sexual moments (biarkan memory percakapan biasa tetap ada)
+        # Reset riwayat sexual moments
         self.sexual_moments.clear()
 
         # Reset inisiatif & VCS mode
@@ -744,7 +786,196 @@ class RoleState:
         self.image_gen_enabled = False
         self.last_image_prompt = ""
         self.image_style = "selfie"
+
+    # ========== SINKRONISASI INTENSITY & PROGRESS ==========
     
+    def sync_intensity_to_progress(self) -> None:
+        """Sinkronkan intimacy_intensity dengan vulgar_stage_progress.
+        
+        Method ini memastikan kedua nilai tidak kontradiktif.
+        Dipanggil setelah perubahan signifikan pada salah satu nilai.
+        """
+        intensity = self.emotions.intimacy_intensity
+        progress = self.vulgar_stage_progress
+        
+        # Jika progress lebih tinggi dari yang seharusnya untuk intensity ini
+        expected_max_progress = INTENSITY_TO_PROGRESS.get(intensity, 0)
+        if progress > expected_max_progress + 10:
+            # Progress terlalu tinggi, turunkan sedikit
+            self.vulgar_stage_progress = expected_max_progress
+        
+        # Jika intensity lebih rendah dari yang seharusnya untuk progress ini
+        expected_min_intensity = PROGRESS_TO_INTENSITY.get(progress, 1)
+        if intensity < expected_min_intensity:
+            # Intensity terlalu rendah, naikkan
+            self.emotions.intimacy_intensity = expected_min_intensity
+            self.update_sexual_language_level()
+        
+        # Update vulgar stage berdasarkan progress
+        if self.vulgar_stage_progress >= 80 and self.vulgar_stage != "puncak":
+            self.vulgar_stage = "puncak"
+        elif self.vulgar_stage_progress >= 50 and self.vulgar_stage not in ["panas", "puncak"]:
+            self.vulgar_stage = "panas"
+        elif self.vulgar_stage_progress >= 25 and self.vulgar_stage not in ["memanas", "panas", "puncak"]:
+            self.vulgar_stage = "memanas"
+        elif self.vulgar_stage_progress < 25 and self.vulgar_stage != "awal":
+            self.vulgar_stage = "awal"
+
+    def increase_intensity(self, delta: int = 1) -> None:
+        """Naikkan intimacy_intensity dan sinkronkan progress.
+        
+        Args:
+            delta: Jumlah kenaikan (1-3)
+        """
+        new_intensity = min(12, self.emotions.intimacy_intensity + delta)
+        self.emotions.intimacy_intensity = new_intensity
+        
+        # Sinkronkan progress berdasarkan intensity baru
+        target_progress = INTENSITY_TO_PROGRESS.get(new_intensity, 0)
+        if self.vulgar_stage_progress < target_progress:
+            self.vulgar_stage_progress = target_progress
+        
+        self.update_sexual_language_level()
+        self.sync_intensity_to_progress()
+
+    def increase_vulgar_progress(self, amount: int = 10) -> None:
+        """Naikkan vulgar_stage_progress dan sinkronkan intensity.
+        
+        Args:
+            amount: Jumlah kenaikan (5-20)
+        """
+        new_progress = min(100, self.vulgar_stage_progress + amount)
+        self.vulgar_stage_progress = new_progress
+        
+        # Sinkronkan intensity berdasarkan progress baru
+        target_intensity = PROGRESS_TO_INTENSITY.get(new_progress, 1)
+        if self.emotions.intimacy_intensity < target_intensity:
+            self.emotions.intimacy_intensity = target_intensity
+            self.update_sexual_language_level()
+        
+        # Update vulgar stage
+        if new_progress >= 80 and self.vulgar_stage != "puncak":
+            self.vulgar_stage = "puncak"
+        elif new_progress >= 50 and self.vulgar_stage not in ["panas", "puncak"]:
+            self.vulgar_stage = "panas"
+        elif new_progress >= 25 and self.vulgar_stage not in ["memanas", "panas", "puncak"]:
+            self.vulgar_stage = "memanas"
+        elif new_progress < 25 and self.vulgar_stage != "awal":
+            self.vulgar_stage = "awal"
+
+    # ========== VCS METHODS ==========
+    
+    def get_vcs_moan(self) -> str:
+        """Dapatkan desahan khusus untuk VCS yang lebih hidup.
+        
+        Returns:
+            String desahan VCS yang segar
+        """
+        vcs_moans = [
+            # Level 1-30 (malu-mulai)
+            "*jari mulai dari leher, turun pelan ke dada* Hhh... Mas... liat ini...",
+            "*telapak tangan menekan-nekan area sensitif lewat baju* Haaah...",
+            
+            # Level 31-60 (mulai berani)
+            "*jari masuk ke dalam celana, mulai colmek pelan* Haaah... Mas... ikutin gerakanku ya...",
+            "*vibrator mulai ditempelkan ke klitoris* HAAAH... langsung kerasa...",
+            "*jari muter-muter di luar, kadang masuk dikit* Hhh... udah becek nih...",
+            
+            # Level 61-90 (panas)
+            "*jari cepat masuk keluar, napas tersengal* HAAH... HAAH... Maaas... liat...",
+            "*dildo masuk pelan, vibrator di klitoris* HAAAH... ancur... dalem banget...",
+            "*jari masuk dua, gerakin kencang* HAAH... MAAAS... IKUTIN... jangan pelan...",
+            
+            # Level 91-100 (hampir climax)
+            "*jari muter kencang di klitoris, dildo dalem* HAAAH... UDAH... UDAH MAU...",
+            "*badan mulai tegang, jari kaki ngeremas* HAAH... Maaas... bentar lagi... BENTAR LAGI...",
+            
+            # Climax
+            "*badan mengejang, jari masih di dalem* HAAAH... KELUAR... MAAAS... *napas tersengal* becek... becek semua...",
+            "*vibrator jatuh, tangan gemetar* HAAAH... UDAH... UDAH KELUAR... *badan lemas* achhh... puas... liat Mas...",
+        ]
+        
+        # Pilih berdasarkan intensitas VCS
+        intensity = self.vcs_intensity
+        if intensity >= 90:
+            candidates = vcs_moans[-3:]
+        elif intensity >= 60:
+            candidates = vcs_moans[6:10]
+        elif intensity >= 30:
+            candidates = vcs_moans[3:6]
+        else:
+            candidates = vcs_moans[0:3]
+        
+        # Hindari repetisi
+        unused = [m for m in candidates if m not in self.session_used_words[-5:]]
+        if not unused:
+            unused = candidates
+        
+        selected = random.choice(unused)
+        self.add_session_word(selected)
+        return selected
+
+    def update_vcs_intensity_from_text(self, text: str, is_response: bool = False) -> int:
+        """Update VCS intensity berdasarkan teks user atau response.
+        
+        Args:
+            text: Teks yang akan dianalisis
+            is_response: True jika ini adalah response role (bukan user)
+        
+        Returns:
+            Jumlah kenaikan intensity
+        """
+        text_lower = text.lower()
+        increase = 0
+        
+        # Kata-kata pemicu VCS
+        triggers = {
+            # User ke role
+            "liatin": 10, "tunjukin": 10, "tunjukkin": 10,
+            "gerakin": 8, "ikutin": 8, "naikin": 8,
+            "cepat": 10, "kenceng": 10, "keras": 10,
+            "pelan": 3, "lambat": 3,
+            "becek": 8, "panas": 8, "licin": 5,
+            "keluar": 15, "crot": 15, "climax": 20,
+            "colmek": 10,
+            "vibrator": 12, "dildo": 12, "toys": 10,
+            "jari": 5, "masuk": 8, "dalem": 8,
+            "muter": 8, "tempel": 8, "getar": 10,
+            
+            # Response role
+            "haaah": 5, "achhh": 5,
+            "becek": 8, "udah becek": 10,
+            "kedutan": 10, "berdenyut": 10,
+            "mau keluar": 15, "udah mau": 15,
+        }
+        
+        for keyword, value in triggers.items():
+            if keyword in text_lower:
+                increase += value
+        
+        # Kalau response role, bonus sedikit
+        if is_response:
+            increase += 3
+        
+        # Terapkan kenaikan (max 25 per update)
+        increase = min(25, increase)
+        if increase > 0:
+            self.vcs_intensity = min(100, self.vcs_intensity + increase)
+            
+            # Sinkronkan dengan vulgar progress
+            if self.vcs_intensity >= 50:
+                self.vulgar_stage_progress = min(100, self.vulgar_stage_progress + increase // 2)
+            
+            # Update intimacy intensity jika VCS sudah panas
+            if self.vcs_intensity >= 60 and self.emotions.intimacy_intensity < 10:
+                self.emotions.intimacy_intensity = 10
+                self.update_sexual_language_level()
+            elif self.vcs_intensity >= 80 and self.emotions.intimacy_intensity < 11:
+                self.emotions.intimacy_intensity = 11
+                self.update_sexual_language_level()
+        
+        return increase
+        
     def advance_vulgar_stage(self, intensity_delta: int = 10) -> str:
         """Maju ke stage berikutnya dalam fase VULGAR.
         
@@ -1209,7 +1440,7 @@ class RoleState:
             "- BOLEH menyebut organ seksual: penis, vagina, klitoris, payudara, puting",
             "- BOLEH menggunakan DESAHAN: 'aaah', 'haaah', 'uhh', 'yaa... Maaas...'",
             "- BOLEH mendeskripsikan adegan seks secara HIDUP dan DETAIL",
-            "- DESKRIPSI harus memicu fantasi: panas, basah, keras, masuk, penuh",
+            "- DESKRIPSI harus memicu fantasi: panas, becek, keras, masuk, penuh",
             "- JANGAN kasar: hindari kata 'memek', 'kontol', 'ngentot', 'becek'",
             "",
             "CONTOH DESAHAN YANG BOLEH:",
@@ -1223,7 +1454,7 @@ class RoleState:
             "- 'Kuku jari role mencakar punggung Mas pas klimaks'",
             "- 'Cairan hangat memenuhi di dalam, sampai menetes ke paha'",
             "- 'Penis Mas keras dan panas, masuk perlahan membuka jalan'",
-            "- 'Vagina role basah dan licin, membungkus erat setiap gerakan'",
+            "- 'Vagina role becek dan licin, membungkus erat setiap gerakan'",
         ]
         
         if self.intimacy_detail.position:
@@ -1479,8 +1710,8 @@ class RoleState:
             feelings.append("enak")
         if "panas" in text:
             feelings.append("panas")
-        if "basah" in text:
-            feelings.append("basah")
+        if "becek" in text:
+            feelings.append("becek")
         if "keras" in text:
             feelings.append("keras")
         if "lemas" in text:
