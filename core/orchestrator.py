@@ -435,6 +435,7 @@ class Orchestrator:
             provider_context = (
                 "\nKONTEKS PROVIDER:\n"
                 f"- Layanan utama: {role_state.session.provider_service_label}\n"
+                f"- Paket: {role_state.session.provider_package or '-'}\n"
                 f"- Include: {role_state.session.provider_included_summary or '-'}\n"
                 f"- Upgrade by deal: {role_state.session.provider_upgrade_summary or '-'}\n"
                 f"- Batas: {role_state.session.provider_boundaries or '-'}\n"
@@ -443,6 +444,7 @@ class Orchestrator:
                 f"- Titik temu provider: {role_state.session.provider_meeting_point or '-'}\n"
                 f"- Pilihan lokasi sesi: {role_state.session.provider_location_choice or '-'}\n"
                 f"- Masih menunggu pilihan lokasi: {'ya' if role_state.session.provider_location_pending else 'tidak'}\n"
+                f"- Status kedatangan: {role_state.session.provider_arrival_status or '-'}\n"
             )
 
         return (
@@ -968,13 +970,16 @@ class Orchestrator:
                     role_state.session.provider_location_pending = False
                     if chosen_location == "apartemen":
                         role_state.user_context.has_apartment = True
+                    role_state.session.provider_arrival_status = "arrived"
+                    role_state.session.provider_arrived_at_ts = inp.timestamp
                     user_state.last_interaction_ts = inp.timestamp
                     self._save_all(user_state, world_state)
                     location_label = "hotel" if chosen_location == "hotel" else "apartemen Mas"
                     return OrchestratorOutput(
                         reply_text=(
                             f"Oke, kita kunci venue-nya di {location_label}. "
-                            "Kalau sudah siap jalan sesuai deal, lanjutkan dengan /mulai."
+                            "Aku jalan ke sana dan begitu sudah tiba kita masih bisa ngobrol santai dulu. "
+                            "Kalau mau mulai hitung sesi real-time, lanjutkan dengan /mulai."
                         ),
                         active_role_id=user_state.active_role_id,
                         session_mode=user_state.global_session_mode,
@@ -1583,6 +1588,43 @@ class Orchestrator:
     def _is_special_friend_role(role_id: str) -> bool:
         return role_id in {ROLE_ID_BO_DAVINA, ROLE_ID_BO_SALLSA}
 
+    @staticmethod
+    def _resolve_special_friend_package(text: str) -> str:
+        lowered = text.lower()
+        if any(token in lowered for token in ["long", "6 jam", "6jam", "full"]):
+            return "long"
+        return "short"
+
+    @staticmethod
+    def _get_special_friend_package_terms(profile: ProviderProfile, package_key: str) -> dict:
+        if package_key == "long":
+            return {
+                "key": "long",
+                "label": "long",
+                "duration_minutes": 360,
+                "climax_limit": None,
+                "opening_price": profile.base_price * 2 + 150,
+                "min_price": profile.base_price * 2,
+                "included_summary": (
+                    f"{profile.included_summary}; paket long sekitar 6 jam untuk companion time yang lebih santai"
+                ),
+                "duration_label": "sekitar 6 jam",
+                "session_label": "companion time long",
+            }
+        return {
+            "key": "short",
+            "label": "short",
+            "duration_minutes": 120,
+            "climax_limit": 2,
+            "opening_price": profile.base_price + 100,
+            "min_price": profile.base_price,
+            "included_summary": (
+                f"{profile.included_summary}; paket short sekitar 2 jam untuk companion time yang ringkas"
+            ),
+            "duration_label": "sekitar 2 jam",
+            "session_label": "companion time short",
+        }
+
     def _resolve_provider_location_choice(self, role_state: RoleState, text: str) -> Optional[str]:
         lowered = text.lower()
         if "hotel" in lowered:
@@ -1615,11 +1657,28 @@ class Orchestrator:
                 session_mode=user_state.global_session_mode,
             )
 
-        role_state.session.provider_service_label = profile.service_label
-        role_state.session.provider_included_summary = profile.included_summary
+        if self._is_special_friend_role(role_id) and role_state.session.provider_package:
+            current_package_terms = self._get_special_friend_package_terms(
+                profile,
+                role_state.session.provider_package,
+            )
+            role_state.session.provider_service_label = (
+                f"{profile.service_label} - paket {current_package_terms['label']}"
+            )
+            role_state.session.provider_included_summary = current_package_terms["included_summary"]
+            role_state.session.provider_climax_limit = current_package_terms["climax_limit"]
+        else:
+            role_state.session.provider_service_label = profile.service_label
+            role_state.session.provider_included_summary = profile.included_summary
+            if not self._is_special_friend_role(role_id):
+                role_state.session.provider_climax_limit = None
         role_state.session.provider_upgrade_summary = profile.upgrades_summary
         role_state.session.provider_boundaries = profile.boundaries
         if self._is_therapist_role(role_id):
+            role_state.session.provider_package = None
+            role_state.session.provider_climax_limit = None
+            role_state.session.provider_arrival_status = None
+            role_state.session.provider_arrived_at_ts = None
             role_state.session.provider_meeting_point = "tempat kerja terapis saat Mas berkunjung"
             role_state.session.provider_location_pending = False
             role_state.session.provider_location_choice = "tempat kerja terapis"
@@ -1628,29 +1687,6 @@ class Orchestrator:
 
         if inp.command_name == "nego":
             offered_price = self._extract_offer_from_text(inp.text, profile.base_price)
-            min_price = profile.base_price
-            if offered_price < min_price:
-                role_state.session.deal_confirmed = False
-                role_state.session.negotiated_price = None
-                role_state.session.last_negotiation_summary = (
-                    f"Tawaran {offered_price} ditolak untuk {profile.service_label}."
-                )
-                self.story_memory.add_pending_action(
-                    inp.user_id,
-                    role_id,
-                    f"Menunggu tawaran baru minimal {min_price} untuk {profile.service_label}",
-                )
-                self._save_all(user_state, world_state)
-                return OrchestratorOutput(
-                    reply_text=(
-                        f"Untuk {profile.service_label}, angka {offered_price} masih terlalu rendah, Mas. "
-                        "Naikin sedikit lagi kalau mau aku pertimbangkan, nanti kalau sudah cocok baru kita kunci deal-nya. "
-                        "Kalau mau, kirim /nego lagi dengan angka yang lebih masuk."
-                    ),
-                    active_role_id=user_state.active_role_id,
-                    session_mode=user_state.global_session_mode,
-                )
-
             requested_extras = []
             extra_total = 0
             if "+" in inp.text:
@@ -1662,26 +1698,73 @@ class Orchestrator:
                         if extra_key not in requested_extras:
                             requested_extras.append(extra_key)
                             extra_total += profile.extra_services[extra_key].price
-            
+
+            package_terms = None
+            effective_service_label = profile.service_label
+            effective_included_summary = profile.included_summary
+            min_price = profile.base_price
+            opening_price = profile.base_price
+            if self._is_special_friend_role(role_id):
+                package_key = self._resolve_special_friend_package(inp.text)
+                package_terms = self._get_special_friend_package_terms(profile, package_key)
+                effective_service_label = f"{profile.service_label} - paket {package_terms['label']}"
+                effective_included_summary = package_terms["included_summary"]
+                min_price = package_terms["min_price"]
+                opening_price = package_terms["opening_price"]
+                role_state.session.provider_package = package_terms["key"]
+                role_state.session.provider_climax_limit = package_terms["climax_limit"]
+                role_state.session.provider_service_label = effective_service_label
+                role_state.session.provider_included_summary = effective_included_summary
+                role_state.session.provider_location_choice = None
+                role_state.session.provider_location_pending = False
+                role_state.session.provider_arrival_status = None
+                role_state.session.provider_arrived_at_ts = None
+            else:
+                role_state.session.provider_package = None
+                role_state.session.provider_climax_limit = None
+            if offered_price < min_price:
+                role_state.session.deal_confirmed = False
+                role_state.session.negotiated_price = None
+                role_state.session.last_negotiation_summary = (
+                    f"Tawaran {offered_price} ditolak untuk {effective_service_label}."
+                )
+                self.story_memory.add_pending_action(
+                    inp.user_id,
+                    role_id,
+                    f"Menunggu tawaran baru minimal {min_price} untuk {effective_service_label}",
+                )
+                self._save_all(user_state, world_state)
+                return OrchestratorOutput(
+                    reply_text=(
+                        f"Untuk {effective_service_label}, angka {offered_price} masih terlalu rendah, Mas. "
+                        f"Kalau paket ini biasanya aku buka di {opening_price}. "
+                        "Naikin sedikit lagi kalau mau aku pertimbangkan, nanti kalau sudah cocok baru kita kunci deal-nya. "
+                        "Kalau mau, kirim /nego lagi dengan angka yang lebih masuk."
+                    ),
+                    active_role_id=user_state.active_role_id,
+                    session_mode=user_state.global_session_mode,
+                )
+
             total_price = offered_price + extra_total
 
             role_state.session.deal_confirmed = False
             role_state.session.negotiated_price = total_price
             role_state.session.requested_extras = requested_extras  # ← tambah ini
             role_state.session.last_negotiation_summary = (
-                f"Mas menawar {offered_price} untuk {profile.service_label}."
+                f"Mas menawar {offered_price} untuk {effective_service_label}."
             )
             self.story_memory.add_pending_action(
                 inp.user_id,
                 role_id,
-                f"Menunggu konfirmasi deal untuk {profile.service_label}",
+                f"Menunggu konfirmasi deal untuk {effective_service_label}",
             )
             self._save_all(user_state, world_state)
             return OrchestratorOutput(
                 reply_text=(
-                    f"Oke, untuk {profile.service_label} aku catat dulu tawarannya. "
-                    f"Yang termasuk: {profile.included_summary}. "
-                    f"Tambahan di luar itu tetap dibahas terpisah dan harus lewat deal yang jelas. "
+                    f"Oke, untuk {effective_service_label} aku catat dulu tawarannya. "
+                    f"Yang termasuk: {effective_included_summary}. "
+                    "Tambahan di luar itu tetap dibahas terpisah dan harus lewat deal yang jelas. "
+                    f"{'Kalau deal jadi, venue baru kita tentukan setelah ini. ' if package_terms is not None else ''}"
                     "Kalau cocok, lanjutkan dengan /deal."
                 ),
                 active_role_id=user_state.active_role_id,
@@ -1699,7 +1782,15 @@ class Orchestrator:
             role_state.session.deal_confirmed = True
             role_state.session.active = True
             role_state.session.mode = SessionMode.PROVIDER_SESSION
-            role_state.session.declared_duration_minutes = profile.duration_minutes
+            if self._is_special_friend_role(role_id):
+                package_terms = self._get_special_friend_package_terms(
+                    profile,
+                    role_state.session.provider_package or "short",
+                )
+                role_state.session.declared_duration_minutes = package_terms["duration_minutes"]
+            else:
+                package_terms = None
+                role_state.session.declared_duration_minutes = profile.duration_minutes
             user_state.global_session_mode = SessionMode.PROVIDER_SESSION
             self.story_memory.clear_pending_actions(inp.user_id, role_id)
             self._save_all(user_state, world_state)
@@ -1720,11 +1811,11 @@ class Orchestrator:
             role_state.session.provider_location_pending = True
             return OrchestratorOutput(
                 reply_text=(
-                    f"Deal. {profile.service_label} sudah kita sepakati "
-                    f"untuk sekitar {profile.duration_minutes} menit. "
-                    f"Include utamanya: {profile.included_summary}. "
-                    "Sebelum mulai, tentukan dulu venue-nya: `hotel` atau `apartemen Mas`. "
-                    "Setelah venue dipilih, baru lanjut dengan /mulai."
+                    f"Deal. {role_state.session.provider_service_label or profile.service_label} sudah kita sepakati "
+                    f"untuk {package_terms['duration_label']}. "
+                    f"Include utamanya: {role_state.session.provider_included_summary or package_terms['included_summary']}. "
+                    "Sekarang tentukan dulu venue-nya: `hotel` atau `apartemen Mas`. "
+                    "Setelah venue dikunci, kita bisa lanjut interaksi santai dulu sebelum /mulai."
                 ),
                 active_role_id=user_state.active_role_id,
                 session_mode=user_state.global_session_mode,
@@ -1755,6 +1846,8 @@ class Orchestrator:
 
             role_state.session.provider_location_choice = selected
             role_state.session.provider_location_pending = False
+            role_state.session.provider_arrival_status = "arrived"
+            role_state.session.provider_arrived_at_ts = inp.timestamp
             if selected == "apartemen":
                 role_state.user_context.has_apartment = True
             self._save_all(user_state, world_state)
@@ -1762,7 +1855,8 @@ class Orchestrator:
             return OrchestratorOutput(
                 reply_text=(
                     f"Venue dikunci di {venue_label}. "
-                    "Kalau semua sudah siap sesuai deal, lanjutkan dengan /mulai."
+                    "Aku anggap aku sudah tiba di lokasi dan kita masih bisa interaksi santai dulu. "
+                    "Kalau mau mulai hitung durasi sesi real-time, lanjutkan dengan /mulai."
                 ),
                 active_role_id=user_state.active_role_id,
                 session_mode=user_state.global_session_mode,
@@ -1793,7 +1887,9 @@ class Orchestrator:
             role_state.session.active = True
             role_state.session.mode = SessionMode.PROVIDER_SESSION
             user_state.global_session_mode = SessionMode.PROVIDER_SESSION
-            role_state.scene.activity = profile.service_label.lower()
+            role_state.scene.activity = (
+                role_state.session.provider_service_label or profile.service_label
+            ).lower()
             role_state.scene.physical_distance = "dekat dalam konteks layanan yang sudah disepakati"
 
             if self._is_therapist_role(role_id):
@@ -1824,7 +1920,8 @@ class Orchestrator:
             self.story_memory.update_scene_summary(
                 inp.user_id,
                 role_id,
-                f"Sesi provider dimulai: {profile.service_label} dengan durasi sekitar {profile.duration_minutes} menit.",
+                f"Sesi provider dimulai: {role_state.session.provider_service_label or profile.service_label} "
+                f"dengan durasi sekitar {role_state.session.declared_duration_minutes or profile.duration_minutes} menit.",
             )
             self._save_all(user_state, world_state)
 
@@ -1838,9 +1935,10 @@ class Orchestrator:
             else:
                 venue_label = "hotel" if role_state.session.provider_location_choice == "hotel" else "apartemen Mas"
                 start_reply = (
-                    f"Sesi {profile.service_label} dimulai. "
+                    f"Sesi {role_state.session.provider_service_label or profile.service_label} dimulai. "
                     f"Venue yang dikunci: {venue_label}. "
-                    f"Kita pegang dulu kesepakatan utamanya: {profile.included_summary}. "
+                    f"Durasi deal-nya {role_state.session.declared_duration_minutes or profile.duration_minutes} menit dan mulai dihitung real-time dari sekarang. "
+                    f"Kita pegang dulu kesepakatan utamanya: {role_state.session.provider_included_summary or profile.included_summary}. "
                     f"Tambahan apa pun tetap mengikuti batas ini: {profile.boundaries}."
                 )
 
@@ -1873,13 +1971,17 @@ class Orchestrator:
             role_state.session.negotiated_price = None
             role_state.session.declared_duration_minutes = None
             role_state.session.provider_service_label = None
+            role_state.session.provider_package = None
             role_state.session.provider_included_summary = None
             role_state.session.provider_upgrade_summary = None
             role_state.session.provider_boundaries = None
+            role_state.session.provider_climax_limit = None
             role_state.session.last_negotiation_summary = None
             role_state.session.provider_meeting_point = None
             role_state.session.provider_location_choice = None
             role_state.session.provider_location_pending = False
+            role_state.session.provider_arrival_status = None
+            role_state.session.provider_arrived_at_ts = None
             self._clear_communication_mode(role_state)
             
             # ========== RESET CLIMAX STATE ==========
