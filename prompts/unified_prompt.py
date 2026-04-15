@@ -665,6 +665,8 @@ JANGAN:
    - Jangan ganti baju tanpa bilang dulu
    - Jangan pake daster di fase panas
 """
+    # ========== PANDUAN BAHASA BERDASARKAN LEVEL ==========
+    language_guidelines = role_state.get_language_guidelines()
 
     return f"""Kamu adalah {role_name} di SERIVA.
 
