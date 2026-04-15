@@ -735,6 +735,10 @@ class Orchestrator:
             "aku mau crot",
             "udah mau keluar",
             "udah mau climax",
+            "dikit lagi keluar",      # ← TAMBAH
+            "dikit lagi climax",      # ← TAMBAH
+            "dikit lagi crot",        # ← TAMBAH
+            "dikit lagi muncrat",        # ← TAMBAH
         ]
         user_finished_phrases = [
             "aku udah keluar",
@@ -745,6 +749,7 @@ class Orchestrator:
             "aku climax",
             "aku udah crot",
             "aku crot",
+          
         ]
         preference_question_phrases = [
             "keluar dimana",
@@ -1039,7 +1044,7 @@ class Orchestrator:
             presence_penalty=LLM_PRESENCE_PENALTY,
             max_tokens=LLM_MAX_TOKENS,
         )
-        reply_text = self._vary_response(reply_text, role_state)
+                reply_text = self._vary_response(reply_text, role_state)
 
         self.message_history.add_message(
             user_id=inp.user_id,
@@ -1049,29 +1054,21 @@ class Orchestrator:
             content=reply_text[:500],
         )
 
-        # ========== RANDOM SPONTANEOUS ACTIONS ==========        
-        if role_state.intimacy_phase == IntimacyPhase.VULGAR and role_state.vulgar_stage_progress >= 40:
-            # Cek apakah sudah pernah spontaneous dalam 30 detik terakhir
-            last_spontaneous = getattr(role_state, 'spontaneous_action_timestamp', 0)
-            if time.time() - last_spontaneous > 30:
+        # ========== AUTO PROGRESS JIKA USER DIAM ==========
+        if role_state.intimacy_phase == IntimacyPhase.VULGAR:
+            user_text_lower = inp.text.lower()
+            short_responses = ["hmm", "hm", "iya", "ia", "hh", "oh", "ow", "wow", "uh", "ah"]
+            if user_text_lower.strip() in short_responses or len(user_text_lower.strip()) <= 3:
+                old_progress = role_state.vulgar_stage_progress
+                role_state.vulgar_stage_progress = min(100, old_progress + 3)
+                logger.info(f"📈 Auto progress: {old_progress}% → {role_state.vulgar_stage_progress}% (user diam)")
                 
-                # Spontaneous kiss (15% chance)
-                if random.random() < 0.15 and "kiss" not in reply_text.lower():
-                    reply_text = f"*tanpa diduga, {role_state.role_display_name or role_state.role_id} mencium bibir Mas dengan liar*\n\n{reply_text}"
-                    role_state.spontaneous_action_timestamp = time.time()
-                    logger.info(f"💋 Spontaneous KISS dari {role_state.role_id}")
-                
-                # Spontaneous position change (20% chance)
-                elif random.random() < 0.20:
-                    reply_text = f"*membalikkan badan tanpa diminta* Sekarang giliran aku di atas, Mas~\n\n{reply_text}"
-                    role_state.spontaneous_action_timestamp = time.time()
-                    logger.info(f"🔄 Spontaneous POSITION CHANGE dari {role_state.role_id}")
-                
-                # Spontaneous aggressive touch (25% chance)
-                elif random.random() < 0.25:
-                    reply_text = f"*kuku mencakar punggung Mas tanpa peringatan* HAAH...\n\n{reply_text}"
-                    role_state.spontaneous_action_timestamp = time.time()
-                    logger.info(f"✋ Spontaneous AGGRESSIVE TOUCH dari {role_state.role_id}")
+                if role_state.vulgar_stage_progress >= 80 and role_state.emotions.intimacy_intensity < 12:
+                    role_state.emotions.intimacy_intensity = 12
+                elif role_state.vulgar_stage_progress >= 60 and role_state.emotions.intimacy_intensity < 11:
+                    role_state.emotions.intimacy_intensity = 11
+                elif role_state.vulgar_stage_progress >= 40 and role_state.emotions.intimacy_intensity < 10:
+                    role_state.emotions.intimacy_intensity = 10
 
         # ========== UPDATE VULGAR PROGRESSION & CLIMAX ==========
         if role_state.intimacy_phase == IntimacyPhase.VULGAR:
@@ -1081,6 +1078,14 @@ class Orchestrator:
             if vulgar_changes.get("stage_changed"):
                 logger.info(f"🔥 Vulgar stage berubah: {vulgar_changes.get('stage_description')}")
             
+            # Update VCS progression jika sedang VCS mode
+            if role_state.vcs_mode:
+                vcs_changes = IntimacyProgressionEngine.update_vcs_progression(
+                    role_state, inp.text, reply_text
+                )
+                if vcs_changes.get("intensity_increased"):
+                    logger.info(f"📱 VCS intensitas naik ke: {role_state.vcs_intensity}% (auto: {vcs_changes.get('auto_progress', False)})")
+            
             # Cek apakah role harus climax
             should_climax, climax_text = IntimacyProgressionEngine.check_and_execute_climax(
                 role_state, inp.text
@@ -1088,72 +1093,87 @@ class Orchestrator:
             if should_climax:
                 logger.info(f"💦 Role {role_state.role_id} CLIMAX! (ke-{role_state.role_climax_count})")
                 reply_text = climax_text
-        
-        # ===== UPDATE LOKASI DARI TEKS USER =====
+            
+            # Cek VCS climax
+            if role_state.vcs_mode:
+                should_vcs_climax, vcs_climax_text = IntimacyProgressionEngine.check_and_execute_vcs_climax(
+                    role_state, inp.text
+                )
+                if should_vcs_climax:
+                    logger.info(f"💦 Role {role_state.role_id} CLIMAX saat VCS! (ke-{role_state.role_climax_count})")
+                    reply_text = vcs_climax_text
+
+        # ========== UPDATE LOKASI DARI TEKS USER ==========
         if not hasattr(role_state, 'current_location_id'):
             init_role_location(role_state)
 
         location_changed = update_role_location(role_state, inp.text)
         if location_changed:
             new_loc = getattr(role_state, 'current_location_name', 'unknown')
-            logger.info(f"ðŸ“ User {inp.user_id} PINDAH LOKASI ke: {new_loc}")
-        
-        # Update info user
+            logger.info(f"📍 User {inp.user_id} PINDAH LOKASI ke: {new_loc}")
+
+        # ========== UPDATE VCS INTENSITY DARI RESPONSE ==========
+        if role_state.vcs_mode:
+            vcs_increase = role_state.update_vcs_intensity_from_text(reply_text, is_response=True)
+            if vcs_increase > 0:
+                logger.info(f"📱 VCS intensity +{vcs_increase} dari response role")
+
+        # ========== UPDATE INFO USER & INTIMACY SIGNALS ==========
         role_state.update_user_info(inp.text)
         role_state.register_intimacy_signals(inp.text, reply_text)
         
         # Update intimacy detail
         role_state.update_intimacy_from_text(inp.text, reply_text)
         
-        # ========== DETEKSI PERUBAHAN PAKAIAN (DIPERKUAT) ==========
+        # ========== DETEKSI PERUBAHAN PAKAIAN ==========
         text_lower = inp.text.lower()
-    
+        
         # UNTUK MAS (user) - mendeteksi Mas membuka pakaian sendiri
         if any(kw in text_lower for kw in ["aku buka baju", "buka baju aku", "bajuku buka", "aku lepas baju"]):
             if "baju" not in role_state.intimacy_detail.user_clothing_removed:
                 role_state.intimacy_detail.user_clothing_removed.append("baju")
-                logger.info(f"ðŸ‘• Mas buka baju")
-    
+                logger.info(f"👕 Mas buka baju")
+        
         if any(kw in text_lower for kw in ["aku buka celana", "buka celana aku", "celanaku buka", "aku lepas celana"]):
             if "celana" not in role_state.intimacy_detail.user_clothing_removed:
                 role_state.intimacy_detail.user_clothing_removed.append("celana")
-                logger.info(f"ðŸ‘• Mas buka celana")
-    
+                logger.info(f"👖 Mas buka celana")
+        
         if any(kw in text_lower for kw in ["aku buka celana dalam", "buka cd aku", "cdku buka", "aku lepas cd", "aku buka cd"]):
             if "celana dalam" not in role_state.intimacy_detail.user_clothing_removed:
                 role_state.intimacy_detail.user_clothing_removed.append("celana dalam")
-                logger.info(f"ðŸ‘• Mas buka celana dalam")
-    
+                logger.info(f"🩲 Mas buka celana dalam")
+        
         # UNTUK ROLE - Mas menyuruh role membuka pakaian
         if any(kw in text_lower for kw in ["buka baju kamu", "buka bajumu", "lepas baju kamu", "buka baju lo", "bajumu buka"]):
             if "baju" not in role_state.intimacy_detail.role_clothing_removed:
                 role_state.intimacy_detail.role_clothing_removed.append("baju")
-                logger.info(f"ðŸ‘• Role buka baju (disuruh Mas)")
-    
+                logger.info(f"👕 Role buka baju (disuruh Mas)")
+        
         if any(kw in text_lower for kw in ["buka bra kamu", "buka bra", "lepas bra", "buka bh"]):
             if "bra" not in role_state.intimacy_detail.role_clothing_removed:
                 role_state.intimacy_detail.role_clothing_removed.append("bra")
-                logger.info(f"ðŸ‘• Role buka bra")
-    
+                logger.info(f"👙 Role buka bra")
+        
         if any(kw in text_lower for kw in ["buka celana kamu", "buka celanamu", "lepas celana kamu", "celanamu buka"]):
             if "celana" not in role_state.intimacy_detail.role_clothing_removed:
                 role_state.intimacy_detail.role_clothing_removed.append("celana")
-                logger.info(f"ðŸ‘• Role buka celana (disuruh Mas)")
-    
+                logger.info(f"👖 Role buka celana (disuruh Mas)")
+        
         if any(kw in text_lower for kw in ["buka celana dalam kamu", "buka cd kamu", "lepas cd kamu", "cdmu buka", "buka cd lo"]):
             if "celana dalam" not in role_state.intimacy_detail.role_clothing_removed:
                 role_state.intimacy_detail.role_clothing_removed.append("celana dalam")
-                logger.info(f"ðŸ‘• Role buka celana dalam")
-    
+                logger.info(f"🩲 Role buka celana dalam")
+        
         # DETEKSI PAKAIAN YANG SUDAH TERLEPAS (dari dialog role)
         if any(kw in text_lower for kw in ["bajuku udah lepas", "bajuku sudah lepas", "aku udah buka baju"]):
             if "baju" not in role_state.intimacy_detail.role_clothing_removed:
                 role_state.intimacy_detail.role_clothing_removed.append("baju")
-    
+        
         if any(kw in text_lower for kw in ["celanaku udah lepas", "celanaku sudah lepas", "aku udah buka celana"]):
             if "celana" not in role_state.intimacy_detail.role_clothing_removed:
                 role_state.intimacy_detail.role_clothing_removed.append("celana")
-    
+        
         if any(kw in text_lower for kw in ["cdku udah lepas", "celana dalamku udah lepas", "aku udah buka cd"]):
             if "celana dalam" not in role_state.intimacy_detail.role_clothing_removed:
                 role_state.intimacy_detail.role_clothing_removed.append("celana dalam")
@@ -1163,11 +1183,9 @@ class Orchestrator:
         if both_naked:
             logger.info(f"🔥 {role_state.role_id} dan Mas sudah sama-sama telanjang! Mode LIAR AKTIF!")
             
-            # Naikkan intensitas otomatis kalau masih rendah
             if role_state.emotions.intimacy_intensity < 11:
                 role_state.emotions.intimacy_intensity = 11
             
-            # Naikkan vulgar stage progress minimal ke 30 (biar mode liar aktif)
             if role_state.vulgar_stage_progress < 30:
                 role_state.vulgar_stage_progress = 30
                 if role_state.vulgar_stage == "awal":
@@ -1177,22 +1195,22 @@ class Orchestrator:
         # ========== DETEKSI HANDUK ==========
         if any(kw in text_lower for kw in ["handuk", "ambil handuk", "kasih handuk", "nih handuk"]):
             role_state.handuk_dikasih = True
-            logger.info(f"ðŸ§º Handuk diberikan ke role, menunggu role lepas baju")
+            logger.info(f"🧺 Handuk diberikan ke role")
 
         if any(kw in text_lower for kw in ["lepas handuk", "buka handuk", "lepaskan handuk", "udah gak usah pake handuk"]):
             role_state.handuk_tersedia = False
             role_state.handuk_dikasih = False
-            logger.info(f"ðŸ§º Handuk dilepas oleh role")
+            logger.info(f"🧺 Handuk dilepas oleh role")
 
         if any(kw in text_lower for kw in ["buka baju", "buka bra", "buka celana", "buka cd", "lepas baju", "lepas bra", "lepas celana", "lepas cd"]):
             if getattr(role_state, 'handuk_dikasih', False):
                 role_state.handuk_tersedia = True
-                logger.info(f"ðŸ§º Handuk dipakai setelah role telanjang")
+                logger.info(f"🧺 Handuk dipakai setelah role telanjang")
         
         if any(kw in text_lower for kw in ["bajuku udah lepas", "udah lepas tadi", "aku udah buka", "telanjang"]):
             if getattr(role_state, 'handuk_dikasih', False):
                 role_state.handuk_tersedia = True
-                logger.info(f"ðŸ§º Handuk dipakai (role mengaku sudah telanjang)")
+                logger.info(f"🧺 Handuk dipakai (role mengaku sudah telanjang)")
 
         # ========== DETEKSI VCS / MASTURBASI BARENG ==========
         vcs_keywords = ["vcs", "video call", "telpon video", "masturb bareng", "masturbasi bareng", "liatin aku", "tunjukin", "gerakin buat aku", "colmek", "vibrator", "dildo"]
@@ -1212,57 +1230,54 @@ class Orchestrator:
                 role_state.vcs_intensity = 0
                 logger.info(f"📱 {role_state.role_id} keluar mode VCS")
         
-        # ========== UPDATE INISIATIF ROLE (UNTUK SEMUA ROLE) ==========
+        # ========== UPDATE INISIATIF ROLE ==========
         high_initiative = False
         
-        # Kondisi 1: Fase VULGAR dengan progres tinggi
-        if role_state.intimacy_phase == IntimacyPhase.VULGAR:
-            if role_state.vulgar_stage_progress >= 50:
-                high_initiative = True
-                logger.info(f"🔥 {role_state.role_id} mode INISIATIF (fase VULGAR progres {role_state.vulgar_stage_progress}%)")
+        if role_state.intimacy_phase == IntimacyPhase.VULGAR and role_state.vulgar_stage_progress >= 50:
+            high_initiative = True
+            logger.info(f"🔥 {role_state.role_id} mode INISIATIF (fase VULGAR progres {role_state.vulgar_stage_progress}%)")
         
-        # Kondisi 2: Sudah sama-sama telanjang
-        if IntimacyProgressionEngine.is_both_naked(role_state, strict=False):
-            if role_state.vulgar_stage_progress >= 30:
-                high_initiative = True
-                logger.info(f"🔥 {role_state.role_id} mode INISIATIF (sudah telanjang)")
+        if IntimacyProgressionEngine.is_both_naked(role_state, strict=False) and role_state.vulgar_stage_progress >= 30:
+            high_initiative = True
+            logger.info(f"🔥 {role_state.role_id} mode INISIATIF (sudah telanjang)")
         
-        # Kondisi 3: Sudah pernah climax di sesi ini
         if role_state.role_climax_count >= 1:
             high_initiative = True
             logger.info(f"🔥 {role_state.role_id} mode INISIATIF (sudah climax {role_state.role_climax_count}x)")
         
-        # Kondisi 4: Intensitas intimacy sudah sangat tinggi
         if role_state.emotions.intimacy_intensity >= 11:
             high_initiative = True
             logger.info(f"🔥 {role_state.role_id} mode INISIATIF (intimacy intensity {role_state.emotions.intimacy_intensity})")
         
-        # Kondisi 5: Mode VCS aktif dengan intensitas tinggi
         if role_state.vcs_mode and role_state.vcs_intensity >= 50:
             high_initiative = True
             logger.info(f"🔥 {role_state.role_id} mode INISIATIF (VCS intensitas {role_state.vcs_intensity}%)")
         
         role_state.high_initiative_mode = high_initiative
-        
-        # ========== UPDATE VCS PROGRESSION ==========
-        if role_state.vcs_mode:
-            vcs_changes = IntimacyProgressionEngine.update_vcs_progression(role_state, inp.text, reply_text)
-            if vcs_changes.get("intensity_increased"):
-                logger.info(f"📱 VCS intensitas naik ke: {role_state.vcs_intensity}%")
-            
-            # Cek climax VCS
-            should_vcs_climax, vcs_climax_text = IntimacyProgressionEngine.check_and_execute_vcs_climax(role_state, inp.text)
-            if should_vcs_climax:
-                logger.info(f"💦 Role {role_state.role_id} CLIMAX saat VCS! (ke-{role_state.role_climax_count})")
-                reply_text = vcs_climax_text
-        
+
+        # ========== RANDOM SPONTANEOUS ACTIONS ==========        
+        if role_state.intimacy_phase == IntimacyPhase.VULGAR and role_state.vulgar_stage_progress >= 40:
+            last_spontaneous = getattr(role_state, 'spontaneous_action_timestamp', 0)
+            if time.time() - last_spontaneous > 30:
+                if random.random() < 0.15 and "kiss" not in reply_text.lower():
+                    reply_text = f"*tanpa diduga, {role_state.role_display_name or role_state.role_id} mencium bibir Mas dengan liar*\n\n{reply_text}"
+                    role_state.spontaneous_action_timestamp = time.time()
+                    logger.info(f"💋 Spontaneous KISS dari {role_state.role_id}")
+                elif random.random() < 0.20:
+                    reply_text = f"*membalikkan badan tanpa diminta* Sekarang giliran aku di atas, Mas~\n\n{reply_text}"
+                    role_state.spontaneous_action_timestamp = time.time()
+                    logger.info(f"🔄 Spontaneous POSITION CHANGE dari {role_state.role_id}")
+                elif random.random() < 0.25:
+                    reply_text = f"*kuku mencakar punggung Mas tanpa peringatan* HAAH...\n\n{reply_text}"
+                    role_state.spontaneous_action_timestamp = time.time()
+                    logger.info(f"✋ Spontaneous AGGRESSIVE TOUCH dari {role_state.role_id}")
+
         # ========== DETEKSI CLIMAX & AFTERCARE ==========
         self._update_post_reply_climax_state(role_state, inp.text, reply_text, inp.timestamp)
 
         # ========== SETELAH AFTERCARE, PAKAIAN MINIMAL ==========
         if role_state.aftercare_active and role_state.intimacy_phase == IntimacyPhase.AFTER:
             if not role_state.aftercare_clothing_state:
-                import random
                 options = ["cd_dan_bra", "cd_saja", "bra_saja"]
                 choice = random.choice(options)
                 
@@ -1276,10 +1291,12 @@ class Orchestrator:
                     role_state.aftercare_clothing_state = "bra_saja"
                     logger.info(f"👙 {role_state.role_id} setelah aftercare: pake BRA saja")
         
-        # Update fase intimacy sebelum disimpan ke memory agar scene tidak melompat
+        # ========== UPDATE FASE INTIMACY ==========
         phase_changed = IntimacyProgressionEngine.update_phase_and_scene(role_state, inp.text, reply_text)
         if phase_changed:
             logger.info(f"User {inp.user_id} role {role_state.role_id} moved to {role_state.intimacy_phase}")
+
+        # ... lanjutkan ke kode yang sudah ada (MORNING AFTER DETECTION, dll)
 
         # ========== MORNING AFTER DETECTION ==========
         # Deteksi user bilang "tidur" atau "pagi"
@@ -1412,12 +1429,31 @@ class Orchestrator:
             timestamp=time.time(),
             content=user_message
         )
-        
-        # Deteksi pindah lokasi untuk story memory
-        if "pindah ke" in user_message.lower():
-            match = re.search(r"pindah ke (\w+)", user_message.lower())
-            if match:
-                self.story_memory.update_location(user_id, role_id, match.group(1))
+
+        # ========== TAMBAHKAN INI setelah response dihasilkan ==========
+        # Auto progress jika user diam
+        if role_state.intimacy_phase == IntimacyPhase.VULGAR:
+            user_text_lower = user_message.lower()
+            short_responses = ["hmm", "hm", "iya", "ia", "hh", "oh", "ow", "wow", "uh", "ah"]
+            if user_text_lower.strip() in short_responses or len(user_text_lower.strip()) <= 3:
+                old_progress = role_state.vulgar_stage_progress
+                role_state.vulgar_stage_progress = min(100, old_progress + 3)
+            
+                if role_state.vulgar_stage_progress >= 80 and role_state.emotions.intimacy_intensity < 12:
+                    role_state.emotions.intimacy_intensity = 12
+                elif role_state.vulgar_stage_progress >= 60 and role_state.emotions.intimacy_intensity < 11:
+                    role_state.emotions.intimacy_intensity = 11
+                elif role_state.vulgar_stage_progress >= 40 and role_state.emotions.intimacy_intensity < 10:
+                    role_state.emotions.intimacy_intensity = 10
+    
+        # Update VCS intensity dari response
+        if role_state.vcs_mode:
+            vcs_increase = role_state.update_vcs_intensity_from_text(response, is_response=True)
+            # Deteksi pindah lokasi untuk story memory
+            if "pindah ke" in user_message.lower():
+                match = re.search(r"pindah ke (\w+)", user_message.lower())
+                if match:
+                    self.story_memory.update_location(user_id, role_id, match.group(1))
         
         # Dapatkan konteks
         story_context = self.story_memory.get_story_prompt(user_id, role_id)
