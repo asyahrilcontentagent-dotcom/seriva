@@ -12,6 +12,7 @@ from bot.handlers import (
     message_handler,
     mulai_handler,
     nego_handler,
+    offline_handler, 
     pause_handler,
     resume_handler,
     role_list_handler,
@@ -102,6 +103,7 @@ def build_application(
     app.add_handler(CommandHandler("pause", pause_handler(orchestrator, admin_id)))
     app.add_handler(CommandHandler("resume", resume_handler(orchestrator, admin_id)))
     app.add_handler(CommandHandler("flashback", flashback_handler(orchestrator, admin_id)))
+    app.add_handler(CommandHandler("offline", offline_handler(orchestrator, admin_id)))
 
     app.add_handler(CommandHandler("nego", nego_handler(orchestrator, admin_id)))
     app.add_handler(CommandHandler("deal", deal_handler(orchestrator, admin_id)))
