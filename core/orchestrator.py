@@ -1044,7 +1044,7 @@ class Orchestrator:
             presence_penalty=LLM_PRESENCE_PENALTY,
             max_tokens=LLM_MAX_TOKENS,
         )
-                reply_text = self._vary_response(reply_text, role_state)
+        reply_text = self._vary_response(reply_text, role_state)   # ← perbaiki indentasi! 8 spaces (2 tabs)
 
         self.message_history.add_message(
             user_id=inp.user_id,
