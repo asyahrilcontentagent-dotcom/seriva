@@ -45,6 +45,7 @@ class RoleInfo:
 
 
 # ID role final (dipakai di seluruh sistem)
+# ID role final (dipakai di seluruh sistem)
 ROLE_ID_NOVA = "nova"
 ROLE_ID_IPAR_TASHA = "ipar_tasha"
 ROLE_ID_TEMAN_KANTOR_IPEH = "teman_kantor_ipeh"
@@ -54,6 +55,10 @@ ROLE_ID_TERAPIS_AGHIA = "terapis_aghia"
 ROLE_ID_TERAPIS_MUNIRA = "terapis_munira"
 ROLE_ID_BO_DAVINA = "teman_spesial_davina"
 ROLE_ID_BO_SALLSA = "teman_spesial_sallsa"
+
+# ALIAS untuk kompatibilitas dengan kode lama
+ROLE_ID_TEMAN_SPESIAL_DAVINA = ROLE_ID_BO_DAVINA
+ROLE_ID_TEMAN_SPESIAL_SALLSA = ROLE_ID_BO_SALLSA
 
 
 # Metadata lengkap semua role
