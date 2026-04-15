@@ -1430,8 +1430,7 @@ class Orchestrator:
             content=user_message
         )
 
-        # ========== TAMBAHKAN INI setelah response dihasilkan ==========
-        # Auto progress jika user diam
+        # Auto progress jika user diam (sebelum generate response)
         if role_state.intimacy_phase == IntimacyPhase.VULGAR:
             user_text_lower = user_message.lower()
             short_responses = ["hmm", "hm", "iya", "ia", "hh", "oh", "ow", "wow", "uh", "ah"]
@@ -1446,15 +1445,6 @@ class Orchestrator:
                 elif role_state.vulgar_stage_progress >= 40 and role_state.emotions.intimacy_intensity < 10:
                     role_state.emotions.intimacy_intensity = 10
     
-        # Update VCS intensity dari response
-        if role_state.vcs_mode:
-            vcs_increase = role_state.update_vcs_intensity_from_text(response, is_response=True)
-            # Deteksi pindah lokasi untuk story memory
-            if "pindah ke" in user_message.lower():
-                match = re.search(r"pindah ke (\w+)", user_message.lower())
-                if match:
-                    self.story_memory.update_location(user_id, role_id, match.group(1))
-        
         # Dapatkan konteks
         story_context = self.story_memory.get_story_prompt(user_id, role_id)
         chat_history = self._get_chat_history_context(user_id, role_id)
@@ -1469,21 +1459,21 @@ class Orchestrator:
             knowledge_boundary=role_spec.knowledge_boundary,
             role_personality=role_spec.personality,
             vulgar_allowed=role_state.intimacy_phase == IntimacyPhase.VULGAR,
-            extra_rules=f"""
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-ðŸ“œ KONTEKS CERITA (WAJIB DIIKUTI):
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+            extra_rules="""
+═══════════════════════════════════════════════════════════════════
+📖 KONTEKS CERITA (WAJIB DIIKUTI):
+═══════════════════════════════════════════════════════════════════
 {story_context}
 
-ðŸ’¬ HISTORY PERCAKAPAN:
+💬 HISTORY PERCAKAPAN:
 {chat_history}
 
-ðŸŽ¯ ATURAN TAMBAHAN:
+🎯 ATURAN TAMBAHAN:
 1. RESPON HARUS SELARAS dengan alur cerita di atas!
 2. JANGAN mengubah fakta yang sudah terjadi!
 3. JANGAN ulang frase yang sama dari history!
 4. Gunakan variasi gesture dan inner thought!
-â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+═══════════════════════════════════════════════════════════════════
 """
         )
         
@@ -1504,6 +1494,18 @@ class Orchestrator:
         
         # Variasi respon
         response = self._vary_response(response, role_state)
+        
+        # ========== UPDATE VCS INTENSITY DARI RESPONSE (PINDAHKAN KE SINI) ==========
+        if role_state.vcs_mode:
+            vcs_increase = role_state.update_vcs_intensity_from_text(response, is_response=True)
+            if vcs_increase > 0:
+                logger.info(f"📱 VCS intensity +{vcs_increase} dari response role")
+        
+        # Deteksi pindah lokasi untuk story memory
+        if "pindah ke" in user_message.lower():
+            match = re.search(r"pindah ke (\w+)", user_message.lower())
+            if match:
+                self.story_memory.update_location(user_id, role_id, match.group(1))
         
         # Simpan response ke history
         self.message_history.add_message(
