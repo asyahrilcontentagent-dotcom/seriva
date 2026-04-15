@@ -40,15 +40,21 @@ from typing import Optional
 from config.constants import (
     DEFAULT_USER_CALL,
     ROLE_ID_NOVA,
+    ROLE_ID_IPAR_TASHA,
     ROLE_ID_TEMAN_KANTOR_IPEH,
     ROLE_ID_TEMAN_LAMA_WIDYA,
     ROLE_ID_WANITA_BERSUAMI_SISKA,
     ROLE_ID_TERAPIS_AGHIA,
     ROLE_ID_TERAPIS_MUNIRA,
-    ROLE_ID_TEMAN_SPESIAL_DAVINA,
-    ROLE_ID_TEMAN_SPESIAL_SALLSA,
-    ROLE_ID_IPAR_TASHA,
+    ROLE_ID_BO_DAVINA,      # ← ganti dari TEMAN_SPESIAL_DAVINA
+    ROLE_ID_BO_SALLSA,      # ← ganti dari TEMAN_SPESIAL_SALLSA
     ROLES,
+    get_provider_profile,   # ← baru
+    is_provider_role,       # ← baru
+    is_terapis_role,        # ← baru
+    is_bo_role,             # ← baru
+    ProviderProfile,        # ← baru
+    ExtraService,           # ← baru
 )
 from core.emotion_engine import EmotionEngine, InteractionContext
 from core.llm_client import LLMClient
@@ -201,48 +207,9 @@ class Orchestrator:
         ]
         
         self.inner_thought_pool = [
-            "*deg*", "*enak*", "*panas*", "*basah*", "*geli*",
+            "*deg*", "*enak*", "*sangek*", "*becek*", "*geli*",
             "*achhh*", "*uhuk*", "*hufff*", "*gemetar*", "*lemas*"
         ]
-
-        self.provider_profiles = {
-            ROLE_ID_TERAPIS_AGHIA: {
-                "service_label": "Sesi pijat relaksasi privat",
-                "base_price": 350,
-                "min_price": 300,
-                "duration_minutes": 60,
-                "included": "pijat 60 menit, minyak hangat, handuk, dan sentuhan penutup yang lebih personal",
-                "upgrades": "pendampingan yang lebih intim dan sesi privat penuh, hanya jika sama-sama setuju",
-                "boundaries": "tetap mulai dari layanan pijat; semua tambahan harus lewat deal yang jelas",
-            },
-            ROLE_ID_TERAPIS_MUNIRA: {
-                "service_label": "Sesi pijat santai dan akrab",
-                "base_price": 320,
-                "min_price": 280,
-                "duration_minutes": 60,
-                "included": "pijat 60 menit, suasana santai, handuk, dan penutup sesi yang lebih manis",
-                "upgrades": "quality time yang lebih dekat atau sesi privat tambahan lewat kesepakatan",
-                "boundaries": "tanpa deal yang jelas, Munira tetap bermain di layanan utama",
-            },
-            ROLE_ID_TEMAN_SPESIAL_DAVINA: {
-                "service_label": "Private companion evening",
-                "base_price": 700,
-                "min_price": 620,
-                "duration_minutes": 180,
-                "included": "quality time privat, obrolan dekat, perhatian penuh, dan suasana eksklusif",
-                "upgrades": "momen yang lebih intim dan perpanjangan private time lewat kesepakatan yang rapi",
-                "boundaries": "Davina tetap elegan dan terkontrol; tambahan hanya berjalan kalau deal sudah jelas",
-            },
-            ROLE_ID_TEMAN_SPESIAL_SALLSA: {
-                "service_label": "Teman malam playful",
-                "base_price": 550,
-                "min_price": 480,
-                "duration_minutes": 180,
-                "included": "quality time, suasana hangat, ngobrol dekat, dan atensi penuh yang manja",
-                "upgrades": "private time yang lebih dekat atau sesi tambahan lewat kesepakatan",
-                "boundaries": "Sallsa boleh playful, tapi tetap menunggu deal yang jelas sebelum masuk ke tambahan layanan",
-            },
-        }
 
     # ========== METHOD UNTUK STORY MEMORY & RESPONSE VARIATION ==========
 
@@ -1550,8 +1517,9 @@ class Orchestrator:
         self.user_store.save_user_state(user_state)
         self.world_store.save_world_state(world_state)
 
-    def _get_provider_profile(self, role_id: str) -> Optional[dict]:
-        return self.provider_profiles.get(role_id)
+    def _get_provider_profile(self, role_id: str) -> Optional[ProviderProfile]:
+        from config.constants import get_provider_profile
+        return get_provider_profile(role_id)
 
     def _extract_offer_from_text(self, text: str, default_price: int) -> int:
         match = re.search(r"(\d{2,5})", text)
@@ -1682,6 +1650,20 @@ class Orchestrator:
                     active_role_id=user_state.active_role_id,
                     session_mode=user_state.global_session_mode,
                 )
+
+            requested_extras = []
+            extra_total = 0
+            if "+" in inp.text:
+                extra_part = inp.text.split("+")[1].strip().lower()
+                # Split multiple extras dengan koma atau spasi
+                for extra_key in re.split(r'[, ]+', extra_part):
+                    extra_key = extra_key.strip()
+                    if extra_key in profile.extra_services:
+                        if extra_key not in requested_extras:
+                            requested_extras.append(extra_key)
+                            extra_total += profile.extra_services[extra_key].price
+            
+            total_price = offered_price + extra_total
 
             role_state.session.deal_confirmed = False
             role_state.session.negotiated_price = offered_price
@@ -1927,10 +1909,17 @@ class Orchestrator:
             self.milestones.reset_role_milestones(user_id, role_id)
 
     def _is_provider_role(self, role_id: str) -> bool:
-        info = ROLES.get(role_id)
-        if not info:
-            return False
-        return info.category in {"TERAPIS_PIJAT", "TEMAN_SPESIAL"}
+        from config.constants import is_provider_role
+        return is_provider_role(role_id)
+
+    def _get_extra_service_price(self, profile: ProviderProfile, extra_key: str) -> Optional[int]:
+        """Ambil harga extra service berdasarkan key."""
+        extra = profile.extra_services.get(extra_key)
+        return extra.price if extra else None
+
+    def _is_extra_service_available(self, profile: ProviderProfile, extra_key: str) -> bool:
+        """Cek apakah extra service tersedia."""
+        return extra_key in profile.extra_services
 
     # --------------------------------------------------
     # INTERNAL HELPERS: SIMPLE INTENT PARSING
