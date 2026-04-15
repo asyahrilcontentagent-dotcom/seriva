@@ -1,4 +1,4 @@
-﻿"""Main orchestrator for SERIVA.
+"""Main orchestrator for SERIVA.
 
 Tugas utama Orchestrator:
 - Terima pesan dari user (text) + konteks (user_id, timestamp, dsb.).
@@ -143,6 +143,7 @@ class OrchestratorInput:
     is_command: bool = False
     command_name: Optional[str] = None  # misal: "nova", "role", "end", "nego", "mulai", "flashback"
     command_arg: Optional[str] = None  # misal: role_id setelah /role
+    remote_mode: Optional[str] = None
 
 
 @dataclass
@@ -277,11 +278,92 @@ class Orchestrator:
                         if len(gesture) > 1 and len(new_gesture) > 1 and gesture[1] in response:
                             response = response.replace(gesture[1], new_gesture[1])
                         break
-        
+
         if role_state.intimacy_phase == IntimacyPhase.VULGAR and len(response) > 300:
             response = response[:297] + "..."
-        
-        return response
+
+        response = self._apply_general_humanizer(response)
+        return self._apply_communication_style(response, role_state)
+
+    @staticmethod
+    def _apply_general_humanizer(response: str) -> str:
+        """Rapikan pola yang terlalu mekanis agar respons terasa lebih natural."""
+
+        text = response.strip()
+        if not text:
+            return text
+
+        text = re.sub(r"\n{3,}", "\n\n", text)
+        text = re.sub(r"([!?.,])\1{2,}", r"\1\1", text)
+
+        parts = [part.strip() for part in re.split(r"(?<=[.!?])\s+", text) if part.strip()]
+        if not parts:
+            return text
+
+        deduped_parts = []
+        seen_normalized = set()
+        for part in parts:
+            normalized = re.sub(r"\s+", " ", part.lower()).strip()
+            if normalized in seen_normalized:
+                continue
+            seen_normalized.add(normalized)
+            deduped_parts.append(part)
+
+        text = " ".join(deduped_parts)
+
+        # Batasi gesture bertumpuk supaya tidak terasa seperti template panggung.
+        gesture_matches = re.findall(r"\([^()]{1,60}\)", text)
+        if len(gesture_matches) > 2:
+            kept = 0
+            def _trim_gesture(match: re.Match[str]) -> str:
+                nonlocal kept
+                kept += 1
+                return match.group(0) if kept <= 2 else ""
+            text = re.sub(r"\([^()]{1,60}\)", _trim_gesture, text)
+            text = re.sub(r"\s{2,}", " ", text).strip()
+
+        return text
+
+    def _apply_communication_style(self, response: str, role_state: RoleState) -> str:
+        """Poles ringan output agar lebih cocok dengan medium komunikasi aktif."""
+
+        mode = getattr(role_state, "communication_mode", None)
+        text = response.strip()
+        if not mode or not text:
+            return text
+
+        text = re.sub(r"\n{3,}", "\n\n", text)
+
+        if mode == "chat":
+            text = re.sub(r"[ \t]+\n", "\n", text)
+            chunks = [chunk.strip() for chunk in re.split(r"\n\s*\n", text) if chunk.strip()]
+            if not chunks:
+                return text
+
+            if len(chunks) == 1:
+                sentence_parts = re.split(r"(?<=[.!?])\s+", chunks[0])
+                compact_parts = [part.strip() for part in sentence_parts if part.strip()]
+                if len(compact_parts) > 1:
+                    chunks = compact_parts[:3]
+                else:
+                    chunks = [chunks[0]]
+
+            compact_chunks = []
+            for chunk in chunks[:3]:
+                compact_chunks.append(chunk[:180].strip())
+            return "\n\n".join(compact_chunks).strip()
+
+        if mode == "call":
+            text = text.replace("\n\n", "\n")
+            return re.sub(r"\s*\n\s*", " ", text).strip()
+
+        if mode == "vps":
+            lines = [line.strip() for line in re.split(r"\n\s*\n", text) if line.strip()]
+            if len(lines) <= 2:
+                return "\n\n".join(lines)
+            return "\n\n".join(lines[:2]).strip()
+
+        return text
     
     def _detect_and_record_story_beat(self, user_id: str, role_id: str, user_msg: str, response: str):
         """Deteksi momen penting dan catat ke story memory"""
@@ -405,6 +487,9 @@ class Orchestrator:
         return (
             "KONTEKS MEMORY DAN KONTINUITAS:\n"
             f"{world_context}\n\n"
+            "KANAL INTERAKSI SAAT INI:\n"
+            f"- Mode komunikasi aktif: {role_state.communication_mode or 'tatap muka / langsung'}\n"
+            f"- Sudah berjalan: {getattr(role_state, 'communication_mode_turns', 0)} turn\n\n"
             "PRIVACY PARTITION MEMORY:\n"
             "- Kamu hanya boleh memakai memory, chat history, dan scene yang berasal dari relasimu sendiri dengan Mas.\n"
             "- Jangan menyimpulkan bahwa Mas punya perempuan lain, istri, atau hubungan lain kecuali itu benar-benar ada di pengetahuan karaktermu.\n"
@@ -449,6 +534,115 @@ class Orchestrator:
             return InteractionContext(tone="SOFT", content="APOLOGY", strength=2)
         else:
             return InteractionContext(tone="SOFT", content="AFFECTION", strength=1)
+
+    @staticmethod
+    def _extract_remote_mode(text: str) -> Optional[str]:
+        """Ambil trigger remote mode dari prefix seperti (chat), *call*, atau **vps**."""
+
+        stripped = text.lstrip()
+        patterns = [
+            r"^\((chat|call|vps|vcs)\)\s*",
+            r"^\*{1,2}(chat|call|vps|vcs)\*{1,2}\s*",
+        ]
+        for pattern in patterns:
+            match = re.match(pattern, stripped, flags=re.IGNORECASE)
+            if match:
+                mode = match.group(1).lower()
+                if mode == "vcs":
+                    return "vps"
+                return mode
+        return None
+
+    @staticmethod
+    def _strip_remote_mode_prefix(text: str) -> str:
+        """Buang prefix remote mode agar isi pesan tetap natural untuk processing lain."""
+
+        cleaned = re.sub(
+            r"^\s*(?:\((?:chat|call|vps|vcs)\)|\*{1,2}(?:chat|call|vps|vcs)\*{1,2})\s*",
+            "",
+            text,
+            count=1,
+            flags=re.IGNORECASE,
+        )
+        return cleaned or text
+
+    @staticmethod
+    def _normalize_remote_mode(mode: Optional[str]) -> Optional[str]:
+        """Samakan alias remote mode ke set mode internal yang dipakai sistem."""
+
+        if mode is None:
+            return None
+        lowered = mode.lower().strip()
+        if lowered == "vcs":
+            return "vps"
+        if lowered in {"chat", "call", "vps"}:
+            return lowered
+        return None
+
+    @staticmethod
+    def _looks_like_in_person_scene_shift(text: str) -> bool:
+        """Deteksi sederhana ketika user menggeser adegan kembali ke pertemuan fisik."""
+
+        lowered = text.lower()
+        physical_cues = [
+            "ketemu",
+            "ketemuan",
+            "aku datang",
+            "mas datang",
+            "aku ke rumah",
+            "main ke",
+            "di rumah",
+            "di kamar",
+            "di mobil",
+            "di kafe",
+            "di cafe",
+            "di apartemen",
+            "di sofa",
+            "peluk",
+            "sender",
+            "nyender",
+        ]
+        return any(cue in lowered for cue in physical_cues)
+
+    def _clear_communication_mode(self, role_state: RoleState) -> None:
+        """Reset semua state komunikasi remote untuk role aktif."""
+
+        role_state.communication_mode = None
+        role_state.communication_mode_turns = 0
+        role_state.communication_mode_started_at = None
+
+    def _activate_communication_mode(
+        self,
+        role_state: RoleState,
+        mode: str,
+        timestamp: float,
+    ) -> None:
+        """Aktifkan mode komunikasi remote dan inisialisasi metadata-nya."""
+
+        normalized_mode = self._normalize_remote_mode(mode)
+        if normalized_mode is None:
+            return
+
+        if role_state.communication_mode != normalized_mode:
+            role_state.communication_mode = normalized_mode
+            role_state.communication_mode_turns = 0
+            role_state.communication_mode_started_at = timestamp
+
+    def _sync_communication_mode(self, role_state: RoleState, inp: OrchestratorInput) -> None:
+        """Jaga flow mode chat/call/vps tetap konsisten antar pesan."""
+
+        requested_mode = self._normalize_remote_mode(inp.remote_mode)
+        if requested_mode:
+            self._activate_communication_mode(role_state, requested_mode, inp.timestamp)
+            inp.remote_mode = requested_mode
+        elif role_state.communication_mode and self._looks_like_in_person_scene_shift(inp.text):
+            self._clear_communication_mode(role_state)
+            inp.remote_mode = None
+        elif role_state.communication_mode:
+            inp.remote_mode = role_state.communication_mode
+
+        if role_state.communication_mode:
+            role_state.communication_mode_turns += 1
 
     @staticmethod
     def _contains_any_phrase(text: str, phrases: list[str]) -> bool:
@@ -659,6 +853,12 @@ class Orchestrator:
     def handle_input(self, inp: OrchestratorInput) -> OrchestratorOutput:
         """Proses satu pesan dari user dan kembalikan jawaban."""
 
+        if not inp.is_command:
+            remote_mode = self._extract_remote_mode(inp.text)
+            if remote_mode:
+                inp.remote_mode = self._normalize_remote_mode(remote_mode)
+                inp.text = self._strip_remote_mode_prefix(inp.text)
+
         user_state = self._load_or_init_user_state(inp.user_id)
         world_state = self._load_or_init_world_state()
         
@@ -689,6 +889,7 @@ class Orchestrator:
             user_state.active_role_id = ROLE_ID_NOVA
 
         role_state = user_state.get_or_create_role_state(user_state.active_role_id)
+        self._sync_communication_mode(role_state, inp)
 
         # ========== DETEKSI MAS PULANG ==========
         mas_leave_keywords = ["pulang", "bye", "dadah", "sampai jumpa", "aku pergi", "keluar", "daah"]
@@ -697,6 +898,7 @@ class Orchestrator:
             role_state.aftercare_clothing_state = ""
             role_state.last_session_ended_at = inp.timestamp
             role_state.intimacy_detail.role_clothing_removed.clear()
+            self._clear_communication_mode(role_state)
             logger.info(f"🚪 Mas pulang, {role_state.role_id} reset pakaian ke default")
 
         # 4) Interpretasi intent dasar dari teks user
@@ -1375,6 +1577,7 @@ class Orchestrator:
             role_state.session.provider_upgrade_summary = None
             role_state.session.provider_boundaries = None
             role_state.session.last_negotiation_summary = None
+            self._clear_communication_mode(role_state)
             
             # ========== RESET CLIMAX STATE ==========
             role_state.role_wants_climax = False
@@ -1511,6 +1714,49 @@ class Orchestrator:
             self._update_scene_for_aghia(role_state, inp)          
         else:
             role_state.scene.last_scene_update_ts = inp.timestamp
+
+        if inp.remote_mode == "chat":
+            self._apply_remote_chat_scene(role_state, inp.timestamp)
+        elif inp.remote_mode == "call":
+            self._apply_remote_call_scene(role_state, inp.timestamp)
+        elif inp.remote_mode == "vps":
+            self._apply_remote_vps_scene(role_state, inp.timestamp)
+
+    def _apply_remote_chat_scene(self, role_state: RoleState, timestamp: float) -> None:
+        """Override scene untuk percakapan yang terjadi lewat HP."""
+
+        scene = role_state.scene
+        scene.location = "masing-masing di tempat sendiri, terhubung lewat HP"
+        scene.posture = "menatap layar HP sambil mengetik dan menunggu balasan"
+        scene.activity = "komunikasi lewat chat WhatsApp atau Telegram"
+        scene.ambience = "layar HP menyala, notifikasi masuk, suasana terasa personal dari kejauhan"
+        scene.physical_distance = "berjauhan secara fisik, tapi tetap dekat lewat percakapan"
+        scene.last_touch = "tidak ada sentuhan fisik karena interaksi terjadi lewat chat"
+        scene.last_scene_update_ts = timestamp
+
+    def _apply_remote_call_scene(self, role_state: RoleState, timestamp: float) -> None:
+        """Override scene untuk percakapan lewat panggilan suara."""
+
+        scene = role_state.scene
+        scene.location = "masing-masing di tempat sendiri, terhubung lewat telepon"
+        scene.posture = "memegang HP di telinga atau speaker sambil fokus mendengar suara satu sama lain"
+        scene.activity = "komunikasi lewat panggilan suara"
+        scene.ambience = "suara napas, jeda, dan intonasi terasa lebih dekat lewat sambungan telepon"
+        scene.physical_distance = "berjauhan secara fisik, tapi terasa dekat lewat suara"
+        scene.last_touch = "tidak ada sentuhan fisik karena interaksi terjadi lewat telepon"
+        scene.last_scene_update_ts = timestamp
+
+    def _apply_remote_vps_scene(self, role_state: RoleState, timestamp: float) -> None:
+        """Override scene untuk percakapan lewat video call."""
+
+        scene = role_state.scene
+        scene.location = "masing-masing di tempat sendiri, saling terhubung lewat video call"
+        scene.posture = "menatap layar HP sambil menjaga kamera tetap mengarah ke wajah atau tubuh"
+        scene.activity = "komunikasi lewat video call privat"
+        scene.ambience = "layar terang, kamera aktif, dan reaksi visual terasa langsung meski berjauhan"
+        scene.physical_distance = "berjauhan secara fisik, tapi saling melihat secara real-time"
+        scene.last_touch = "tidak ada sentuhan fisik karena interaksi terjadi lewat video call"
+        scene.last_scene_update_ts = timestamp
 
     def _sync_household_scene_cues(self, role_state: RoleState, world_state: WorldState) -> None:
         """Sinkronkan cue rumah tangga yang perlu konsisten di scene."""
