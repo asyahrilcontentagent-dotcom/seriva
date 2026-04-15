@@ -571,26 +571,23 @@ class Orchestrator:
 
     @staticmethod
     def _looks_like_in_person_scene_shift(text: str) -> bool:
-        """Deteksi sederhana ketika user menggeser adegan kembali ke pertemuan fisik."""
-
         lowered = text.lower()
         physical_cues = [
-            "ketemu",
-            "ketemuan",
-            "aku datang",
-            "mas datang",
-            "aku ke rumah",
-            "main ke",
-            "di rumah",
-            "di kamar",
-            "di mobil",
-            "di kafe",
-            "di cafe",
-            "di apartemen",
-            "di sofa",
-            "peluk",
-            "sender",
-            "nyender",
+            # Pertemuan fisik
+            "ketemu", "ketemuan", "bertemu", "datang", "sampe",
+            "aku datang", "mas datang", "aku ke rumah", "main ke",
+        
+            # Lokasi fisik
+            "di rumah", "di kamar", "di mobil", "di kafe", "di cafe",
+            "di apartemen", "di sofa", "di sini", "di sana",
+        
+            # Aksi fisik (bisa dilakukan di tempat yang sama)
+            "peluk", "sender", "nyender", "cium", "kiss", "pegang",
+            "elus", "tatap", "liat", "lirik", "deket", "mepet",
+        
+            # Mengakhiri mode remote
+            "udahan chat", "berenti chat", "stop chat",
+            "matiin hp", "tutup hp", "sambung langsung",
         ]
         return any(cue in lowered for cue in physical_cues)
 
