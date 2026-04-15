@@ -1079,14 +1079,69 @@ class RoleState:
     
     def update_sexual_language_level(self) -> None:
         """Update level bahasa berdasarkan intimacy_intensity."""
-        if self.emotions.intimacy_intensity >= 10:
+        intensity = self.emotions.intimacy_intensity
+    
+        if intensity >= 12:
+            self.sexual_language_level = SexualLanguageLevel.VULGAR
+        elif intensity >= 10:
             self.sexual_language_level = SexualLanguageLevel.EXPLICIT
-        elif self.emotions.intimacy_intensity >= 7:
+        elif intensity >= 7:
             self.sexual_language_level = SexualLanguageLevel.SENSUAL
-        elif self.emotions.intimacy_intensity >= 4:
+        elif intensity >= 4:
             self.sexual_language_level = SexualLanguageLevel.SUGGESTIVE
         else:
             self.sexual_language_level = SexualLanguageLevel.SAFE
+            
+    def get_language_guidelines(self) -> str:
+        """Dapatkan panduan bahasa berdasarkan level saat ini."""
+    
+        guidelines = {
+            SexualLanguageLevel.SAFE: """
+📌 LEVEL BAHASA: SAFE (Aman)
+- TIDAK boleh menyebut organ seksual
+- TIDAK boleh menggunakan kata vulgar
+- Fokus ke emosi, suasana, dan kedekatan non-fisik
+- Gunakan bahasa yang lembut dan romantis
+""",
+            SexualLanguageLevel.SUGGESTIVE: """
+📌 LEVEL BAHASA: SUGGESTIVE (Sindiran)
+- BOLEH menggunakan sindiran dan暗示 (hint)
+- Contoh: "di sana", "tempat yang hangat", "bagian dalam"
+- TIDAK boleh menyebut organ seksual secara langsung
+- TIDAK boleh menggunakan kata vulgar
+""",
+            SexualLanguageLevel.SENSUAL: """
+📌 LEVEL BAHASA: SENSUAL (Puitis)
+- BOLEH mendeskripsikan sensasi secara puitis
+- BOLEH menyebut organ seksual dengan bahasa halus:
+  * "kehangatan di antara paha"
+  * "kegelian dari dalam"
+  * "kemerahan di ujung"
+- TIDAK boleh menggunakan kata vulgar (kontol, memek, ngentot)
+- Fokus ke sensasi dan emosi, bukan nama kasar
+""",
+            SexualLanguageLevel.EXPLICIT: """
+📌 LEVEL BAHASA: EXPLICIT (Eksplisit)
+- BOLEH menyebut organ seksual secara langsung:
+  * penis, vagina, klitoris, payudara, puting
+- BOLEH mendeskripsikan tindakan seksual secara detail
+- BOLEH menggunakan desahan: "haaah...", "achhh...", "uhh..."
+- TIDAK boleh menggunakan kata vulgar kasar (kontol, memek, ngentot)
+- Gunakan bahasa yang hangat dan menggugah, bukan merendahkan
+""",
+            SexualLanguageLevel.VULGAR: """
+📌 LEVEL BAHASA: VULGAR (Kasar - ONLY LEVEL 12+)
+- BOLEH menyebut organ seksual dengan kata kasar:
+  * kontol, memek, itil, toket, pantat
+- BOLEH menggunakan kata kerja vulgar:
+  * ngentot, entot, becek, perek
+- BOLEH mendeskripsikan adegan dengan sangat detail dan liar
+- TETAP jaga agar tidak terdengar seperti template atau mekanis
+- Gunakan secara NATURAL sesuai momen, bukan setiap kalimat
+""",
+    }
+    
+        return guidelines.get(self.sexual_language_level, guidelines[SexualLanguageLevel.SAFE])
     
     def add_sexual_moment(self, moment: SexualMoment, max_memory: int = 20) -> None:
         """Simpan momen seksual untuk konsistensi cerita."""
