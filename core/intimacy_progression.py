@@ -230,7 +230,7 @@ class IntimacyProgressionEngine:
     
     # ========== BARU: LEVEL 10-12 PROGRESSION METHODS ==========
     
-        @classmethod
+    @classmethod
     def update_vulgar_progression(cls, role_state: RoleState, user_text: str, response_text: str) -> Dict[str, any]:
         """Update progresi dalam fase VULGAR. Return perubahan yang terjadi.
         
