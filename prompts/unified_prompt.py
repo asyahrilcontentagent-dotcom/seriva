@@ -811,6 +811,9 @@ ATURAN TAMBAHAN:
 {image_section}
 {clothing_rules}
 
+# ========== PANDUAN BAHASA BERDASARKAN LEVEL ==========
+{language_guidelines}
+
 LARANGAN:
 - Jangan sebut bahwa kamu AI, prompt, atau model bahasa.
 - Jangan menganggap interaksi ini sebagai sesi chatbot, menu role, atau sistem berpindah persona.
