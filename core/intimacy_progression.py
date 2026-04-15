@@ -230,7 +230,7 @@ class IntimacyProgressionEngine:
     
     # ========== BARU: LEVEL 10-12 PROGRESSION METHODS ==========
     
-    @classmethod
+        @classmethod
     def update_vulgar_progression(cls, role_state: RoleState, user_text: str, response_text: str) -> Dict[str, any]:
         """Update progresi dalam fase VULGAR. Return perubahan yang terjadi.
         
@@ -256,7 +256,7 @@ class IntimacyProgressionEngine:
             "cepat": 8, "lambat": 3, "palu": 12,
             "enak": 5, "nikmat": 5, "sakit": 2,
             "goyang": 8, "pantat": 6, "pinggul": 6,
-            "naik": 4, "turun": 4, "dalam": 5,
+            "naik": 4, "turun": 4,
         }
         
         # Hitung arousal increase
@@ -267,10 +267,30 @@ class IntimacyProgressionEngine:
         
         # Tambah progres
         if arousal_increase > 0:
+            old_progress = role_state.vulgar_stage_progress
             role_state.vulgar_stage_progress = min(100, role_state.vulgar_stage_progress + arousal_increase)
-            role_state.last_intensity_increase_timestamp = time.time()
             changes["arousal_increased"] = True
             changes["new_progress"] = role_state.vulgar_stage_progress
+            
+            # ========== SINCRONISASI DENGAN INTIMACY_INTENSITY ==========
+            old_intensity = role_state.emotions.intimacy_intensity
+            
+            if role_state.vulgar_stage_progress >= 80 and old_intensity < 12:
+                role_state.emotions.intimacy_intensity = 12
+                changes["intensity_updated"] = True
+                changes["new_intensity"] = 12
+            elif role_state.vulgar_stage_progress >= 50 and old_intensity < 11:
+                role_state.emotions.intimacy_intensity = 11
+                changes["intensity_updated"] = True
+                changes["new_intensity"] = 11
+            elif role_state.vulgar_stage_progress >= 25 and old_intensity < 10:
+                role_state.emotions.intimacy_intensity = 10
+                changes["intensity_updated"] = True
+                changes["new_intensity"] = 10
+            
+            # Update language level setelah intimacy_intensity berubah
+            if changes.get("intensity_updated"):
+                role_state.update_sexual_language_level()
         
         # Update physical state berdasarkan teks
         cls._update_physical_state(role_state, text)
