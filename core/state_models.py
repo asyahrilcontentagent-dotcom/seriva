@@ -393,13 +393,17 @@ class RoleSessionState:
 
     # Ringkasan dunia provider yang sudah disepakati.
     provider_service_label: Optional[str] = None
+    provider_package: Optional[str] = None
     provider_included_summary: Optional[str] = None
     provider_upgrade_summary: Optional[str] = None
     provider_boundaries: Optional[str] = None
+    provider_climax_limit: Optional[int] = None
     last_negotiation_summary: Optional[str] = None
     provider_meeting_point: Optional[str] = None
     provider_location_choice: Optional[str] = None
     provider_location_pending: bool = False
+    provider_arrival_status: Optional[str] = None
+    provider_arrived_at_ts: Optional[float] = None
 
 
 # ==============================
