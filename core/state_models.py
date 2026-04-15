@@ -579,6 +579,8 @@ class RoleState:
     # Aftercare mode
     aftercare_phase: str = "cooling"  # cooling, cuddling, talking, sleeping
     aftercare_intensity: int = 0      # 0-100
+    role_stamina: int = 100
+    mas_stamina: int = 100
     
     # Fantasy mode
     fantasy_mode_active: bool = False
@@ -638,6 +640,11 @@ class RoleState:
             "wetness": 0,
             "last_spasm": None,
             "vocal_cords": "normal",
+            "sweat": 0,
+            "eye_state": "normal",
+            "mouth_state": "normal",
+            "leg_tension": 0,
+            "control_level": 100,
         }
         
         # Sesi baru selalu mulai aman; kedekatan emosional tidak otomatis
@@ -700,6 +707,8 @@ class RoleState:
         self.spontaneous_action_timestamp = None
         self.aftercare_phase = "cooling"
         self.aftercare_intensity = 0
+        self.role_stamina = 100
+        self.mas_stamina = 100
         self.fantasy_mode_active = False
         self.fantasy_scenario = ""
         self.fantasy_context = ""
@@ -814,6 +823,67 @@ class RoleState:
 
         self.emotions.clamp()
         self.relationship.clamp()
+        self.role_stamina = max(0, min(100, self.role_stamina))
+        self.mas_stamina = max(0, min(100, self.mas_stamina))
+        self.aftercare_intensity = max(0, min(100, self.aftercare_intensity))
+
+    def apply_role_climax_fatigue(self, amount: int = 24) -> None:
+        """Turunkan stamina role setelah climax."""
+
+        self.role_stamina = max(0, self.role_stamina - amount)
+        self.aftercare_active = True
+        self.aftercare_phase = "cooling"
+        self.aftercare_intensity = max(self.aftercare_intensity, 75)
+        self.role_physical_state["breathing"] = "gasping"
+        self.role_physical_state["heartbeat"] = "racing"
+        self.role_physical_state["control_level"] = min(
+            self.role_physical_state.get("control_level", 100),
+            35,
+        )
+
+    def apply_mas_climax_fatigue(self, amount: int = 30) -> None:
+        """Turunkan stamina Mas setelah climax."""
+
+        self.mas_stamina = max(0, self.mas_stamina - amount)
+        self.aftercare_active = True
+        self.aftercare_phase = "cooling"
+        self.aftercare_intensity = max(self.aftercare_intensity, 80)
+
+    def soften_aftercare(self, amount: int = 12) -> None:
+        """Turunkan tensi aftercare perlahan kalau tidak ada eskalasi lagi."""
+
+        self.aftercare_intensity = max(0, self.aftercare_intensity - amount)
+        self.descriptive_intensity = max(0, self.descriptive_intensity - max(6, amount // 2))
+        self.emotions.intimacy_intensity = max(
+            MIN_INTIMACY_INTENSITY,
+            self.emotions.intimacy_intensity - 1,
+        )
+        self.role_physical_state["body_tension"] = max(
+            0,
+            self.role_physical_state.get("body_tension", 0) - amount,
+        )
+        self.role_physical_state["leg_tension"] = max(
+            0,
+            self.role_physical_state.get("leg_tension", 0) - max(4, amount // 2),
+        )
+        self.role_physical_state["control_level"] = min(
+            100,
+            self.role_physical_state.get("control_level", 100) + max(6, amount // 2),
+        )
+
+        if self.aftercare_intensity >= 60:
+            self.aftercare_phase = "cooling"
+        elif self.aftercare_intensity >= 35:
+            self.aftercare_phase = "cuddling"
+        elif self.aftercare_intensity >= 15:
+            self.aftercare_phase = "talking"
+        else:
+            self.aftercare_phase = "sleeping"
+
+        if self.aftercare_phase == "sleeping":
+            self.intimacy_phase = IntimacyPhase.AFTER
+            self.current_sequence = SceneSequence.TIDUR
+            self.intimacy_detail.intensity = IntimacyIntensity.AFTER
 
     # ========== MEMORY METHODS ==========
     
