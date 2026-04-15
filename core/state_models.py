@@ -386,6 +386,9 @@ class RoleSessionState:
     # Timestamp mulai sesi (opsional, buat worker kalau perlu efek longing/drama).
     started_at_ts: Optional[float] = None
 
+    # Untuk extra services (BO)
+    requested_extras: List[str] = field(default_factory=list)
+
     # Ringkasan dunia provider yang sudah disepakati.
     provider_service_label: Optional[str] = None
     provider_included_summary: Optional[str] = None
