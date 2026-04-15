@@ -508,7 +508,7 @@ def flashback_handler(orchestrator: Orchestrator, admin_id: str):
 
 
 # ==============================
-# HANDLER PROVIDER: /nego, /deal, /mulai
+# HANDLER PROVIDER: /nego, /deal, /venue, /mulai
 # ==============================
 
 
@@ -590,6 +590,37 @@ def mulai_handler(orchestrator: Orchestrator, admin_id: str):
             timestamp=now_ts,
             is_command=True,
             command_name="mulai",
+        )
+        out: OrchestratorOutput = orchestrator.handle_input(inp)
+        await chat.send_message(out.reply_text)
+
+    return _handler
+
+
+def venue_handler(orchestrator: Orchestrator, admin_id: str):
+    """/venue <hotel|apartemen>: pilih venue untuk provider teman spesial."""
+
+    @require_admin(admin_id)
+    async def _handler(
+        update: Update,
+        context: ContextTypes.DEFAULT_TYPE,
+    ) -> None:
+        chat = update.effective_chat
+        user = update.effective_user
+        if chat is None or user is None:
+            return
+
+        args = context.args or []
+        venue_arg = args[0].strip() if args else ""
+        now_ts = time.time()
+
+        inp = OrchestratorInput(
+            user_id=str(user.id),
+            text=update.effective_message.text or "/venue",
+            timestamp=now_ts,
+            is_command=True,
+            command_name="venue",
+            command_arg=venue_arg,
         )
         out: OrchestratorOutput = orchestrator.handle_input(inp)
         await chat.send_message(out.reply_text)
