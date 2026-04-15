@@ -144,6 +144,7 @@ class SexualLanguageLevel(str, Enum):
     SUGGESTIVE = "suggestive"   # level 4-6: sindiran,暗示
     SENSUAL = "sensual"         # level 7-9: bahasa puitis, tidak eksplisit
     EXPLICIT = "explicit"       # level 10-12: boleh organ seksual, desahan detail
+    VULGAR = "vulgar"           # BARU: level 12+ : boleh kata kasar (kontol, memek, ngentot)
 
 
 class MoanType(str, Enum):
