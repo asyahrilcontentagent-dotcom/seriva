@@ -90,34 +90,6 @@ def start_handler(orchestrator: Orchestrator, admin_id: str):
 
     return _handler
 
-
-def help_handler(orchestrator: Orchestrator, admin_id: str):
-    @require_admin(admin_id)
-    async def _handler(
-        update: Update,
-        context: ContextTypes.DEFAULT_TYPE,
-    ) -> None:
-        chat = update.effective_chat
-        if chat is None:
-            return
-        await chat.send_message(
-            "Daftar command SERIVA:\n"
-            "- /nova → ngobrol dengan Nova (pasangan utama)\n"
-            "- /role → lihat daftar role yang tersedia\n"
-            "- /role <id> → pindah ke role tertentu (misal: /role teman_spesial_davina)\n"
-            "- /pause → pause sesi intens saat ini (roleplay/provider)\n"
-            "- /resume → lanjutkan sesi yang di-pause dari posisi terakhir\n"
-            "- /batal, /end, atau /close → akhiri sesi khusus dan kembali ke mode normal\n"
-            "- /status → lihat ringkasan perasaan & adegan role aktif\n"
-            "- /flashback → minta role cerita ulang satu momen indah/khas dengan Mas\n"
-            "- /nego <harga> → nego harga dengan terapis/teman spesial aktif\n"
-            "- /deal → konfirmasi setelah nego\n"
-            "- /mulai → mulai sesi setelah /deal"
-        )
-
-    return _handler
-
-
 # ==============================
 # HANDLER ROLE LIST & SWITCH
 # ==============================
