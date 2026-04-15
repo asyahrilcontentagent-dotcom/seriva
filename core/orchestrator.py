@@ -350,18 +350,32 @@ class Orchestrator:
 
             compact_chunks = []
             for chunk in chunks[:3]:
-                compact_chunks.append(chunk[:180].strip())
-            return "\n\n".join(compact_chunks).strip()
+                trimmed = chunk[:180].strip()
+                trimmed = re.sub(r"\s{2,}", " ", trimmed)
+                compact_chunks.append(trimmed)
+            joined = "\n\n".join(compact_chunks).strip()
+            return re.sub(r"\n{3,}", "\n\n", joined)
 
         if mode == "call":
             text = text.replace("\n\n", "\n")
-            return re.sub(r"\s*\n\s*", " ", text).strip()
+            text = re.sub(r"\s*\n\s*", " ", text).strip()
+            text = re.sub(r"\s{2,}", " ", text)
+
+            sentence_parts = [part.strip() for part in re.split(r"(?<=[.!?])\s+", text) if part.strip()]
+            if len(sentence_parts) > 3:
+                text = " ".join(sentence_parts[:3]).strip()
+
+            return text[:260].strip()
 
         if mode == "vps":
             lines = [line.strip() for line in re.split(r"\n\s*\n", text) if line.strip()]
             if len(lines) <= 2:
-                return "\n\n".join(lines)
-            return "\n\n".join(lines[:2]).strip()
+                joined = "\n\n".join(lines).strip()
+            else:
+                joined = "\n\n".join(lines[:2]).strip()
+
+            joined = re.sub(r"[ \t]+\n", "\n", joined)
+            return joined[:420].strip()
 
         return text
     
@@ -653,6 +667,8 @@ class Orchestrator:
 
         role_state.intimacy_phase = IntimacyPhase.AFTER
         role_state.aftercare_active = True
+        role_state.aftercare_phase = "cooling"
+        role_state.aftercare_intensity = max(role_state.aftercare_intensity, 75)
         role_state.mas_wants_climax = False
         role_state.mas_holding_climax = False
         role_state.pending_ejakulasi_question = False
@@ -667,6 +683,64 @@ class Orchestrator:
             role_state.last_ejakulasi_inside = role_state.prefer_buang_di_dalam
         if timestamp is not None:
             role_state.last_ejakulasi_timestamp = timestamp
+
+    def _apply_aftercare_decay(self, role_state: RoleState, user_text: str, timestamp: float) -> None:
+        """Turunkan tensi aftercare secara perlahan jika adegan tidak naik lagi."""
+
+        if not role_state.aftercare_active or role_state.intimacy_phase != IntimacyPhase.AFTER:
+            return
+
+        text = user_text.lower()
+        sleep_keywords = [
+            "tidur",
+            "bobo",
+            "istirahat",
+            "ngantuk",
+            "capek",
+            "lelah",
+            "rebahan dulu",
+            "peluk sambil tidur",
+        ]
+        reengage_keywords = [
+            "lanjut",
+            "lagi",
+            "sekali lagi",
+            "ulang",
+            "cium lagi",
+            "peluk lebih erat",
+            "deket sini",
+            "mau lagi",
+        ]
+
+        if any(keyword in text for keyword in sleep_keywords):
+            role_state.soften_aftercare(amount=30)
+            role_state.aftercare_phase = "sleeping"
+            role_state.current_sequence = SceneSequence.TIDUR
+            role_state.scene.activity = "tidur berpelukan setelah aftercare"
+            role_state.scene.physical_distance = "sangat dekat, lalu perlahan tenang"
+            role_state.scene.last_touch = "pelukan pelan sampai tertidur"
+            role_state.scene.ambience = "napas pelan, tubuh lelah, suasana makin sunyi"
+            role_state.last_sleep_timestamp = timestamp
+            return
+
+        if any(keyword in text for keyword in reengage_keywords):
+            role_state.aftercare_intensity = min(100, role_state.aftercare_intensity + 5)
+            return
+
+        role_state.soften_aftercare(amount=12)
+
+        if role_state.aftercare_phase == "cuddling":
+            role_state.scene.activity = "berpelukan sambil menenangkan napas"
+            role_state.scene.last_touch = "usap pelan atau pelukan santai"
+        elif role_state.aftercare_phase == "talking":
+            role_state.scene.activity = "istirahat sambil ngobrol pelan"
+            role_state.scene.last_touch = "sentuhan ringan yang menenangkan"
+        elif role_state.aftercare_phase == "sleeping":
+            role_state.scene.activity = "tertidur pelan setelah aftercare"
+            role_state.scene.physical_distance = "dekat dan rileks"
+            role_state.scene.last_touch = "pelukan yang makin longgar saat tertidur"
+            role_state.scene.ambience = "sunyi, hangat, dan makin ngantuk"
+            role_state.last_sleep_timestamp = timestamp
 
     def _update_pre_reply_climax_state(
         self,
@@ -820,6 +894,7 @@ class Orchestrator:
             role_state.role_climax_count += 1
             role_state.role_wants_climax = False
             role_state.role_holding_climax = False
+            role_state.apply_role_climax_fatigue()
             logger.info(
                 f"Role {role_state.role_id} mencapai puncak. Total: {role_state.role_climax_count}"
             )
@@ -837,6 +912,7 @@ class Orchestrator:
         )
         if user_confirmed_finish and not role_state.mas_has_climaxed:
             role_state.mas_has_climaxed = True
+            role_state.apply_mas_climax_fatigue()
             logger.info("Mas CLIMAX! (dikonfirmasi setelah respons)")
             self._enter_after_phase(role_state, timestamp)
         elif role_state.aftercare_active and role_state.intimacy_phase != IntimacyPhase.AFTER:
@@ -926,6 +1002,7 @@ class Orchestrator:
         self._update_scene_for_role(role_state, inp)
         self._sync_household_scene_cues(role_state, world_state)
         self._update_pre_reply_climax_state(role_state, inp.text, inp.timestamp)
+        self._apply_aftercare_decay(role_state, inp.text, inp.timestamp)
 
         # 8) Bangun messages via role aktif & panggil LLM
         role_impl = get_role(role_state.role_id)
