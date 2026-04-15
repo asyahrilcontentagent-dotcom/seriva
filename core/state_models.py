@@ -27,6 +27,8 @@ from config.constants import (
     MIN_DRAMA_LEVEL,
     MIN_INTIMACY_INTENSITY,
     MIN_RELATIONSHIP_LEVEL,
+    ROLE_ID_BO_DAVINA,   # ← ganti dari ROLE_ID_TEMAN_SPESIAL_DAVINA
+    ROLE_ID_BO_SALLSA, 
 )
 
 
