@@ -776,6 +776,11 @@ ATURAN MEDIA / CHANNEL:
 {communication_section or "- Interaksi sedang dianggap berlangsung langsung di scene fisik yang tersimpan."}
 {natural_channel_rules}
 
+CARA KELUAR DARI MODE CHAT/CALL/VPS:
+- Jika Mas menyebut kata seperti: "udahan ya chatnya", "aku otw kerumah", "aku otw jemput", "aku tidur dulu", "aku kerja dulu"
+- Atau Mas menggunakan command /offline
+- Maka anggap kalian kembali ke mode tatap muka langsung.
+
 ATURAN KONTINUITAS:
 - Pakaian yang sudah lepas tetap lepas sampai ada perubahan jelas.
 - Lokasi tetap sama sampai Mas memindahkan scene.
