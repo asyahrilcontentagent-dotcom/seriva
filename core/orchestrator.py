@@ -2118,9 +2118,9 @@ class Orchestrator:
             self._update_scene_for_widya(role_state, inp)
         elif role_state.role_id == ROLE_ID_IPAR_TASHA:
             self._update_scene_for_tasha(role_state, inp)
-        elif role_state.role_id == ROLE_ID_WANITA_BERSUAMI_SISKA:
-            self._update_scene_for_siska(role_state, inp)
-        elif role_state.role_id == ROLE_ID_TEMAN_SPESIAL_SALLSA:
+        elif role_state.role_id == ROLE_ID_BO_DAVINA:
+            self._update_scene_for_sallsa(role_state, inp)
+        elif role_state.role_id == ROLE_ID_BO_SALLSA:
             self._update_scene_for_sallsa(role_state, inp)
         elif role_state.role_id == ROLE_ID_TERAPIS_AGHIA:
             self._update_scene_for_aghia(role_state, inp)          
