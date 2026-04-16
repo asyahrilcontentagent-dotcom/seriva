@@ -291,6 +291,7 @@ class EmotionEngine:
         """Helper utama dipanggil orchestrator setelah parse intent user."""
 
         role_state = user_state.get_or_create_role_state(role_id)
+        previous_mood = role_state.emotions.mood
         self.apply_emotional_decay(role_state, now_ts=now_ts)
 
         if negative:
@@ -304,6 +305,7 @@ class EmotionEngine:
         self._apply_emotion_formula(role_state, ctx)
         self._apply_emotional_drift(role_state, ctx)
         self._update_emotion_layers(role_state, ctx)
+        self._apply_mood_inertia(role_state, previous_mood, ctx)
         role_state.emotions.last_updated_ts = now_ts
 
     def maybe_increase_intimacy_by_level(
@@ -325,11 +327,22 @@ class EmotionEngine:
         if rel.relationship_level < 4:
             return
 
+        if emotions.comfort < 42 and emotions.love < 38:
+            return
+        if role_state.emotional_depth_score < 8 or role_state.trust_score < 6:
+            return
+        if role_state.intimacy_brake_active:
+            return
+
         # Butuh minimal X interaksi positif sebelum ada kenaikan kecil
         if role_state.total_positive_interactions < 5:
             return
 
         target_intimacy = min(rel.relationship_level, 6)
+        if emotions.comfort >= 60 or emotions.love >= 58:
+            target_intimacy += 1
+        if role_state.emotional_depth_score >= 20 and role_state.trust_score >= 16:
+            target_intimacy += 1
         if role_state.is_ready_for_intimate_scene():
             target_intimacy = min(rel.relationship_level, 8)
 
@@ -489,6 +502,38 @@ class EmotionEngine:
         emotions.secondary_mood = secondary
         emotions.hidden_mood = hidden
         emotions.clamp()
+
+    def _apply_mood_inertia(
+        self,
+        role_state: RoleState,
+        previous_mood: Mood,
+        ctx: InteractionContext,
+    ) -> None:
+        """Jaga mood tidak meloncat terlalu cepat agar terasa persisten."""
+
+        emotions = role_state.emotions
+        current_mood = emotions.mood
+        drift = emotions.emotional_drift
+
+        if previous_mood == current_mood:
+            return
+
+        intense_previous = previous_mood in {Mood.SAD, Mood.ANNOYED, Mood.JEALOUS, Mood.TENDER}
+        mild_context = ctx.strength <= 1 and ctx.tone in {"SOFT", "PLAYFUL"}
+
+        if intense_previous and mild_context and abs(drift) < 0.2:
+            emotions.secondary_mood = current_mood
+            emotions.mood = previous_mood
+            return
+
+        if previous_mood == Mood.JEALOUS and current_mood == Mood.HAPPY:
+            emotions.mood = Mood.TENDER
+            emotions.secondary_mood = Mood.JEALOUS
+            return
+
+        if previous_mood == Mood.SAD and current_mood == Mood.PLAYFUL:
+            emotions.mood = Mood.TENDER
+            emotions.secondary_mood = Mood.PLAYFUL
 
     @staticmethod
     def _apply_natural_variation(role_state: RoleState) -> None:
