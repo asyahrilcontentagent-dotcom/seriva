@@ -114,6 +114,7 @@ def help_handler(orchestrator: Orchestrator, admin_id: str):
             "- /pause -> pause sesi intens saat ini (roleplay/provider)\n"
             "- /resume -> lanjutkan sesi yang di-pause dari posisi terakhir\n"
             "- /batal, /end, atau /close -> akhiri sesi khusus dan kembali ke mode normal\n"
+            "- /offline -> paksa keluar dari mode chat/call/vps dan kembali ke tatap muka\n"
             "- /status -> lihat ringkasan perasaan dan adegan role aktif\n"
             "- /flashback -> minta role cerita ulang satu momen indah atau khas dengan Mas\n"
             "- /nego <harga> -> nego harga dengan terapis aktif\n"
@@ -164,7 +165,7 @@ def set_nova_handler(orchestrator: Orchestrator, admin_id: str):
             return
 
         user_state = orchestrator._load_or_init_user_state(str(user.id))  # type: ignore[attr-defined]
-        user_state.active_role_id = ROLE_ID_NOVA
+        orchestrator.switch_active_role(user_state, ROLE_ID_NOVA)  # type: ignore[attr-defined]
         orchestrator._save_all(user_state, orchestrator._load_or_init_world_state())  # type: ignore[attr-defined]
 
         await chat.send_message("Sekarang kamu lagi ngobrol sama Nova, Mas.")
@@ -204,7 +205,7 @@ def set_role_handler(orchestrator: Orchestrator, admin_id: str):
             return
 
         user_state = orchestrator._load_or_init_user_state(str(user.id))  # type: ignore[attr-defined]
-        user_state.active_role_id = role_id
+        orchestrator.switch_active_role(user_state, role_id)  # type: ignore[attr-defined]
         orchestrator._save_all(user_state, orchestrator._load_or_init_world_state())  # type: ignore[attr-defined]
 
         label = next((item["label"] for item in summaries if item["role_id"] == role_id), role_id)
@@ -329,6 +330,8 @@ def status_handler(orchestrator: Orchestrator, admin_id: str):
         location_icon = "🔒 PRIVAT" if location_private else "👀 PUBLIK"
         nova_home = "✅ Ada" if getattr(world_state, "nova_is_home", True) else "❌ Tidak ada"
         
+        nova_status = getattr(world_state, 'nova_last_known_status', "di rumah") or "di rumah"
+
         # ========== STATUS HANDUK ==========
         handuk_tersedia = getattr(role_state, 'handuk_tersedia', False)
         handuk_status = "✅ Sedang dipakai" if handuk_tersedia else "❌ Tidak ada"
@@ -387,6 +390,19 @@ def status_handler(orchestrator: Orchestrator, admin_id: str):
         time_of_day = getattr(s.time_of_day, 'value', '-') if s.time_of_day else '-'
         physical_distance = safe_str(getattr(s, 'physical_distance', None))
         last_touch = safe_str(getattr(s, 'last_touch', None))
+        communication_mode = getattr(role_state, 'communication_mode', None)
+        communication_turns = getattr(role_state, 'communication_mode_turns', 0)
+        vcs_mode = getattr(role_state, 'vcs_mode', False)
+        vcs_intensity = getattr(role_state, 'vcs_intensity', 0)
+
+        communication_labels = {
+            "chat": "CHAT HP",
+            "call": "TELEPON",
+            "vps": "VIDEO CALL",
+        }
+        communication_label = communication_labels.get(communication_mode, "TATAP MUKA LANGSUNG")
+        communication_turns_text = f"{communication_turns} turn" if communication_mode else "0 turn"
+        vcs_status = f"AKTIF ({vcs_intensity}%)" if vcs_mode else "NONAKTIF"
         
         position_value = safe_str(getattr(intimacy.position, 'value', None) if intimacy.position else None)
         dominance_value = safe_str(getattr(intimacy.dominance, 'value', None) if intimacy.dominance else None)
@@ -445,6 +461,22 @@ def status_handler(orchestrator: Orchestrator, admin_id: str):
             f"   📍 Preferensi buang: {prefer_text}",
         ]
 
+        text_lines[18:18] = [
+            f"   ðŸ“± Mode komunikasi: {communication_label}",
+            f"   ðŸ” Durasi mode: {communication_turns_text}",
+            f"   ðŸŽ¥ VCS: {vcs_status}",
+        ]
+
+        text_lines[18] = f"   Mode komunikasi: {communication_label}"
+        text_lines[19] = f"   Durasi mode: {communication_turns_text}"
+        text_lines[20] = f"   VCS: {vcs_status}"
+        lokasi_header_index = next(
+            (idx for idx, line in enumerate(text_lines) if "LOKASI & SCENE" in line),
+            None,
+        )
+        if lokasi_header_index is not None:
+            text_lines.insert(lokasi_header_index + 3, f"   Status Nova terakhir: {nova_status}")
+
         # Kirim tanpa parse_mode untuk menghindari error markdown
         await chat.send_message("\n".join(text_lines))
 
@@ -492,7 +524,8 @@ def resume_handler(orchestrator: Orchestrator, admin_id: str):
             return
 
         user_state = orchestrator._load_or_init_user_state(str(user.id))  # type: ignore[attr-defined]
-        user_state.global_session_mode = SessionMode.NORMAL
+        role_state = user_state.get_or_create_role_state(user_state.active_role_id)
+        orchestrator._sync_global_session_mode(user_state)  # type: ignore[attr-defined]
         orchestrator._save_all(user_state, orchestrator._load_or_init_world_state())  # type: ignore[attr-defined]
 
         await chat.send_message(
