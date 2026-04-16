@@ -493,6 +493,48 @@ class RoleState:
     intimacy_detail: IntimacyDetail = field(default_factory=IntimacyDetail)
     role_display_name: str = ""
     last_guard_warnings: List[str] = field(default_factory=list)
+    last_output_evaluation: List[str] = field(default_factory=list)
+    last_debug_snapshot: Optional[str] = None
+    last_used_memory_summary: str = ""
+    last_used_story_summary: str = ""
+    last_prompt_snapshot: str = ""
+    response_length_bias: str = "balanced"
+    human_variation_seed: int = 0
+    personality_habits: List[str] = field(default_factory=list)
+    stable_opinions: List[str] = field(default_factory=list)
+    favorite_topics: List[str] = field(default_factory=list)
+    conversational_quirks: List[str] = field(default_factory=list)
+    social_initiative_level: int = 45
+    curiosity_level: int = 50
+    independence_level: int = 45
+    daily_energy: int = 60
+    temporal_state: str = "steady"
+    last_temporal_label: str = "unknown"
+    last_seen_hour: Optional[int] = None
+    emotional_depth_score: int = 0
+    trust_score: int = 0
+    intimacy_brake_active: bool = False
+    intimate_expression_style: str = "restrained"
+    moan_restraint: int = 70
+    breathiness_level: int = 20
+    last_intimate_expression: str = ""
+    session_closure_summary: str = ""
+    emotional_trail: str = ""
+    last_soft_end_ts: Optional[float] = None
+    attachment_style: str = ""
+    dominant_love_language: str = ""
+    secondary_love_language: str = ""
+    jealousy_expression_style: str = ""
+    apology_style: str = ""
+    conflict_style: str = ""
+    intimacy_pacing: str = ""
+    aftercare_style: str = ""
+    texting_rhythm: str = ""
+    humor_style: str = ""
+    reassurance_style: str = ""
+    shared_private_terms: List[str] = field(default_factory=list)
+    relationship_rituals: List[str] = field(default_factory=list)
+    soul_bond_markers: List[str] = field(default_factory=list)
 
     # ========== BARU: Level 10-12 Sexual Content ==========
     sexual_language_level: SexualLanguageLevel = SexualLanguageLevel.SAFE
@@ -687,6 +729,13 @@ class RoleState:
         self.user_intimacy_signals = 0
         self.role_intimacy_signals = 0
         self.mutual_intimacy_confirmed = False
+        self.emotional_depth_score = 0
+        self.trust_score = 0
+        self.intimacy_brake_active = False
+        self.intimate_expression_style = "restrained"
+        self.moan_restraint = 70
+        self.breathiness_level = 20
+        self.last_intimate_expression = ""
         
         # Reset vulgar progression tracking
         self.vulgar_stage = "awal"
@@ -1201,22 +1250,55 @@ class RoleState:
             "aku takut",
             "jangan maksa",
         ]
+        depth_signals = [
+            "aku nyaman",
+            "aku percaya",
+            "aku jujur",
+            "aku cerita",
+            "aku kangen",
+            "aku butuh kamu",
+            "temenin aku",
+            "makasih udah ada",
+        ]
+        trust_signals = [
+            "pelan aja",
+            "aku aman sama kamu",
+            "aku percaya sama kamu",
+            "jangan ninggalin aku",
+            "aku tenang sama kamu",
+        ]
 
         if self._contains_any_keyword(user_lower, user_soft_signals):
             self.user_intimacy_signals = min(3, self.user_intimacy_signals + 1)
         if self._contains_any_keyword(response_lower, role_soft_signals):
             self.role_intimacy_signals = min(3, self.role_intimacy_signals + 1)
+        if self._contains_any_keyword(user_lower, depth_signals):
+            self.emotional_depth_score = min(100, self.emotional_depth_score + 8)
+        if self._contains_any_keyword(response_lower, depth_signals):
+            self.emotional_depth_score = min(100, self.emotional_depth_score + 5)
+        if self._contains_any_keyword(user_lower, trust_signals):
+            self.trust_score = min(100, self.trust_score + 8)
+        if self._contains_any_keyword(response_lower, trust_signals):
+            self.trust_score = min(100, self.trust_score + 5)
 
         if self._contains_any_keyword(user_lower, brake_signals):
             self.user_intimacy_signals = max(0, self.user_intimacy_signals - 1)
+            self.emotional_depth_score = max(0, self.emotional_depth_score - 4)
+            self.trust_score = max(0, self.trust_score - 6)
+            self.intimacy_brake_active = True
         if self._contains_any_keyword(response_lower, brake_signals):
             self.role_intimacy_signals = max(0, self.role_intimacy_signals - 1)
+            self.intimacy_brake_active = True
+        elif not self._contains_any_keyword(user_lower, brake_signals):
+            self.intimacy_brake_active = False
 
         self.mutual_intimacy_confirmed = (
             self.user_intimacy_signals >= 2
             and self.role_intimacy_signals >= 2
             and self.relationship.relationship_level >= 5
             and self.emotions.comfort >= 55
+            and self.emotional_depth_score >= 12
+            and self.trust_score >= 10
         )
 
     def is_ready_for_intimate_scene(self) -> bool:
@@ -1224,10 +1306,63 @@ class RoleState:
 
         return (
             self.relationship.relationship_level >= 5
-            and self.emotions.comfort >= 50
+            and self.emotions.comfort >= 52
             and self.user_intimacy_signals >= 1
             and self.role_intimacy_signals >= 1
+            and self.emotional_depth_score >= 10
+            and self.trust_score >= 8
+            and not self.intimacy_brake_active
         )
+
+    def update_intimate_expression_profile(self) -> None:
+        """Atur profil ekspresi intim agar lebih manusiawi dan tidak template."""
+
+        if self.intimacy_brake_active:
+            self.intimate_expression_style = "held_back"
+            self.moan_restraint = 85
+            self.breathiness_level = 10
+            return
+
+        if self.intimacy_phase == IntimacyPhase.AWAL:
+            self.intimate_expression_style = "shy"
+            self.moan_restraint = 88
+            self.breathiness_level = 8
+            return
+
+        if self.intimacy_phase == IntimacyPhase.DEKAT:
+            self.intimate_expression_style = "soft"
+            self.moan_restraint = 78
+            self.breathiness_level = 15
+            return
+
+        if self.intimacy_phase == IntimacyPhase.INTIM:
+            if self.emotional_depth_score >= 24 and self.trust_score >= 20:
+                self.intimate_expression_style = "warm_open"
+                self.moan_restraint = 52
+                self.breathiness_level = 42
+            else:
+                self.intimate_expression_style = "warm_restrained"
+                self.moan_restraint = 64
+                self.breathiness_level = 30
+            return
+
+        if self.intimacy_phase == IntimacyPhase.AFTER:
+            self.intimate_expression_style = "tender_after"
+            self.moan_restraint = 92
+            self.breathiness_level = 18
+
+    def get_human_intimate_expression_guidance(self) -> str:
+        """Panduan ekspresi intim yang lebih manusiawi dan non-template."""
+
+        style_map = {
+            "held_back": "Ekspresi ditahan. Kalau ada ketertarikan, tampilkan lewat jeda, napas pendek, atau kalimat yang setengah berhenti.",
+            "shy": "Ekspresi masih malu-malu. Utamakan deg-degan, tatapan, jeda, dan kalimat lembut ketimbang desah.",
+            "soft": "Ekspresi mulai hangat. Napas dan bisik kecil boleh terasa, tapi jangan jadi pola tiap balasan.",
+            "warm_restrained": "Ekspresi intim boleh terdengar lebih hidup, tapi tetap manusiawi: napas berubah, suara melunak, kalimat pendek, bukan desah penuh terus-menerus.",
+            "warm_open": "Ekspresi boleh lebih terbuka, tapi tetap variasikan: kadang napas berat, kadang bisik, kadang cuma satu kata jujur. Jangan jadi template.",
+            "tender_after": "Ekspresi turun jadi lembut. Fokus pada napas yang pelan, tubuh yang lemas, kedekatan, dan rasa tenang.",
+        }
+        return style_map.get(self.intimate_expression_style, style_map["soft"])
 
     def can_enter_explicit_scene(self) -> bool:
         """Adegan eksplisit hanya boleh jika scene sudah mutual dan privat."""
@@ -1244,6 +1379,9 @@ class RoleState:
             and self.current_location_is_private
             and self.relationship.relationship_level >= 8
             and self.emotions.comfort >= 65
+            and self.emotional_depth_score >= 24
+            and self.trust_score >= 20
+            and not self.intimacy_brake_active
             and (
                 self.intimacy_phase in (IntimacyPhase.INTIM, IntimacyPhase.VULGAR)
                 or self.current_sequence in intimate_sequences
@@ -1268,7 +1406,7 @@ class RoleState:
         phase_map = {
             IntimacyPhase.AWAL: "Masih malu-malu, belum berani inisiatif.",
             IntimacyPhase.DEKAT: "Sudah nyaman, mulai berani mendekat atau menyentuh kecil.",
-            IntimacyPhase.INTIM: "Sudah sering pelukan, napas beradu, tubuh saling menempel.",
+            IntimacyPhase.INTIM: "Kedekatan emosional sudah terasa, sentuhan lebih lembut dan mutual.",
             IntimacyPhase.VULGAR: "Sedang dalam aktivitas seksual intens (level 10-12).",
             IntimacyPhase.AFTER: "Setelah intim, suasana tenang, hangat, saling memeluk.",
         }
@@ -1310,10 +1448,16 @@ class RoleState:
         if any(kw in text for kw in ["nyentuh", "tersentuh", "kena", "pegang tangan"]):
             return order[min(current_idx + 1, len(order)-1)]
         if any(kw in text for kw in ["peluk", "rangkul", "pelukan"]):
+            if not self.is_ready_for_intimate_scene():
+                return SceneSequence.MENDEKAT
             return order[min(current_idx + 1, len(order)-1)]
         if any(kw in text for kw in ["cium", "kiss", "ciuman"]):
+            if not self.is_ready_for_intimate_scene():
+                return SceneSequence.PELUKAN
             return order[min(current_idx + 1, len(order)-1)]
         if any(kw in text for kw in ["petting", "pegang", "remas"]):
+            if not self.is_ready_for_intimate_scene():
+                return SceneSequence.PELUKAN
             return order[min(current_idx + 1, len(order)-1)]
         if any(kw in text for kw in ["masuk", "ngewe", "sex", "kontol", "memek"]):
             return order[min(current_idx + 2, len(order)-1)]
@@ -1775,6 +1919,9 @@ class UserState:
 
         if role_id not in self.roles:
             self.roles[role_id] = RoleState(role_id=role_id)
+        from core.relationship_matrix import apply_relationship_profile
+
+        apply_relationship_profile(self.roles[role_id])
         return self.roles[role_id]
 
     def clamp_all(self) -> None:
