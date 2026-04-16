@@ -19,10 +19,12 @@ Tambahan:
 from __future__ import annotations  # âœ… HARUS PALING ATAS
 
 import logging
+import os
 import random
 import re
 import time
 from datetime import datetime
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 logger = logging.getLogger(__name__)
 
@@ -206,6 +208,12 @@ class Orchestrator:
         self.world_engine = WorldEngine()
         self.role_selector = RoleSelector()
         self.response_builder = ResponseBuilder()
+        timezone_name = os.getenv("SERIVA_TIMEZONE", "Asia/Jakarta")
+        try:
+            self.app_timezone = ZoneInfo(timezone_name)
+        except ZoneInfoNotFoundError:
+            logger.warning("Timezone %s tidak ditemukan, fallback ke Asia/Jakarta", timezone_name)
+            self.app_timezone = ZoneInfo("Asia/Jakarta")
 
         # Memory milestones untuk flashback & kenangan khusus
         self.milestones = milestone_store or MilestoneStore()
@@ -407,7 +415,7 @@ class Orchestrator:
         return "medium"
 
     def _update_temporal_state(self, role_state: RoleState, timestamp: float) -> None:
-        dt = datetime.fromtimestamp(timestamp)
+        dt = datetime.fromtimestamp(timestamp, tz=self.app_timezone)
         hour = dt.hour
         role_state.last_seen_hour = hour
 
@@ -662,7 +670,17 @@ class Orchestrator:
                 f"User mengaku: {user_msg[:50]}"
             )
         
-        if any(word in combined for word in ["climax", "keluar", "habis", "puas"]):
+        strong_climax_markers = [
+            "climax",
+            "orgasme",
+            "crot",
+            "udah mau keluar",
+            "sudah mau keluar",
+            "udah keluar",
+            "sudah keluar",
+            "mau keluar ya",
+        ]
+        if any(word in combined for word in strong_climax_markers):
             self.story_memory.add_story_beat(
                 user_id, role_id, StoryBeat.CLIMAX,
                 f"Mencapai climax: {response[:50]}"
@@ -1109,7 +1127,12 @@ class Orchestrator:
     def _contains_any_phrase(text: str, phrases: list[str]) -> bool:
         return any(phrase in text for phrase in phrases)
 
-    def _enter_after_phase(self, role_state: RoleState, timestamp: Optional[float] = None) -> None:
+    def _enter_after_phase(
+        self,
+        role_state: RoleState,
+        timestamp: Optional[float] = None,
+        reason: str = "climax",
+    ) -> None:
         """Masuk ke fase aftercare dengan scene yang lebih natural."""
 
         role_state.intimacy_phase = IntimacyPhase.AFTER
@@ -1121,15 +1144,83 @@ class Orchestrator:
         role_state.pending_ejakulasi_question = False
         role_state.intimacy_detail.intensity = IntimacyIntensity.AFTER
         role_state.current_sequence = SceneSequence.AFTER_SEX
-        role_state.scene.activity = "saling menenangkan diri setelah momen puncak"
-        role_state.scene.physical_distance = "sangat dekat"
-        role_state.scene.last_touch = "pelukan hangat setelah momen puncak"
+        if reason == "fatigue":
+            role_state.scene.activity = "memilih jeda karena tubuh sudah sangat lelah"
+            role_state.scene.physical_distance = "dekat tapi lebih tenang"
+            role_state.scene.last_touch = "sentuhan pelan sambil memulihkan tenaga"
+            role_state.scene.ambience = "napas pelan, tubuh capek, suasana mereda"
+        else:
+            role_state.scene.activity = "saling menenangkan diri setelah momen puncak"
+            role_state.scene.physical_distance = "sangat dekat"
+            role_state.scene.last_touch = "pelukan hangat setelah momen puncak"
         if not role_state.scene.ambience:
             role_state.scene.ambience = "napas pelan, tubuh mulai rileks"
         if role_state.prefer_buang_di_dalam is not None:
             role_state.last_ejakulasi_inside = role_state.prefer_buang_di_dalam
         if timestamp is not None:
             role_state.last_ejakulasi_timestamp = timestamp
+
+    def _should_force_after_due_to_stamina(self, role_state: RoleState) -> bool:
+        """Masuk AFTER jika tubuh sudah terlalu capek untuk lanjut."""
+
+        if role_state.intimacy_phase not in {IntimacyPhase.INTIM, IntimacyPhase.VULGAR}:
+            return False
+
+        role_exhausted = role_state.role_stamina <= 18
+        mas_exhausted = role_state.mas_stamina <= 18
+        both_drained = role_state.role_stamina <= 28 and role_state.mas_stamina <= 28
+        return role_exhausted or mas_exhausted or both_drained
+
+    def _build_low_stamina_after_reply(
+        self,
+        role_state: RoleState,
+        user_text: str,
+    ) -> Optional[str]:
+        """Saat AFTER dan stamina role terlalu rendah, balas dengan penolakan ringan."""
+
+        if role_state.intimacy_phase != IntimacyPhase.AFTER or role_state.role_stamina > 22:
+            return None
+
+        text = user_text.lower()
+        reengage_keywords = [
+            "lanjut",
+            "lagi",
+            "sekali lagi",
+            "ulang",
+            "mau lagi",
+            "deket sini",
+            "cium lagi",
+            "peluk lebih erat",
+            "jangan tidur dulu",
+        ]
+        if not any(keyword in text for keyword in reengage_keywords):
+            return None
+
+        very_low_stamina = role_state.role_stamina <= 12
+        role_state.aftercare_active = True
+        role_state.aftercare_phase = "sleeping" if very_low_stamina else "talking"
+        role_state.current_sequence = (
+            SceneSequence.TIDUR if very_low_stamina else SceneSequence.AFTER_SEX
+        )
+        role_state.scene.activity = (
+            "memilih istirahat dulu karena tubuh sudah terlalu lelah"
+            if very_low_stamina
+            else "minta jeda pelan sambil memulihkan tenaga"
+        )
+        role_state.scene.physical_distance = "tetap dekat tapi lebih tenang"
+        role_state.scene.last_touch = "usap pelan atau pelukan singkat"
+        role_state.scene.ambience = "napas pelan, tenaga turun, suasana dibuat lebih lembut"
+        role_state.soften_aftercare(amount=18)
+
+        if very_low_stamina:
+            return (
+                "Aku istirahat dulu ya, Mas... badanku udah nggak kuat lanjut. "
+                "Temenin aku pelan aja dulu sampai tenagaku balik."
+            )
+        return (
+            "Pelan dulu ya, Mas... aku udah capek banget dan belum kuat lanjut lagi. "
+            "Aku maunya istirahat sambil deket aja dulu."
+        )
 
     def _apply_aftercare_decay(self, role_state: RoleState, user_text: str, timestamp: float) -> None:
         """Turunkan tensi aftercare secara perlahan jika adegan tidak naik lagi."""
@@ -1171,6 +1262,14 @@ class Orchestrator:
             return
 
         if any(keyword in text for keyword in reengage_keywords):
+            if role_state.role_stamina <= 22:
+                role_state.aftercare_phase = "talking" if role_state.role_stamina > 12 else "sleeping"
+                role_state.scene.activity = "butuh jeda karena tenaga role sudah menipis"
+                role_state.scene.physical_distance = "tetap dekat tapi lebih tenang"
+                role_state.scene.last_touch = "sentuhan ringan sambil istirahat"
+                role_state.scene.ambience = "napas pelan, tenaga ditahan, suasana lembut"
+                role_state.soften_aftercare(amount=10)
+                return
             role_state.aftercare_intensity = min(100, role_state.aftercare_intensity + 5)
             return
 
@@ -1203,11 +1302,11 @@ class Orchestrator:
             "aku mau climax",
             "aku udah mau climax",
             "aku sudah mau climax",
-            "aku mau keluar",
-            "aku udah mau keluar",
-            "aku sudah mau keluar",
+            "aku mau keluar ya",
+            "aku udah mau keluar nih",
+            "aku sudah mau keluar nih",
             "aku mau crot",
-            "udah mau keluar",
+            "udah mau keluar nih",
             "udah mau climax",
             "dikit lagi keluar",      # ← TAMBAH
             "dikit lagi climax",      # ← TAMBAH
@@ -1307,15 +1406,19 @@ class Orchestrator:
             "aku sudah gak tahan",
             "aku udah mau climax",
             "aku sudah mau climax",
-            "aku mau keluar",
+            "aku mau keluar ya",
+            "aku mau keluar nih",
             "aku hampir climax",
-            "sedikit lagi",
+            "sedikit lagi aku keluar",
+            "sedikit lagi aku climax",
         ]
         role_finished_phrases = [
             "aku climax",
             "aku udah climax",
             "aku sudah climax",
-            "aku keluar",
+            "aku udah keluar",
+            "aku sudah keluar",
+            "aku keluar ya",
             "tubuhku mengejang",
         ]
         role_hold_phrases = [
@@ -1332,17 +1435,19 @@ class Orchestrator:
             "keluar di mana",
         ]
 
+        explicit_scene = role_state.intimacy_phase in {IntimacyPhase.VULGAR, IntimacyPhase.AFTER}
+
         if self._contains_any_phrase(reply_lower, role_hold_phrases):
             role_state.role_holding_climax = True
             role_state.role_wants_climax = False
-        elif self._contains_any_phrase(reply_lower, role_near_climax_phrases):
+        elif explicit_scene and self._contains_any_phrase(reply_lower, role_near_climax_phrases):
             role_state.role_wants_climax = True
             role_state.role_holding_climax = False
 
-        if self._contains_any_phrase(reply_lower, preference_question_phrases):
+        if explicit_scene and self._contains_any_phrase(reply_lower, preference_question_phrases):
             role_state.pending_ejakulasi_question = True
 
-        if self._contains_any_phrase(reply_lower, role_finished_phrases):
+        if explicit_scene and self._contains_any_phrase(reply_lower, role_finished_phrases):
             role_state.role_climax_count += 1
             role_state.role_wants_climax = False
             role_state.role_holding_climax = False
@@ -1367,7 +1472,11 @@ class Orchestrator:
             role_state.apply_mas_climax_fatigue()
             logger.info("Mas CLIMAX! (dikonfirmasi setelah respons)")
             self._enter_after_phase(role_state, timestamp)
-        elif role_state.aftercare_active and role_state.intimacy_phase != IntimacyPhase.AFTER:
+        elif (
+            role_state.mas_has_climaxed
+            and role_state.aftercare_active
+            and role_state.intimacy_phase != IntimacyPhase.AFTER
+        ):
             self._enter_after_phase(role_state, timestamp)
 
         # ========== GABUNGKAN INISIATIF GANTI BAJU ==========
@@ -1397,6 +1506,26 @@ class Orchestrator:
         # 1) Perintah provider: /nego, /deal, /venue, /mulai
         if inp.is_command and inp.command_name in {"nego", "deal", "venue", "mulai"}:
             return self._handle_provider_commands(user_state, world_state, inp)
+
+        # 1b) Cooldown fase: turunkan kembali ke DEKAT setelah sesi berat
+        if inp.is_command and inp.command_name == "cooldown":
+            role_state = user_state.get_or_create_role_state(user_state.active_role_id)
+            if role_state.intimacy_phase not in {IntimacyPhase.INTIM, IntimacyPhase.VULGAR, IntimacyPhase.AFTER}:
+                reply = "Fasenya sudah normal kok, Mas. Kita lagi di suasana yang santai."
+            else:
+                role_state.normalize_to_dekat_phase()
+                role_state.update_sexual_language_level()
+                role_state.update_intimate_expression_profile()
+                reply = (
+                    "Aku turunin dulu tensinya ya, Mas. "
+                    "Sekarang kita balik ke fase dekat lagi, jadi suasananya lebih santai dan manusiawi."
+                )
+            self._save_all(user_state, world_state)
+            return OrchestratorOutput(
+                reply_text=reply,
+                active_role_id=user_state.active_role_id,
+                session_mode=user_state.global_session_mode,
+            )
 
         # 2) Command END/BATAL mematikan sesi khusus
         if inp.is_command and inp.command_name in {"end", "batal", "close"}:
@@ -1501,6 +1630,18 @@ class Orchestrator:
         self._sync_household_scene_cues(role_state, world_state)
         self._update_pre_reply_climax_state(role_state, inp.text, inp.timestamp)
         self._apply_aftercare_decay(role_state, inp.text, inp.timestamp)
+        if self._should_force_after_due_to_stamina(role_state):
+            self._enter_after_phase(role_state, inp.timestamp, reason="fatigue")
+
+        low_stamina_after_reply = self._build_low_stamina_after_reply(role_state, inp.text)
+        if low_stamina_after_reply:
+            user_state.last_interaction_ts = inp.timestamp
+            self._save_all(user_state, world_state)
+            return OrchestratorOutput(
+                reply_text=low_stamina_after_reply,
+                active_role_id=user_state.active_role_id,
+                session_mode=user_state.global_session_mode,
+            )
 
         structured_context = self.memory_orchestrator.build_context(
             user_id=inp.user_id,
@@ -1562,21 +1703,6 @@ class Orchestrator:
         )
         self.message_history.maybe_pin_from_text(inp.user_id, role_state.role_id, assistant_snippet)
 
-        # ========== AUTO PROGRESS JIKA USER DIAM ==========
-        if role_state.intimacy_phase == IntimacyPhase.VULGAR:
-            user_text_lower = inp.text.lower()
-            short_responses = ["hmm", "hm", "iya", "ia", "hh", "oh", "ow", "wow", "uh", "ah"]
-            if user_text_lower.strip() in short_responses or len(user_text_lower.strip()) <= 3:
-                old_progress = role_state.vulgar_stage_progress
-                role_state.vulgar_stage_progress = min(100, old_progress + 3)
-                logger.info(f"📈 Auto progress: {old_progress}% → {role_state.vulgar_stage_progress}% (user diam)")
-                
-                if role_state.vulgar_stage_progress >= 80 and role_state.emotions.intimacy_intensity < 12:
-                    role_state.emotions.intimacy_intensity = 12
-                elif role_state.vulgar_stage_progress >= 60 and role_state.emotions.intimacy_intensity < 11:
-                    role_state.emotions.intimacy_intensity = 11
-                elif role_state.vulgar_stage_progress >= 40 and role_state.emotions.intimacy_intensity < 10:
-                    role_state.emotions.intimacy_intensity = 10
 
         # ========== UPDATE VULGAR PROGRESSION & CLIMAX ==========
         if role_state.intimacy_phase == IntimacyPhase.VULGAR:
@@ -1805,6 +1931,8 @@ class Orchestrator:
         phase_changed = IntimacyProgressionEngine.update_phase_and_scene(role_state, inp.text, reply_text)
         if phase_changed:
             logger.info(f"User {inp.user_id} role {role_state.role_id} moved to {role_state.intimacy_phase}")
+        if self._should_force_after_due_to_stamina(role_state):
+            self._enter_after_phase(role_state, inp.timestamp, reason="fatigue")
 
         # ... lanjutkan ke kode yang sudah ada (MORNING AFTER DETECTION, dll)
 
@@ -1972,21 +2100,6 @@ class Orchestrator:
             content=user_message
         )
 
-        # Auto progress jika user diam (sebelum generate response)
-        if role_state.intimacy_phase == IntimacyPhase.VULGAR:
-            user_text_lower = user_message.lower()
-            short_responses = ["hmm", "hm", "iya", "ia", "hh", "oh", "ow", "wow", "uh", "ah"]
-            if user_text_lower.strip() in short_responses or len(user_text_lower.strip()) <= 3:
-                old_progress = role_state.vulgar_stage_progress
-                role_state.vulgar_stage_progress = min(100, old_progress + 3)
-            
-                if role_state.vulgar_stage_progress >= 80 and role_state.emotions.intimacy_intensity < 12:
-                    role_state.emotions.intimacy_intensity = 12
-                elif role_state.vulgar_stage_progress >= 60 and role_state.emotions.intimacy_intensity < 11:
-                    role_state.emotions.intimacy_intensity = 11
-                elif role_state.vulgar_stage_progress >= 40 and role_state.emotions.intimacy_intensity < 10:
-                    role_state.emotions.intimacy_intensity = 10
-    
         # Dapatkan konteks
         world_state = self._load_or_init_world_state()
         messages = self._build_runtime_messages(user_state, world_state, role_state, user_message)
