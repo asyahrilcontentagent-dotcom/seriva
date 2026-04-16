@@ -113,6 +113,7 @@ def help_handler(orchestrator: Orchestrator, admin_id: str):
             "- /role <id> -> pindah ke role tertentu (misal: /role teman_spesial_davina)\n"
             "- /pause -> pause sesi intens saat ini (roleplay/provider)\n"
             "- /resume -> lanjutkan sesi yang di-pause dari posisi terakhir\n"
+            "- /cooldown -> turunkan state kembali ke fase dekat tanpa reset hubungan\n"
             "- /batal, /end, atau /close -> akhiri sesi khusus dan kembali ke mode normal\n"
             "- /offline -> paksa keluar dari mode chat/call/vps dan kembali ke tatap muka\n"
             "- /status -> lihat ringkasan perasaan dan adegan role aktif\n"
@@ -242,6 +243,33 @@ def end_session_handler(orchestrator: Orchestrator, admin_id: str):
             timestamp=time.time(),
             is_command=True,
             command_name=command_name,
+        )
+        out: OrchestratorOutput = orchestrator.handle_input(inp)
+        await chat.send_message(out.reply_text)
+
+    return _handler
+
+
+def cooldown_handler(orchestrator: Orchestrator, admin_id: str):
+    """/cooldown: turunkan fase kembali ke dekat tanpa reset hubungan."""
+
+    @require_admin(admin_id)
+    async def _handler(
+        update: Update,
+        context: ContextTypes.DEFAULT_TYPE,
+    ) -> None:
+        chat = update.effective_chat
+        user = update.effective_user
+        if chat is None or user is None:
+            return
+
+        raw_text = update.effective_message.text if update.effective_message and update.effective_message.text else "/cooldown"
+        inp = OrchestratorInput(
+            user_id=str(user.id),
+            text=raw_text,
+            timestamp=time.time(),
+            is_command=True,
+            command_name="cooldown",
         )
         out: OrchestratorOutput = orchestrator.handle_input(inp)
         await chat.send_message(out.reply_text)
@@ -390,6 +418,9 @@ def status_handler(orchestrator: Orchestrator, admin_id: str):
         time_of_day = getattr(s.time_of_day, 'value', '-') if s.time_of_day else '-'
         physical_distance = safe_str(getattr(s, 'physical_distance', None))
         last_touch = safe_str(getattr(s, 'last_touch', None))
+        phase_value = safe_str(getattr(role_state.intimacy_phase, 'value', None) if getattr(role_state, 'intimacy_phase', None) else None)
+        sequence_value = safe_str(getattr(role_state.current_sequence, 'value', None) if getattr(role_state, 'current_sequence', None) else None)
+        unlock_score = getattr(role_state, 'high_intensity_unlock_score', 0)
         communication_mode = getattr(role_state, 'communication_mode', None)
         communication_turns = getattr(role_state, 'communication_mode_turns', 0)
         vcs_mode = getattr(role_state, 'vcs_mode', False)
@@ -426,12 +457,15 @@ def status_handler(orchestrator: Orchestrator, admin_id: str):
             "📍 LOKASI & SCENE",
             f"   🏠 Lokasi: {current_location} ({location_icon})",
             f"   🏡 Nova di rumah: {nova_home}",
+            f"   Fase: {phase_value}",
+            f"   Sequence: {sequence_value}",
             f"   🪑 Postur: {posture}",
             f"   🎬 Aktivitas: {activity}",
             f"   🌅 Suasana: {ambience}",
             f"   ⏰ Waktu: {time_of_day}",
             f"   📏 Jarak: {physical_distance}",
             f"   ✋ Sentuhan: {last_touch}",
+            f"   Unlock vulgar: {unlock_score}/100",
             "",
             "👕 STATUS PAKAIAN",
             "",
