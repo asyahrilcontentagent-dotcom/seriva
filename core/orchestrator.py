@@ -1560,6 +1560,24 @@ class Orchestrator:
             self._clear_communication_mode(role_state)
             logger.info(f"🚪 Mas pulang, {role_state.role_id} reset pakaian ke default")
 
+        # ========== VULGAR INVITATION: CEK APAKAH USER MERESPON AJAKAN ROLE ==========
+        if role_state.intimacy_phase == IntimacyPhase.INTIM:
+            user_lower = inp.text.lower()
+            
+            # User menerima ajakan
+            if any(phrase in user_lower for phrase in ["iya", "mau", "ayo", "ok", "okay", "gas", "lanjut", "boleh"]):
+                if role_state.vulgar_invitation_sent and not role_state.vulgar_invitation_rejected:
+                    if role_state.can_enter_explicit_scene():
+                        role_state.intimacy_phase = IntimacyPhase.VULGAR
+                        role_state.mark_vulgar_entry()
+                        logger.info(f"🔥 {role_state.role_id} memasuki VULGAR (user menerima ajakan)")
+            
+            # User menolak ajakan
+            elif any(phrase in user_lower for phrase in ["nggak", "tidak", "ga", "gak", "belum", "nanti dulu", "jangan"]):
+                if role_state.vulgar_invitation_sent and not role_state.vulgar_invitation_rejected:
+                    role_state.reject_vulgar_invitation()
+                    logger.info(f"💔 {role_state.role_id} ajakan ditolak, tetap di INTIM")
+
         # 4) Interpretasi intent dasar dari teks user
         interaction_ctx = self._infer_interaction_context(inp.text)
         is_negative = self._is_negative_text(inp.text)
@@ -1687,6 +1705,12 @@ class Orchestrator:
         )
         reply_text = self._humanize_intimate_expression(reply_text, role_state)
 
+        # ========== VULGAR INVITATION: CEK APAKAH ROLE MENGAJAK ==========
+        if role_state.intimacy_phase == IntimacyPhase.INTIM:
+            if role_state.has_role_invited_to_vulgar(reply_text):
+                role_state.accept_vulgar_invitation()
+                logger.info(f"💌 {role_state.role_id} mengajak ke VULGAR")
+      
         assistant_snippet = MessageSnippet(
             user_id=inp.user_id,
             role_id=role_state.role_id,
@@ -1703,6 +1727,17 @@ class Orchestrator:
         )
         self.message_history.maybe_pin_from_text(inp.user_id, role_state.role_id, assistant_snippet)
 
+        # ========== VULGAR INVITATION: MODIFIKASI REPLY TEXT SAAT TRANSISI ==========
+        if (role_state.intimacy_phase == IntimacyPhase.VULGAR and 
+            role_state.vulgar_entry_timestamp and 
+            time.time() - role_state.vulgar_entry_timestamp < 2):
+            transition_phrases = [
+                f"*{role_state.role_display_name or role_state.role_id} mengangguk pelan, lalu mendekat*",
+                f"*{role_state.role_display_name or role_state.role_id} tersenyum, lalu menggigit bibir*",
+                f"*{role_state.role_display_name or role_state.role_id} mendekat, napas mulai memburu*",
+            ]
+            transition = random.choice(transition_phrases)
+            reply_text = f"{transition}\n\n{reply_text}"
 
         # ========== UPDATE VULGAR PROGRESSION & CLIMAX ==========
         if role_state.intimacy_phase == IntimacyPhase.VULGAR:
