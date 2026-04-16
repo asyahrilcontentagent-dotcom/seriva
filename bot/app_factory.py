@@ -5,6 +5,7 @@ from __future__ import annotations
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 
 from bot.handlers import (
+    cooldown_handler,
     deal_handler,
     end_session_handler,
     flashback_handler,
@@ -102,6 +103,7 @@ def build_application(
     app.add_handler(CommandHandler("status", status_handler(orchestrator, admin_id)))
     app.add_handler(CommandHandler("pause", pause_handler(orchestrator, admin_id)))
     app.add_handler(CommandHandler("resume", resume_handler(orchestrator, admin_id)))
+    app.add_handler(CommandHandler("cooldown", cooldown_handler(orchestrator, admin_id)))
     app.add_handler(CommandHandler("flashback", flashback_handler(orchestrator, admin_id)))
     app.add_handler(CommandHandler("offline", offline_handler(orchestrator, admin_id)))
 
