@@ -122,9 +122,57 @@ class MessageHistoryStore:
         asst_msgs = [m for m in all_msgs if m.from_who == "assistant"]
         return asst_msgs[-limit:]
 
+    def get_ranked_messages(
+        self,
+        user_id: str,
+        role_id: str,
+        limit: int = 6,
+    ) -> List[MessageSnippet]:
+        """Ambil pesan paling relevan berdasarkan recency + sinyal penting."""
+
+        recent = self.get_recent_messages(user_id, role_id, limit=max(limit * 4, 20))
+        scored = sorted(
+            recent,
+            key=lambda msg: self._score_message(msg),
+            reverse=True,
+        )
+        return scored[:limit]
+
+    def summarize_recent_messages(
+        self,
+        user_id: str,
+        role_id: str,
+        limit: int = 6,
+    ) -> str:
+        ranked = self.get_ranked_messages(user_id, role_id, limit=limit)
+        if not ranked:
+            return "Belum ada ringkasan percakapan."
+
+        parts = []
+        for msg in sorted(ranked, key=lambda item: item.timestamp):
+            speaker = "Mas" if msg.from_who == "user" else role_id
+            parts.append(f"{speaker}: {msg.content[:90]}")
+        return " | ".join(parts[:limit])
+
     def reset_role_history(self, user_id: str, role_id: str) -> None:
         """Hapus semua history untuk satu pasangan user-role."""
 
         key = (user_id, role_id)
         with self._lock:
             self._data.pop(key, None)
+
+    @staticmethod
+    def _score_message(msg: MessageSnippet) -> float:
+        score = float(msg.timestamp)
+        text = msg.content.lower()
+
+        if msg.from_who == "user":
+            score += 25
+        if "?" in text:
+            score += 12
+        if any(keyword in text for keyword in ["janji", "ingat", "nanti", "besok", "kangen", "marah"]):
+            score += 18
+        if len(msg.content) > 120:
+            score += 8
+
+        return score
