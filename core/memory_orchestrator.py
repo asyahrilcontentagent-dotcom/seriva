@@ -8,10 +8,10 @@ from memory.story_memory import StoryMemoryStore
 
 @dataclass(frozen=True)
 class ContextBudget:
-    message_memory_chars: int = 700
-    story_memory_chars: int = 650
-    scene_chars: int = 280
-    emotion_chars: int = 220
+    message_memory_chars: int = 620
+    story_memory_chars: int = 420
+    scene_chars: int = 180
+    emotion_chars: int = 260
 
 
 @dataclass
@@ -28,6 +28,7 @@ class StructuredContext:
     def to_prompt_block(self) -> str:
         return (
             "STRUCTURED CONTEXT PIPELINE:\n"
+            "- Prioritas konteks: current message -> emotional state -> recent memory -> long-term memory -> scene/story\n"
             f"- Mode prioritas: {self.mode}\n"
             f"- Alasan prioritas: {self.priority_reason}\n"
             f"- Budget message_memory: {self.budget.message_memory_chars} chars\n"
@@ -139,17 +140,17 @@ class MemoryOrchestrator:
     def _budget_for_mode(self, mode: str) -> ContextBudget:
         if mode == "story_dominant":
             return ContextBudget(
-                message_memory_chars=520,
-                story_memory_chars=820,
-                scene_chars=260,
-                emotion_chars=220,
+                message_memory_chars=470,
+                story_memory_chars=620,
+                scene_chars=160,
+                emotion_chars=300,
             )
         if mode == "message_dominant":
             return ContextBudget(
-                message_memory_chars=860,
-                story_memory_chars=500,
-                scene_chars=260,
-                emotion_chars=220,
+                message_memory_chars=760,
+                story_memory_chars=320,
+                scene_chars=150,
+                emotion_chars=280,
             )
         return self.default_budget
 
