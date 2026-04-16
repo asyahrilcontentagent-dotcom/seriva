@@ -286,10 +286,12 @@ class EmotionEngine:
         role_id: str,
         ctx: InteractionContext,
         negative: bool = False,
+        now_ts: float | None = None,
     ) -> None:
         """Helper utama dipanggil orchestrator setelah parse intent user."""
 
         role_state = user_state.get_or_create_role_state(role_id)
+        self.apply_emotional_decay(role_state, now_ts=now_ts)
 
         if negative:
             self.apply_negative_interaction(role_state, ctx)
@@ -299,6 +301,7 @@ class EmotionEngine:
             role_state.total_positive_interactions += 1
 
         self._apply_memory_influence(role_state, ctx)
+        role_state.emotions.last_updated_ts = now_ts
 
     def maybe_increase_intimacy_by_level(
         self,
@@ -360,6 +363,36 @@ class EmotionEngine:
         emotions.intimacy_intensity -= 1
 
         emotions.clamp()
+
+    def apply_emotional_decay(
+        self,
+        role_state: RoleState,
+        now_ts: float | None = None,
+    ) -> None:
+        """Luruhkan emosi pelan agar state tidak terasa statis."""
+
+        if now_ts is None:
+            return
+
+        last_updated = role_state.emotions.last_updated_ts
+        if not last_updated:
+            role_state.emotions.last_updated_ts = now_ts
+            return
+
+        elapsed_minutes = int((now_ts - last_updated) / 60)
+        if elapsed_minutes < 30:
+            return
+
+        decay_steps = min(4, elapsed_minutes // 30)
+        emotions = role_state.emotions
+        emotions.longing = max(0, emotions.longing - decay_steps)
+        emotions.jealousy = max(0, emotions.jealousy - decay_steps)
+        if emotions.comfort > 45:
+            emotions.comfort = max(40, emotions.comfort - decay_steps)
+        if role_state.relationship.relationship_level <= 3 and emotions.love > 35:
+            emotions.love = max(30, emotions.love - decay_steps)
+        emotions.clamp()
+        emotions.last_updated_ts = now_ts
 
     def _apply_memory_influence(
         self,
