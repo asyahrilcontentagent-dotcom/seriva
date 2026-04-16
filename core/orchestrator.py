@@ -387,6 +387,7 @@ class Orchestrator:
             role_id,
             limit=6,
             query_text=query_text,
+            min_score=25.0,
         )
         recent = self.message_history.get_recent_messages(user_id, role_id, limit=10)
         if not recent:
@@ -398,6 +399,26 @@ class Orchestrator:
             turns.append(f"{role}: {msg.content[:100]}")
 
         return "Ringkasan singkat:\n" + summary + "\n\nPercakapan terakhir:\n" + "\n".join(turns)
+
+    def _build_memory_tiers_context(self, user_id: str, role_id: str, query_text: str = "") -> str:
+        memory_tiers = self.message_history.summarize_memory_tiers(
+            user_id,
+            role_id,
+            query_text=query_text,
+            top_k=6,
+            min_score=25.0,
+        )
+        story_tiers = self.story_memory.get_story_tiers(user_id, role_id)
+        return (
+            "MEMORY TIERS TERPILIH:\n"
+            f"- Short-term: {memory_tiers['short_term']}\n"
+            f"- Key events: {memory_tiers['key_events']}\n"
+            f"- Long-term candidates: {memory_tiers['long_term_candidates']}\n"
+            f"- Story immediate: {story_tiers['immediate']}\n"
+            f"- Story important: {story_tiers['important']}\n"
+            f"- Story long-term: {story_tiers['long_term']}\n"
+            f"- Jumlah memory lolos filter: {memory_tiers['selected_count']}"
+        )
 
     def _get_recent_repetition_guard(self, user_id: str, role_id: str) -> str:
         """Ringkas frase assistant terbaru agar model tidak mengulang persis."""
@@ -489,6 +510,7 @@ class Orchestrator:
         story_context = self.story_memory.get_story_prompt(user_state.user_id, role_id)
         story_summary = self.story_memory.get_story_summary(user_state.user_id, role_id)
         chat_history = self._get_chat_history_context(user_state.user_id, role_id, query_text=query_text)
+        memory_tiers_context = self._build_memory_tiers_context(user_state.user_id, role_id, query_text=query_text)
         conversation_summary = role_state.last_conversation_summary or "Belum ada ringkasan percakapan."
         repetition_guard = self._get_recent_repetition_guard(user_state.user_id, role_id)
         recent_scene_summary = (
@@ -510,6 +532,7 @@ class Orchestrator:
             "- Jangan meminjam emosi, kejadian, lokasi, atau kenangan dari role lain.\n\n"
             f"{story_context}\n\n"
             f"{chat_history}\n\n"
+            f"{memory_tiers_context}\n\n"
             "Ringkasan fakta yang harus diingat:\n"
             f"{conversation_summary}\n\n"
             "Ringkasan jangka panjang:\n"
@@ -2926,13 +2949,14 @@ class Orchestrator:
         """Bangun ringkasan jangka panjang yang lebih compact per role."""
 
         role_id = role_state.role_id
-        memory_digest = self.message_history.summarize_recent_messages(
+        memory_tiers = self.message_history.summarize_memory_tiers(
             user_state.user_id,
             role_id,
-            limit=5,
             query_text=role_state.last_conversation_summary or "",
+            top_k=5,
+            min_score=25.0,
         )
-        story_digest = self.story_memory.get_story_summary(user_state.user_id, role_id)
+        story_tiers = self.story_memory.get_story_tiers(user_state.user_id, role_id)
 
         fact_lines = []
         last_summary = role_state.last_conversation_summary or ""
@@ -2945,8 +2969,10 @@ class Orchestrator:
         facts = "; ".join(fact_lines) if fact_lines else "Belum ada fakta user yang stabil."
         role_state.long_term_summary = (
             f"FAKTA: {facts}\n"
-            f"POLA INTERAKSI: {memory_digest}\n"
-            f"KONTINUITAS: {story_digest}"
+            f"SHORT_TERM: {memory_tiers['short_term']}\n"
+            f"KEY_EVENTS: {memory_tiers['key_events']}\n"
+            f"LONG_TERM: {memory_tiers['long_term_candidates']}\n"
+            f"KONTINUITAS: {story_tiers['long_term']}"
         )[:900]
 
     # --------------------------------------------------
