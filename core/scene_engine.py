@@ -41,6 +41,7 @@ class SceneUpdateRequest:
 
     physical_distance: Optional[str] = None
     last_touch: Optional[str] = None
+    priority: Optional[int] = None
 
     # Kalau True, artinya user ingin reset adegan ke default netral
     reset: bool = False
@@ -94,8 +95,12 @@ class SceneEngine:
         if update.last_touch is not None:
             scene.last_touch = update.last_touch
 
+        if update.priority is not None:
+            scene.scene_priority = max(0, min(10, update.priority))
+
         if now_ts is not None:
             scene.last_scene_update_ts = now_ts
+            scene.scene_decay_level = 0
 
     # ==============================
     # PRESET / TRANSISI PRAKTIS
@@ -207,6 +212,43 @@ class SceneEngine:
         if scene.physical_distance in {"pelukan erat", "sangat dekat"}:
             scene.physical_distance = "sebelahan"  # lebih netral tapi masih dekat
         scene.last_touch = ""
+        scene.scene_priority = max(0, scene.scene_priority - 2)
+
+    def bump_priority(self, scene: SceneState, amount: int = 1) -> None:
+        scene.scene_priority = max(0, min(10, scene.scene_priority + max(0, amount)))
+
+    def apply_decay(
+        self,
+        scene: SceneState,
+        *,
+        now_ts: Optional[float] = None,
+    ) -> None:
+        """Luruhkan detail scene lama agar continuity tetap natural."""
+
+        if now_ts is None or scene.last_scene_update_ts is None:
+            return
+
+        decay_minutes = max(1, scene.scene_decay_minutes)
+        elapsed_minutes = int((now_ts - scene.last_scene_update_ts) / 60)
+        if elapsed_minutes < decay_minutes:
+            return
+
+        decay_steps = elapsed_minutes // decay_minutes
+        if decay_steps <= scene.scene_decay_level:
+            return
+
+        steps_to_apply = decay_steps - scene.scene_decay_level
+        scene.scene_decay_level = decay_steps
+        scene.scene_priority = max(0, scene.scene_priority - steps_to_apply)
+
+        if scene.scene_priority <= 5:
+            scene.last_touch = ""
+        if scene.scene_priority <= 3:
+            scene.activity = scene.activity or ""
+            if scene.physical_distance in {"pelukan erat", "sangat dekat"}:
+                scene.physical_distance = "sebelahan"
+        if scene.scene_priority == 0 and scene.ambience:
+            scene.ambience = "suasana netral yang melanjutkan scene sebelumnya"
 
     # ========== BARU: Location Detection Methods ==========
     
