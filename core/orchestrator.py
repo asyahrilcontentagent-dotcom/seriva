@@ -380,9 +380,14 @@ class Orchestrator:
             if promise_match:
                 self.story_memory.add_promise(user_id, role_id, promise_match.group(1))
     
-    def _get_chat_history_context(self, user_id: str, role_id: str) -> str:
+    def _get_chat_history_context(self, user_id: str, role_id: str, query_text: str = "") -> str:
         """Dapatkan history chat ringkas untuk prompt"""
-        summary = self.message_history.summarize_recent_messages(user_id, role_id, limit=6)
+        summary = self.message_history.summarize_recent_messages(
+            user_id,
+            role_id,
+            limit=6,
+            query_text=query_text,
+        )
         recent = self.message_history.get_recent_messages(user_id, role_id, limit=10)
         if not recent:
             return "Belum ada percakapan sebelumnya."
@@ -471,13 +476,19 @@ class Orchestrator:
             f"{provider_context}"
         )
 
-    def _build_runtime_memory_context(self, user_state: UserState, world_state: WorldState, role_state: RoleState) -> str:
+    def _build_runtime_memory_context(
+        self,
+        user_state: UserState,
+        world_state: WorldState,
+        role_state: RoleState,
+        query_text: str = "",
+    ) -> str:
         """Bangun konteks memory singkat untuk jalur runtime utama."""
 
         role_id = role_state.role_id
         story_context = self.story_memory.get_story_prompt(user_state.user_id, role_id)
         story_summary = self.story_memory.get_story_summary(user_state.user_id, role_id)
-        chat_history = self._get_chat_history_context(user_state.user_id, role_id)
+        chat_history = self._get_chat_history_context(user_state.user_id, role_id, query_text=query_text)
         conversation_summary = role_state.last_conversation_summary or "Belum ada ringkasan percakapan."
         repetition_guard = self._get_recent_repetition_guard(user_state.user_id, role_id)
         recent_scene_summary = (
@@ -501,6 +512,8 @@ class Orchestrator:
             f"{chat_history}\n\n"
             "Ringkasan fakta yang harus diingat:\n"
             f"{conversation_summary}\n\n"
+            "Ringkasan jangka panjang:\n"
+            f"{role_state.long_term_summary or 'Belum ada ringkasan jangka panjang.'}\n\n"
             "Ringkasan story memory:\n"
             f"{story_summary}\n\n"
             "Ringkasan urutan adegan:\n"
@@ -511,6 +524,70 @@ class Orchestrator:
             "- Kalau adegan sedang intim, prioritaskan rasa tubuh, napas, jeda, dan respons emosional yang spesifik ke momen ini.\n"
             "- Referensikan momen sebelumnya hanya kalau memang relevan dan terasa natural."
         )
+
+    def _build_runtime_messages(
+        self,
+        user_state: UserState,
+        world_state: WorldState,
+        role_state: RoleState,
+        user_text: str,
+    ) -> list[dict]:
+        role_impl = get_role(role_state.role_id)
+        memory_context = self._build_runtime_memory_context(
+            user_state,
+            world_state,
+            role_state,
+            query_text=user_text,
+        )
+        dynamic_context = build_dynamic_prompt_context(
+            role_state,
+            memory_summary=self.message_history.summarize_recent_messages(
+                user_state.user_id,
+                role_state.role_id,
+                limit=4,
+                query_text=user_text,
+            ),
+            story_summary=self.story_memory.get_story_summary(user_state.user_id, role_state.role_id),
+        )
+        return self.response_builder.build_messages(
+            role_impl,
+            user_state,
+            role_state,
+            user_text,
+            memory_context=memory_context,
+            dynamic_context=dynamic_context,
+        )
+
+    def _generate_guarded_reply(
+        self,
+        messages: list[dict],
+        role_state: RoleState,
+        user_text: str,
+    ) -> str:
+        temperature = self._get_llm_temperature(role_state)
+        reply_text = self.llm.generate_text(
+            messages,
+            temperature=temperature,
+            top_p=LLM_TOP_P,
+            frequency_penalty=LLM_FREQUENCY_PENALTY,
+            presence_penalty=LLM_PRESENCE_PENALTY,
+            max_tokens=LLM_MAX_TOKENS,
+        )
+        reply_text = self._vary_response(reply_text, role_state)
+        guard_result = self.response_builder.guard_reply(role_state, user_text, reply_text)
+        if guard_result.should_retry and guard_result.repair_instructions:
+            retry_messages = list(messages)
+            retry_messages.append({"role": "system", "content": guard_result.repair_instructions})
+            reply_text = self.llm.generate_text(
+                retry_messages,
+                temperature=max(0.2, temperature - 0.1),
+                top_p=LLM_TOP_P,
+                frequency_penalty=LLM_FREQUENCY_PENALTY,
+                presence_penalty=LLM_PRESENCE_PENALTY,
+                max_tokens=LLM_MAX_TOKENS,
+            )
+            reply_text = self._vary_response(reply_text, role_state)
+        return self.response_builder.finalize_reply(role_state, user_text, reply_text)
     
     def _get_role_personality(self, role_id: str) -> str:
         """Dapatkan personality prompt untuk role"""
@@ -1027,6 +1104,7 @@ class Orchestrator:
             role_id=role_state.role_id,
             ctx=interaction_ctx,
             negative=is_negative,
+            now_ts=inp.timestamp,
         )
         self.world_engine.update_household_awareness(
             world_state,
@@ -1040,31 +1118,14 @@ class Orchestrator:
 
         # 7) Update scene per-role (Nova & role lain)
         self._update_scene_for_role(role_state, inp)
+        self.scene_manager.apply_context_awareness(role_state, inp.text, inp.timestamp)
         self.scene_manager.mark_focus(role_state, amount=1)
         self._sync_household_scene_cues(role_state, world_state)
         self._update_pre_reply_climax_state(role_state, inp.text, inp.timestamp)
         self._apply_aftercare_decay(role_state, inp.text, inp.timestamp)
 
         # 8) Bangun messages via role aktif & panggil LLM
-        role_impl = get_role(role_state.role_id)
-        memory_context = self._build_runtime_memory_context(user_state, world_state, role_state)
-        dynamic_context = build_dynamic_prompt_context(
-            role_state,
-            memory_summary=self.message_history.summarize_recent_messages(
-                inp.user_id,
-                role_state.role_id,
-                limit=4,
-            ),
-            story_summary=self.story_memory.get_story_summary(inp.user_id, role_state.role_id),
-        )
-        messages = self.response_builder.build_messages(
-            role_impl,
-            user_state,
-            role_state,
-            inp.text,
-            memory_context=memory_context,
-            dynamic_context=dynamic_context,
-        )
+        messages = self._build_runtime_messages(user_state, world_state, role_state, inp.text)
 
         self.message_history.add_message(
             user_id=inp.user_id,
@@ -1074,17 +1135,7 @@ class Orchestrator:
             content=inp.text[:500],
         )
 
-        temperature = self._get_llm_temperature(role_state)
-        reply_text = self.llm.generate_text(
-            messages,
-            temperature=temperature,
-            top_p=LLM_TOP_P,
-            frequency_penalty=LLM_FREQUENCY_PENALTY,
-            presence_penalty=LLM_PRESENCE_PENALTY,
-            max_tokens=LLM_MAX_TOKENS,
-        )
-        reply_text = self._vary_response(reply_text, role_state)
-        reply_text = self.response_builder.finalize_reply(role_state, inp.text, reply_text)
+        reply_text = self._generate_guarded_reply(messages, role_state, inp.text)
 
         self.message_history.add_message(
             user_id=inp.user_id,
@@ -1411,6 +1462,7 @@ class Orchestrator:
 
         # 10) Perbarui ringkasan percakapan terakhir (per role)
         self._update_conversation_summary(user_state, role_state, inp, reply_text)
+        self._update_long_term_summary(user_state, role_state)
         reply_text = self.response_builder.maybe_append_command_hint(reply_text, role_state, inp.text)
 
         # 11) Auto-milestone: first_confession untuk Nova
@@ -1464,7 +1516,9 @@ class Orchestrator:
         user_state = self._load_or_init_user_state(user_id)
         user_state.active_role_id = role_id
         role_state = self.role_selector.get_active_role_state(user_state)
-        self.scene_manager.prepare_for_turn(role_state, time.time())
+        now_ts = time.time()
+        self.scene_manager.prepare_for_turn(role_state, now_ts)
+        self.scene_manager.apply_context_awareness(role_state, user_message, now_ts)
         
         # Simpan user message ke history
         self.message_history.add_message(
@@ -1492,16 +1546,10 @@ class Orchestrator:
     
         # Dapatkan konteks
         world_state = self._load_or_init_world_state()
-        role_impl = get_role(role_id)
-        memory_context = self._build_runtime_memory_context(user_state, world_state, role_state)
-        dynamic_context = build_dynamic_prompt_context(
-            role_state,
-            memory_summary=self.message_history.summarize_recent_messages(user_id, role_id, limit=4),
-            story_summary=self.story_memory.get_story_summary(user_id, role_id),
-        )
-        story_context = self.story_memory.get_story_prompt(user_id, role_id)
-        chat_history = self._get_chat_history_context(user_id, role_id)
+        messages = self._build_runtime_messages(user_state, world_state, role_state, user_message)
         role_spec = get_role_prompt_spec(role_id)
+        story_context = self.story_memory.get_story_prompt(user_id, role_id)
+        chat_history = self._get_chat_history_context(user_id, role_id, query_text=user_message)
         
         # Build prompt dengan semua konteks
         system_prompt = build_unified_system_prompt(
@@ -1581,7 +1629,8 @@ class Orchestrator:
         
         # Update emotion state
         ctx = self._parse_interaction_context(user_message)
-        self.emotion_engine.register_user_interaction(user_state, role_id, ctx)
+        self.emotion_engine.register_user_interaction(user_state, role_id, ctx, now_ts=time.time())
+        self._update_long_term_summary(user_state, role_state)
         
         # Simpan state
         self._save_all(user_state, self._load_or_init_world_state())
@@ -2868,6 +2917,37 @@ class Orchestrator:
         )
 
         role_state.last_conversation_summary = summary
+
+    def _update_long_term_summary(
+        self,
+        user_state: UserState,
+        role_state: RoleState,
+    ) -> None:
+        """Bangun ringkasan jangka panjang yang lebih compact per role."""
+
+        role_id = role_state.role_id
+        memory_digest = self.message_history.summarize_recent_messages(
+            user_state.user_id,
+            role_id,
+            limit=5,
+            query_text=role_state.last_conversation_summary or "",
+        )
+        story_digest = self.story_memory.get_story_summary(user_state.user_id, role_id)
+
+        fact_lines = []
+        last_summary = role_state.last_conversation_summary or ""
+        for label in ("- Nama:", "- Pekerjaan:", "- Kota:"):
+            for line in last_summary.splitlines():
+                if line.strip().startswith(label):
+                    fact_lines.append(line.strip())
+                    break
+
+        facts = "; ".join(fact_lines) if fact_lines else "Belum ada fakta user yang stabil."
+        role_state.long_term_summary = (
+            f"FAKTA: {facts}\n"
+            f"POLA INTERAKSI: {memory_digest}\n"
+            f"KONTINUITAS: {story_digest}"
+        )[:900]
 
     # --------------------------------------------------
     # AUTO-MILESTONE UNTUK NOVA
