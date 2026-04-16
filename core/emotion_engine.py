@@ -301,6 +301,9 @@ class EmotionEngine:
             role_state.total_positive_interactions += 1
 
         self._apply_memory_influence(role_state, ctx)
+        self._apply_emotion_formula(role_state, ctx)
+        self._apply_emotional_drift(role_state, ctx)
+        self._update_emotion_layers(role_state, ctx)
         role_state.emotions.last_updated_ts = now_ts
 
     def maybe_increase_intimacy_by_level(
@@ -411,6 +414,80 @@ class EmotionEngine:
             emotions.love += 1
         if ctx.content == "ABSENCE" and any(keyword in summary for keyword in ["kangen", "rindu"]):
             emotions.longing += 2
+        emotions.clamp()
+
+    def _apply_emotion_formula(
+        self,
+        role_state: RoleState,
+        ctx: InteractionContext,
+    ) -> None:
+        """Emotion = f(memory + input) dengan pengaruh kecil tapi stabil."""
+
+        summary = (role_state.long_term_summary or "") + " " + (role_state.last_conversation_summary or "")
+        lowered = summary.lower()
+        emotions = role_state.emotions
+
+        memory_weight = 0
+        if any(token in lowered for token in ["janji", "percaya", "nyaman", "hubungan"]):
+            memory_weight += 1
+        if any(token in lowered for token in ["marah", "kecewa", "takut"]):
+            memory_weight -= 1
+
+        input_weight = 0
+        if ctx.tone in ("SOFT", "DEEP"):
+            input_weight += 1
+        if ctx.tone in ("COLD", "CONFLICT"):
+            input_weight -= 1
+
+        emotions.comfort += memory_weight + max(0, input_weight)
+        emotions.longing += 1 if ctx.content == "ABSENCE" else 0
+        if input_weight < 0:
+            emotions.jealousy += 1
+        emotions.clamp()
+
+    def _apply_emotional_drift(
+        self,
+        role_state: RoleState,
+        ctx: InteractionContext,
+    ) -> None:
+        emotions = role_state.emotions
+        delta = 0.0
+        if ctx.tone == "DEEP":
+            delta += 0.12
+        elif ctx.tone in ("COLD", "CONFLICT"):
+            delta -= 0.15
+        elif ctx.tone == "PLAYFUL":
+            delta += 0.04
+
+        emotions.emotional_drift = (emotions.emotional_drift * 0.65) + delta
+        emotions.clamp()
+
+    def _update_emotion_layers(
+        self,
+        role_state: RoleState,
+        ctx: InteractionContext,
+    ) -> None:
+        emotions = role_state.emotions
+
+        secondary = Mood.NEUTRAL
+        hidden = Mood.NEUTRAL
+
+        if emotions.longing >= 55:
+            secondary = Mood.TENDER
+        elif emotions.jealousy >= 25:
+            secondary = Mood.JEALOUS
+        elif ctx.tone == "PLAYFUL":
+            secondary = Mood.PLAYFUL
+
+        if ctx.content == "APOLOGY":
+            hidden = Mood.SAD
+        elif emotions.jealousy >= 18 and emotions.mood != Mood.JEALOUS:
+            hidden = Mood.JEALOUS
+        elif emotions.comfort >= 65:
+            hidden = Mood.TENDER
+
+        emotions.secondary_mood = secondary
+        emotions.hidden_mood = hidden
         emotions.clamp()
 
     @staticmethod
