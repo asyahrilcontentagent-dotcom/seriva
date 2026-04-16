@@ -20,6 +20,7 @@ from __future__ import annotations  # âœ… HARUS PALING ATAS
 
 import logging
 import random
+import re
 import time
 
 logger = logging.getLogger(__name__)
@@ -58,7 +59,10 @@ from config.constants import (
 )
 from core.emotion_engine import EmotionEngine, InteractionContext
 from core.llm_client import LLMClient
+from core.response_builder import ResponseBuilder
+from core.role_selector import RoleSelector
 from core.scene_engine import SceneEngine
+from core.scene_manager import SceneManager
 from core.state_models import (
     RoleState,
     SessionMode,
@@ -73,17 +77,12 @@ from core.state_models import (
 )
 from core.world_engine import WorldEngine
 from memory.milestones import MilestoneStore
+from memory.message_history import MessageHistoryStore
+from memory.story_memory import StoryMemoryStore, StoryBeat
 from roles.role_registry import get_role
 from core.intimacy_progression import IntimacyProgressionEngine
 from core.location_system import update_role_location, init_role_location, get_location_prompt_block
 from core.continuity_rules import get_continuity_rules_prompt
-
-# ========== TAMBAHAN UNTUK STORY MEMORY & RESPONSE VARIATION ==========
-from memory.message_history import MessageHistoryStore
-from memory.story_memory import StoryMemoryStore, StoryBeat
-import time
-import random
-import re
 
 # ========== TAMBAHAN UNTUK LLM PARAMETERS ==========
 from config.constants import (
@@ -97,6 +96,7 @@ from config.constants import (
 
 # ========== TAMBAHAN UNTUK UNIFIED PROMPT ==========
 from prompts.unified_prompt import build_unified_system_prompt
+from prompts.dynamic_prompt_context import build_dynamic_prompt_context
 from prompts.role_specs import get_role_prompt_spec
 
 # ========== BARU: Memory & Intimacy Updates ==========
@@ -192,7 +192,10 @@ class Orchestrator:
         self.story_memory = story_memory_store or StoryMemoryStore()
         
         self.scene_engine = SceneEngine()
+        self.scene_manager = SceneManager(self.scene_engine)
         self.world_engine = WorldEngine()
+        self.role_selector = RoleSelector()
+        self.response_builder = ResponseBuilder()
 
         # Memory milestones untuk flashback & kenangan khusus
         self.milestones = milestone_store or MilestoneStore()
@@ -379,6 +382,7 @@ class Orchestrator:
     
     def _get_chat_history_context(self, user_id: str, role_id: str) -> str:
         """Dapatkan history chat ringkas untuk prompt"""
+        summary = self.message_history.summarize_recent_messages(user_id, role_id, limit=6)
         recent = self.message_history.get_recent_messages(user_id, role_id, limit=10)
         if not recent:
             return "Belum ada percakapan sebelumnya."
@@ -387,8 +391,8 @@ class Orchestrator:
         for msg in recent[-6:]:
             role = "User" if msg.from_who == "user" else role_id
             turns.append(f"{role}: {msg.content[:100]}")
-        
-        return "Percakapan terakhir:\n" + "\n".join(turns)
+
+        return "Ringkasan singkat:\n" + summary + "\n\nPercakapan terakhir:\n" + "\n".join(turns)
 
     def _get_recent_repetition_guard(self, user_id: str, role_id: str) -> str:
         """Ringkas frase assistant terbaru agar model tidak mengulang persis."""
@@ -472,6 +476,7 @@ class Orchestrator:
 
         role_id = role_state.role_id
         story_context = self.story_memory.get_story_prompt(user_state.user_id, role_id)
+        story_summary = self.story_memory.get_story_summary(user_state.user_id, role_id)
         chat_history = self._get_chat_history_context(user_state.user_id, role_id)
         conversation_summary = role_state.last_conversation_summary or "Belum ada ringkasan percakapan."
         repetition_guard = self._get_recent_repetition_guard(user_state.user_id, role_id)
@@ -496,6 +501,8 @@ class Orchestrator:
             f"{chat_history}\n\n"
             "Ringkasan fakta yang harus diingat:\n"
             f"{conversation_summary}\n\n"
+            "Ringkasan story memory:\n"
+            f"{story_summary}\n\n"
             "Ringkasan urutan adegan:\n"
             f"{recent_scene_summary}\n\n"
             f"{repetition_guard}\n\n"
@@ -957,8 +964,9 @@ class Orchestrator:
         if user_state.active_role_id not in ROLES:
             self.switch_active_role(user_state, ROLE_ID_NOVA)
 
-        role_state = user_state.get_or_create_role_state(user_state.active_role_id)
+        role_state = self.role_selector.get_active_role_state(user_state)
         self._sync_communication_mode(role_state, inp)
+        self.scene_manager.prepare_for_turn(role_state, inp.timestamp)
 
         # ========== DETEKSI MAS PULANG ==========
         mas_leave_keywords = ["pulang", "bye", "dadah", "sampai jumpa", "aku pergi", "keluar", "daah"]
@@ -1032,15 +1040,31 @@ class Orchestrator:
 
         # 7) Update scene per-role (Nova & role lain)
         self._update_scene_for_role(role_state, inp)
+        self.scene_manager.mark_focus(role_state, amount=1)
         self._sync_household_scene_cues(role_state, world_state)
         self._update_pre_reply_climax_state(role_state, inp.text, inp.timestamp)
         self._apply_aftercare_decay(role_state, inp.text, inp.timestamp)
 
         # 8) Bangun messages via role aktif & panggil LLM
         role_impl = get_role(role_state.role_id)
-        messages = role_impl.build_messages(user_state, role_state, inp.text)
         memory_context = self._build_runtime_memory_context(user_state, world_state, role_state)
-        messages.insert(1, {"role": "system", "content": memory_context})
+        dynamic_context = build_dynamic_prompt_context(
+            role_state,
+            memory_summary=self.message_history.summarize_recent_messages(
+                inp.user_id,
+                role_state.role_id,
+                limit=4,
+            ),
+            story_summary=self.story_memory.get_story_summary(inp.user_id, role_state.role_id),
+        )
+        messages = self.response_builder.build_messages(
+            role_impl,
+            user_state,
+            role_state,
+            inp.text,
+            memory_context=memory_context,
+            dynamic_context=dynamic_context,
+        )
 
         self.message_history.add_message(
             user_id=inp.user_id,
@@ -1059,7 +1083,8 @@ class Orchestrator:
             presence_penalty=LLM_PRESENCE_PENALTY,
             max_tokens=LLM_MAX_TOKENS,
         )
-        reply_text = self._vary_response(reply_text, role_state)   # ← perbaiki indentasi! 8 spaces (2 tabs)
+        reply_text = self._vary_response(reply_text, role_state)
+        reply_text = self.response_builder.finalize_reply(role_state, inp.text, reply_text)
 
         self.message_history.add_message(
             user_id=inp.user_id,
@@ -1386,6 +1411,7 @@ class Orchestrator:
 
         # 10) Perbarui ringkasan percakapan terakhir (per role)
         self._update_conversation_summary(user_state, role_state, inp, reply_text)
+        reply_text = self.response_builder.maybe_append_command_hint(reply_text, role_state, inp.text)
 
         # 11) Auto-milestone: first_confession untuk Nova
         self._maybe_record_first_confession(user_state, role_state, inp)
@@ -1436,7 +1462,9 @@ class Orchestrator:
         
         # Get states
         user_state = self._load_or_init_user_state(user_id)
-        role_state = user_state.get_or_create_role_state(role_id)
+        user_state.active_role_id = role_id
+        role_state = self.role_selector.get_active_role_state(user_state)
+        self.scene_manager.prepare_for_turn(role_state, time.time())
         
         # Simpan user message ke history
         self.message_history.add_message(
@@ -1463,6 +1491,14 @@ class Orchestrator:
                     role_state.emotions.intimacy_intensity = 10
     
         # Dapatkan konteks
+        world_state = self._load_or_init_world_state()
+        role_impl = get_role(role_id)
+        memory_context = self._build_runtime_memory_context(user_state, world_state, role_state)
+        dynamic_context = build_dynamic_prompt_context(
+            role_state,
+            memory_summary=self.message_history.summarize_recent_messages(user_id, role_id, limit=4),
+            story_summary=self.story_memory.get_story_summary(user_id, role_id),
+        )
         story_context = self.story_memory.get_story_prompt(user_id, role_id)
         chat_history = self._get_chat_history_context(user_id, role_id)
         role_spec = get_role_prompt_spec(role_id)
@@ -1511,6 +1547,7 @@ class Orchestrator:
         
         # Variasi respon
         response = self._vary_response(response, role_state)
+        response = self.response_builder.finalize_reply(role_state, user_message, response)
         
         # ========== UPDATE VCS INTENSITY DARI RESPONSE (PINDAHKAN KE SINI) ==========
         if role_state.vcs_mode:
@@ -1549,7 +1586,7 @@ class Orchestrator:
         # Simpan state
         self._save_all(user_state, self._load_or_init_world_state())
         
-        return response
+        return self.response_builder.maybe_append_command_hint(response, role_state, user_message)
 
     # --------------------------------------------------
     # INTERNAL HELPERS: LOAD/SAVE
