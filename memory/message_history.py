@@ -17,6 +17,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from threading import RLock
 from typing import Dict, List, Literal
+import re
 
 
 MessageRole = Literal["user", "assistant"]
@@ -127,13 +128,14 @@ class MessageHistoryStore:
         user_id: str,
         role_id: str,
         limit: int = 6,
+        query_text: str = "",
     ) -> List[MessageSnippet]:
-        """Ambil pesan paling relevan berdasarkan recency + sinyal penting."""
+        """Ambil pesan paling relevan berdasarkan recency + bobot emosional + keyword."""
 
         recent = self.get_recent_messages(user_id, role_id, limit=max(limit * 4, 20))
         scored = sorted(
             recent,
-            key=lambda msg: self._score_message(msg),
+            key=lambda msg: self._score_message(msg, query_text=query_text),
             reverse=True,
         )
         return scored[:limit]
@@ -143,15 +145,17 @@ class MessageHistoryStore:
         user_id: str,
         role_id: str,
         limit: int = 6,
+        query_text: str = "",
     ) -> str:
-        ranked = self.get_ranked_messages(user_id, role_id, limit=limit)
+        ranked = self.get_ranked_messages(user_id, role_id, limit=limit, query_text=query_text)
         if not ranked:
             return "Belum ada ringkasan percakapan."
 
         parts = []
         for msg in sorted(ranked, key=lambda item: item.timestamp):
             speaker = "Mas" if msg.from_who == "user" else role_id
-            parts.append(f"{speaker}: {msg.content[:90]}")
+            compact = self._compact_text(msg.content, max_len=72)
+            parts.append(f"{speaker}: {compact}")
         return " | ".join(parts[:limit])
 
     def reset_role_history(self, user_id: str, role_id: str) -> None:
@@ -162,9 +166,11 @@ class MessageHistoryStore:
             self._data.pop(key, None)
 
     @staticmethod
-    def _score_message(msg: MessageSnippet) -> float:
-        score = float(msg.timestamp)
+    def _score_message(msg: MessageSnippet, query_text: str = "") -> float:
+        score = float(msg.timestamp) * 0.001
         text = msg.content.lower()
+        query_keywords = set(_tokenize_keywords(query_text))
+        msg_keywords = set(_tokenize_keywords(text))
 
         if msg.from_who == "user":
             score += 25
@@ -172,7 +178,29 @@ class MessageHistoryStore:
             score += 12
         if any(keyword in text for keyword in ["janji", "ingat", "nanti", "besok", "kangen", "marah"]):
             score += 18
+        if any(keyword in text for keyword in ["sedih", "maaf", "takut", "senang", "sayang", "rindu"]):
+            score += 16
         if len(msg.content) > 120:
             score += 8
+        if query_keywords:
+            overlap = len(query_keywords.intersection(msg_keywords))
+            score += overlap * 14
+        if any(token in text for token in ["!", "!!", "..."]):
+            score += 3
 
         return score
+
+    @staticmethod
+    def _compact_text(text: str, max_len: int = 80) -> str:
+        compact = re.sub(r"\s+", " ", text).strip()
+        if len(compact) <= max_len:
+            return compact
+        return compact[: max_len - 3] + "..."
+
+
+def _tokenize_keywords(text: str) -> List[str]:
+    if not text:
+        return []
+    tokens = re.findall(r"[a-zA-Z0-9_]{3,}", text.lower())
+    stopwords = {"yang", "dan", "untuk", "dengan", "atau", "karena", "mas", "aku", "kamu"}
+    return [token for token in tokens if token not in stopwords]
