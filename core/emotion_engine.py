@@ -17,6 +17,7 @@ Catatan penting:
 
 from __future__ import annotations
 
+import random
 from dataclasses import dataclass
 from typing import Literal, Optional
 
@@ -160,6 +161,7 @@ class EmotionEngine:
 
         emotions.clamp()
         rel.clamp()
+        self._apply_natural_variation(role_state)
 
     def apply_negative_interaction(
         self,
@@ -203,6 +205,7 @@ class EmotionEngine:
 
         emotions.clamp()
         rel.clamp()
+        self._apply_natural_variation(role_state)
 
     # ==============================
     # ABSENCE & JEALOUSY
@@ -295,6 +298,8 @@ class EmotionEngine:
             # Hitung interaksi positif untuk mengontrol kenaikan relationship/intimacy
             role_state.total_positive_interactions += 1
 
+        self._apply_memory_influence(role_state, ctx)
+
     def maybe_increase_intimacy_by_level(
         self,
         role_state: RoleState,
@@ -354,4 +359,35 @@ class EmotionEngine:
         # Intimacy turun sedikit (cooldown) tapi tetap di level sehat
         emotions.intimacy_intensity -= 1
 
+        emotions.clamp()
+
+    def _apply_memory_influence(
+        self,
+        role_state: RoleState,
+        ctx: InteractionContext,
+    ) -> None:
+        """Memory penting ikut memengaruhi emosi agar tidak terlalu linear."""
+
+        summary = (role_state.last_conversation_summary or "").lower()
+        if not summary:
+            return
+
+        emotions = role_state.emotions
+        if ctx.tone == "DEEP" and any(keyword in summary for keyword in ["janji", "perasaan", "hubungan"]):
+            emotions.comfort += 1
+            emotions.love += 1
+        if ctx.content == "ABSENCE" and any(keyword in summary for keyword in ["kangen", "rindu"]):
+            emotions.longing += 2
+        emotions.clamp()
+
+    @staticmethod
+    def _apply_natural_variation(role_state: RoleState) -> None:
+        """Variasi kecil agar perubahan emosi tidak terlalu mekanis."""
+
+        emotions = role_state.emotions
+        roll = random.random()
+        if roll < 0.18:
+            emotions.comfort = max(0, min(100, emotions.comfort + random.choice([-1, 1])))
+        elif roll < 0.30:
+            emotions.longing = max(0, min(100, emotions.longing + random.choice([-1, 1])))
         emotions.clamp()
