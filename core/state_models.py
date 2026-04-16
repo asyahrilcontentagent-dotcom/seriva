@@ -392,6 +392,9 @@ class SceneState:
     outfit: Optional[str] = None # ringkasan penampilan role saat ini (opsional)
 
     last_scene_update_ts: Optional[float] = None
+    scene_priority: int = 0
+    scene_decay_minutes: int = 20
+    scene_decay_level: int = 0
 
 
 # ==============================
