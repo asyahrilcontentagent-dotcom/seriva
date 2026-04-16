@@ -42,6 +42,7 @@ def build_dynamic_prompt_context(
 
     lines = [
         "DYNAMIC BEHAVIOR RULES:",
+        "- Urutan fokus: pesan terbaru dulu, lalu emosi aktif, lalu memory yang benar-benar relevan.",
         f"- {_tone_rule(mood)}",
         f"- {_pacing_rule(role_state)}",
         (
@@ -50,6 +51,7 @@ def build_dynamic_prompt_context(
         ),
         f"- Emosi lapis kedua yang boleh terasa halus: {secondary_mood.value}.",
         f"- Emosi yang tidak harus diucapkan terang-terangan: {hidden_mood.value}.",
+        f"- Bias panjang respons saat ini: {getattr(role_state, 'response_length_bias', 'balanced')}.",
     ]
 
     if scene.activity:
