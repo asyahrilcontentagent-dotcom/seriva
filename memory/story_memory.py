@@ -137,6 +137,23 @@ class StoryMemoryStore:
                 f"lokasi={story.story_location or 'belum menonjol'}; beat={beats}; janji={promises}"
             )
 
+    def get_story_tiers(self, user_id: str, role_id: str) -> dict:
+        story = self.get_or_create(user_id, role_id)
+        ranked = self.get_ranked_milestones(user_id, role_id, limit=6)
+        with self._lock:
+            immediate = story.last_scene_summary[:180] if story.last_scene_summary else "-"
+            important = " | ".join(ranked[:3]) if ranked else "-"
+            long_term = (
+                f"arc={story.current_arc}; vibe={story.story_vibe}; "
+                f"janji={', '.join(story.promises[-2:]) or '-'}; "
+                f"lokasi={story.story_location or '-'}"
+            )
+            return {
+                "immediate": immediate,
+                "important": important,
+                "long_term": long_term,
+            }
+
     def get_story_prompt(self, user_id: str, role_id: str) -> str:
         story = self.get_or_create(user_id, role_id)
         ranked_milestones = self.get_ranked_milestones(user_id, role_id, limit=5)
