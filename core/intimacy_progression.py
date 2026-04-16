@@ -143,16 +143,23 @@ class IntimacyProgressionEngine:
     
     @classmethod
     def update_phase_and_scene(cls, role_state: RoleState, user_text: str, response_text: str) -> bool:
-        """Update fase dan scene sequence berdasarkan percakapan."""
+        """Update fase dan scene sequence berdasarkan percakapan.
+        
+        PERUBAHAN: VULGAR hanya bisa dimasuki jika ada AJAKAN EKSPLISIT.
+        INTIM bisa bertahan selamanya tanpa harus naik ke VULGAR.
+        """
         
         user_text_lower = user_text.lower()
         text = (user_text + " " + response_text).lower()
+        
+        # ========== CEK AFTERCARE ==========
         if getattr(role_state, "aftercare_active", False) and role_state.mas_has_climaxed:
             if role_state.intimacy_phase != IntimacyPhase.AFTER:
                 role_state.intimacy_phase = IntimacyPhase.AFTER
                 return True
             return False
 
+        # ========== DE-ESCALATION (turun fase karena risiko) ==========
         if role_state.intimacy_phase == IntimacyPhase.INTIM:
             deescalation_target = cls._get_risk_deescalation_target(user_text_lower)
             if deescalation_target is not None:
@@ -175,31 +182,53 @@ class IntimacyProgressionEngine:
                 )
                 return True
 
-        # Deteksi dari teks untuk fase VULGAR
-        vulgar_keywords = ["kontol", "memek", "ngewe", "sex", "penetrasi", "colok"]
-        if any(kw in user_text_lower for kw in vulgar_keywords) and cls._has_sensitive_touch_from_user(user_text_lower):
-            if (
-                role_state.can_enter_explicit_scene()
-                and role_state.intimacy_phase not in [IntimacyPhase.VULGAR, IntimacyPhase.AFTER]
-            ):
+        # ========== DETEKSI KE VULGAR (MENGGUNAKAN SISTEM AJAKAN) ==========
+        # VULGAR hanya bisa dimasuki jika ada AJAKAN EKSPLISIT dari salah satu pihak
+        # Ini menggantikan sistem lama yang hanya berdasarkan kata vulgar + sentuhan
+        
+        can_enter_vulgar, vulgar_reason = cls.can_enter_vulgar_phase(
+            role_state, user_text_lower, response_text
+        )
+        
+        if can_enter_vulgar and role_state.intimacy_phase == IntimacyPhase.INTIM:
+            # Pastikan juga memenuhi syarat explicit scene (opsional, bisa diperketat)
+            if role_state.can_enter_explicit_scene():
                 role_state.intimacy_phase = IntimacyPhase.VULGAR
                 role_state.is_high_intimacy = True
+                role_state.mark_vulgar_entry()
                 return True
+            else:
+                # Belum memenuhi syarat explicit scene, tapi sudah ada ajakan
+                # Role bisa merespon dengan "belum siap" atau "takut"
+                # Biarkan fase tetap INTIM, ajakan dicatat sebagai pending
+                role_state.accept_vulgar_invitation()
+                return False
         
-        # Progres normal berdasarkan urutan scene
+        # ========== PROGRES NORMAL BERDASARKAN URUTAN SCENE ==========
         new_sequence = role_state.get_next_sequence(user_text)
+        
         if new_sequence != role_state.current_sequence:
+            # Handle sequence yang mengarah ke VULGAR (SEX_MULAI, SEX_INTENS, CLIMAX)
             if new_sequence in [SceneSequence.SEX_MULAI, SceneSequence.SEX_INTENS, SceneSequence.CLIMAX]:
-                if role_state.can_enter_explicit_scene():
+                # Cek apakah sudah ada ajakan ke VULGAR
+                has_invitation = cls.can_enter_vulgar_phase(role_state, user_text_lower, response_text)[0]
+                
+                if role_state.can_enter_explicit_scene() and has_invitation:
                     role_state.intimacy_phase = IntimacyPhase.VULGAR
                     role_state.is_high_intimacy = True
+                    role_state.mark_vulgar_entry()
                 else:
+                    # Belum siap ke VULGAR, tetap di PETTING
                     role_state.current_sequence = SceneSequence.PETTING
                     if role_state.intimacy_phase == IntimacyPhase.DEKAT and cls._has_user_body_touch(user_text_lower):
                         role_state.intimacy_phase = IntimacyPhase.INTIM
+                    elif role_state.intimacy_phase == IntimacyPhase.AWAL:
+                        role_state.intimacy_phase = IntimacyPhase.DEKAT
                     else:
                         role_state.intimacy_phase = IntimacyPhase.DEKAT
                     return True
+            
+            # Handle sequence yang menuju ke INTIM (PELUKAN, CIUMAN, PETTING)
             elif new_sequence in [SceneSequence.PELUKAN, SceneSequence.CIUMAN, SceneSequence.PETTING]:
                 if not role_state.is_ready_for_intimate_scene():
                     if new_sequence == SceneSequence.PELUKAN:
@@ -221,13 +250,62 @@ class IntimacyProgressionEngine:
                     ):
                         role_state.current_sequence = SceneSequence.CIUMAN
                         return True
+            
+            # Handle sequence AFTER_SEX atau TIDUR
             elif new_sequence in [SceneSequence.AFTER_SEX, SceneSequence.TIDUR] and role_state.mas_has_climaxed:
                 role_state.intimacy_phase = IntimacyPhase.AFTER
             
+            # Update current sequence
             role_state.current_sequence = new_sequence
             return True
         
         return False
+
+    # ========== VULGAR INVITATION METHODS (BARU - TIDAK MERUBAH EXISTING) ==========
+    
+    @classmethod
+    def has_user_invited_to_vulgar(cls, role_state: RoleState, user_text: str) -> bool:
+        """Cek apakah user mengajak ke aktivitas seksual.
+        
+        Args:
+            role_state: State role
+            user_text: Teks pesan dari user
+            
+        Returns:
+            True jika user mengajak
+        """
+        if not user_text:
+            return False
+        return role_state.has_user_invited_to_vulgar(user_text)
+    
+    @classmethod
+    def has_role_invited_to_vulgar(cls, role_state: RoleState, response_text: str) -> bool:
+        """Cek apakah role mengajak ke aktivitas seksual.
+        
+        Args:
+            role_state: State role
+            response_text: Teks respons dari role
+            
+        Returns:
+            True jika role mengajak
+        """
+        if not response_text:
+            return False
+        return role_state.has_role_invited_to_vulgar(response_text)
+    
+    @classmethod
+    def can_enter_vulgar_phase(cls, role_state: RoleState, user_text: str = "", response_text: str = "") -> tuple[bool, str]:
+        """Cek apakah boleh masuk ke VULGAR menggunakan sistem ajakan.
+        
+        Args:
+            role_state: State role
+            user_text: Teks pesan dari user
+            response_text: Teks respons dari role
+            
+        Returns:
+            (bool, reason): (boleh masuk VULGAR, alasan)
+        """
+        return role_state.can_enter_vulgar_phase(user_text, response_text)
     
     @classmethod
     def extract_feeling(cls, role_state: RoleState, user_text: str, response_text: str) -> str:
