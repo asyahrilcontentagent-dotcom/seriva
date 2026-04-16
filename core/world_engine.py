@@ -168,11 +168,26 @@ class WorldEngine:
         nova_away_markers = [
             "nova lagi keluar",
             "nova lagi pergi",
+            "nova pergi",
+            "nova gak dirumah",
             "istriku lagi keluar",
             "istriku lagi pergi",
             "kakakmu lagi keluar",
             "kakakmu lagi pergi",
             "nova gak di rumah",
+            "nova akhirnya gak dirumah",
+            "nova akhirnya gak di rumah",
+            "nova udah berangkat",
+            "nova sudah berangkat",
+            "nova berangkat",
+            "nova ke bandung",
+            "nova keluar kota",
+            "nova ke luar kota",
+            "dijemput taxi buat ke bandara",
+            "dijemput taksi buat ke bandara",
+            "berangkat ke bandara",
+            "naik taxi ke bandara",
+            "naik taksi ke bandara",
         ]
         nova_home_markers = [
             "nova di rumah",
@@ -203,6 +218,8 @@ class WorldEngine:
             (["nova lagi tidur", "nova tidur", "istriku lagi tidur", "kakakmu lagi tidur"], True, "lagi tidur"),
             (["nova lagi di ruang tamu", "nova di ruang tamu", "istriku di ruang tamu", "kakakmu di ruang tamu"], True, "di ruang tamu"),
             (["nova lagi keluar", "nova lagi pergi", "istriku lagi keluar", "istriku lagi pergi", "kakakmu lagi keluar", "kakakmu lagi pergi", "nova gak di rumah"], False, "di luar rumah"),
+            (["nova udah berangkat", "nova sudah berangkat", "nova berangkat", "nova pergi ke bandung", "nova berangkat ke bandung", "nova keluar kota", "nova ke luar kota"], False, "pergi ke luar kota"),
+            (["dijemput taxi buat ke bandara", "dijemput taksi buat ke bandara", "berangkat ke bandara", "naik taxi ke bandara", "naik taksi ke bandara"], False, "sedang menuju bandara"),
             (["nova baru pulang", "nova di rumah", "istriku di rumah", "kakakmu di rumah", "nova lagi di rumah"], True, "di rumah"),
         ]
 
