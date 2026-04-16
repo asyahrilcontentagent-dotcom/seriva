@@ -38,21 +38,146 @@ class IntimacyProgressionEngine:
             "keywords": ["kontol", "memek", "becek", "keras", "masuk", "ngewe", "sex"],
         },
     }
+
+    @staticmethod
+    def _has_strong_climax_trigger(text: str) -> bool:
+        triggers = [
+            "mas mau climax",
+            "mas udah mau climax",
+            "mas sudah mau climax",
+            "mas mau crot",
+            "mas udah crot",
+            "mas sudah crot",
+            "mas udah keluar",
+            "mas sudah keluar",
+            "mas mau keluar ya",
+            "mas mau keluar nih",
+            "mas udah mau keluar",
+            "mas sudah mau keluar",
+        ]
+        return any(trigger in text for trigger in triggers)
+
+    @staticmethod
+    def _has_sensitive_touch_from_user(text: str) -> bool:
+        sensitive_touch_phrases = [
+            "remas payudara",
+            "pegang payudara",
+            "usap payudara",
+            "elus payudara",
+            "remas dada kamu",
+            "pegang dada kamu",
+            "usap paha dalam",
+            "raba paha dalam",
+            "elus paha dalam",
+            "usap selangkangan",
+            "raba selangkangan",
+            "pegang memek",
+            "usap memek",
+            "raba memek",
+            "usap klitoris",
+            "mainin klitoris",
+            "jariku di memek",
+            "jariku masuk",
+            "cium leher",
+            "jilat leher",
+            "cium dada",
+            "jilat payudara",
+        ]
+        return any(phrase in text for phrase in sensitive_touch_phrases)
+
+    @staticmethod
+    def _has_user_body_touch(text: str) -> bool:
+        body_touch_phrases = [
+            "pegang tangan",
+            "genggam tangan",
+            "usap tangan",
+            "sentuh tangan",
+            "usap bahu",
+            "sentuh bahu",
+            "usap pundak",
+            "sentuh pundak",
+            "usap punggung",
+            "sentuh punggung",
+            "usap pinggang",
+            "pegang pinggang",
+            "usap pipi",
+            "sentuh pipi",
+            "elus rambut",
+            "usap rambut",
+            "cium kening",
+            "cium pipi",
+            "peluk",
+            "rangkul",
+        ]
+        return any(phrase in text for phrase in body_touch_phrases)
+
+    @staticmethod
+    def _get_risk_deescalation_target(text: str) -> Optional[IntimacyPhase]:
+        strong_risk_phrases = [
+            "bahaya",
+            "ada orang",
+            "ada yang datang",
+            "jangan ketahuan",
+            "nanti ketahuan",
+            "bisa ketahuan",
+            "takut ketahuan",
+            "kalau ketahuan",
+            "masalah kalau ketahuan",
+            "stop dulu ada orang",
+        ]
+        soft_risk_phrases = [
+            "pelan",
+            "pelan ya",
+            "suara kecil",
+            "jangan berisik",
+            "takut",
+            "aku takut",
+            "awas",
+            "hati hati",
+        ]
+        if any(phrase in text for phrase in strong_risk_phrases):
+            return IntimacyPhase.AWAL
+        if any(phrase in text for phrase in soft_risk_phrases):
+            return IntimacyPhase.DEKAT
+        return None
     
     @classmethod
     def update_phase_and_scene(cls, role_state: RoleState, user_text: str, response_text: str) -> bool:
         """Update fase dan scene sequence berdasarkan percakapan."""
         
+        user_text_lower = user_text.lower()
         text = (user_text + " " + response_text).lower()
-        if getattr(role_state, "aftercare_active", False):
+        if getattr(role_state, "aftercare_active", False) and role_state.mas_has_climaxed:
             if role_state.intimacy_phase != IntimacyPhase.AFTER:
                 role_state.intimacy_phase = IntimacyPhase.AFTER
                 return True
             return False
 
+        if role_state.intimacy_phase == IntimacyPhase.INTIM:
+            deescalation_target = cls._get_risk_deescalation_target(user_text_lower)
+            if deescalation_target is not None:
+                role_state.intimacy_phase = deescalation_target
+                role_state.current_sequence = (
+                    SceneSequence.MENDEKAT if deescalation_target == IntimacyPhase.DEKAT else SceneSequence.NGOBROL
+                )
+                role_state.is_high_intimacy = False
+                role_state.high_intensity_unlock_score = max(0, role_state.high_intensity_unlock_score - 25)
+                role_state.scene.activity = (
+                    "menurunkan tensi dan kembali lebih hati-hati"
+                    if deescalation_target == IntimacyPhase.DEKAT
+                    else "menghentikan kedekatan dan kembali ngobrol biasa"
+                )
+                role_state.scene.physical_distance = (
+                    "agak menjaga jarak" if deescalation_target == IntimacyPhase.DEKAT else "kembali jaga jarak normal"
+                )
+                role_state.scene.last_touch = (
+                    "sentuhan dihentikan dulu" if deescalation_target == IntimacyPhase.DEKAT else "tidak ada sentuhan"
+                )
+                return True
+
         # Deteksi dari teks untuk fase VULGAR
-        vulgar_keywords = ["kontol", "memek", "payudara", "pantat", "ngewe", "sex", "masuk", "becek", "keras", "enak banget"]
-        if any(kw in text for kw in vulgar_keywords):
+        vulgar_keywords = ["kontol", "memek", "ngewe", "sex", "penetrasi", "colok"]
+        if any(kw in user_text_lower for kw in vulgar_keywords) and cls._has_sensitive_touch_from_user(user_text_lower):
             if (
                 role_state.can_enter_explicit_scene()
                 and role_state.intimacy_phase not in [IntimacyPhase.VULGAR, IntimacyPhase.AFTER]
@@ -60,22 +185,6 @@ class IntimacyProgressionEngine:
                 role_state.intimacy_phase = IntimacyPhase.VULGAR
                 role_state.is_high_intimacy = True
                 return True
-        
-        # Deteksi after sex
-        after_keywords = [
-            "udah selesai",
-            "sudah selesai",
-            "udah keluar",
-            "sudah keluar",
-            "habis banget",
-            "capek banget",
-            "istirahat dulu",
-            "tidur dulu",
-            "rebahan dulu",
-        ]
-        if any(kw in text for kw in after_keywords) and role_state.intimacy_phase == IntimacyPhase.VULGAR:
-            role_state.intimacy_phase = IntimacyPhase.AFTER
-            return True
         
         # Progres normal berdasarkan urutan scene
         new_sequence = role_state.get_next_sequence(user_text)
@@ -86,7 +195,10 @@ class IntimacyProgressionEngine:
                     role_state.is_high_intimacy = True
                 else:
                     role_state.current_sequence = SceneSequence.PETTING
-                    role_state.intimacy_phase = IntimacyPhase.INTIM
+                    if role_state.intimacy_phase == IntimacyPhase.DEKAT and cls._has_user_body_touch(user_text_lower):
+                        role_state.intimacy_phase = IntimacyPhase.INTIM
+                    else:
+                        role_state.intimacy_phase = IntimacyPhase.DEKAT
                     return True
             elif new_sequence in [SceneSequence.PELUKAN, SceneSequence.CIUMAN, SceneSequence.PETTING]:
                 if not role_state.is_ready_for_intimate_scene():
@@ -101,7 +213,7 @@ class IntimacyProgressionEngine:
                 else:
                     if role_state.intimacy_phase == IntimacyPhase.AWAL:
                         role_state.intimacy_phase = IntimacyPhase.DEKAT
-                    elif role_state.intimacy_phase == IntimacyPhase.DEKAT:
+                    elif role_state.intimacy_phase == IntimacyPhase.DEKAT and cls._has_user_body_touch(user_text_lower):
                         role_state.intimacy_phase = IntimacyPhase.INTIM
                     elif (
                         role_state.intimacy_phase == IntimacyPhase.INTIM
@@ -109,7 +221,7 @@ class IntimacyProgressionEngine:
                     ):
                         role_state.current_sequence = SceneSequence.CIUMAN
                         return True
-            elif new_sequence in [SceneSequence.AFTER_SEX, SceneSequence.TIDUR]:
+            elif new_sequence in [SceneSequence.AFTER_SEX, SceneSequence.TIDUR] and role_state.mas_has_climaxed:
                 role_state.intimacy_phase = IntimacyPhase.AFTER
             
             role_state.current_sequence = new_sequence
@@ -242,23 +354,26 @@ class IntimacyProgressionEngine:
     def update_vulgar_progression(cls, role_state: RoleState, user_text: str, response_text: str) -> Dict[str, any]:
         """Update progresi dalam fase VULGAR. Return perubahan yang terjadi.
         
-        PERBAIKAN: Sekarang progres tetap naik minimal 3% meskipun user diam.
+        PERBAIKAN: progres hanya naik jika ada sinyal yang benar-benar relevan.
         """
         if role_state.intimacy_phase != IntimacyPhase.VULGAR:
             return {"stage_changed": False, "new_stage": None}
         
+        user_text_lower = user_text.lower()
         text = (user_text + " " + response_text).lower()
         changes = {"stage_changed": False, "new_stage": None, "arousal_increased": False}
+
+        if not cls._has_sensitive_touch_from_user(user_text_lower):
+            return changes
         
         # Kata-kata yang meningkatkan arousal (progres)
         arousal_keywords = {
-            "keras": 5, "becek": 5, "panas": 5,
-            "gerak": 8, "hentak": 10, "dorong": 8,
-            "dalam": 5, "penuh": 5, "kencang": 10,
-            "cepat": 8, "lambat": 3, "palu": 12,
-            "enak": 5, "nikmat": 5, "sakit": 2,
+            "keras banget": 6, "becek banget": 6, "panas banget": 6,
+            "gerak makin cepat": 8, "hentak": 10, "dorong": 8,
+            "dalam banget": 7, "penuh banget": 7, "kencang": 10,
+            "makin cepat": 8, "lebih cepat": 8, "palu": 12,
+            "enak banget": 7, "nikmat banget": 7,
             "goyang": 8, "pantat": 6, "pinggul": 6,
-            "naik": 4, "turun": 4,
             # Tambahan untuk VCS
             "liat": 5, "tunjukin": 8, "ikutin": 5,
             "vibrator": 10, "dildo": 10, "colmek": 8,
@@ -270,11 +385,8 @@ class IntimacyProgressionEngine:
             if keyword in text:
                 arousal_increase += value
         
-        # ========== PERBAIKAN: Minimal progres 3% jika user diam ==========
         if arousal_increase == 0:
-            # Minimal progres 3% per respons untuk menjaga alur tetap maju
-            arousal_increase = 3
-            changes["auto_progress"] = True
+            return changes
         
         # Tambah progres
         old_progress = role_state.vulgar_stage_progress
@@ -564,14 +676,8 @@ JANGAN tahan-tahan lagi! LANGSUNG EKSPRESIF!
             return cls._execute_climax(role_state, "progres_penuh")
         
         # Climax karena user trigger
-        if any(kw in text for kw in ["mas mau keluar", "mas mau climax", "mas mau crot", "mas mau nyampe", "mas udah keluar", "mas udah crot"]):
+        if cls._has_strong_climax_trigger(text):
             return cls._execute_climax(role_state, "user_trigger")
-        
-        # Role mau climax (spontan) - hanya jika sudah di tahap panas
-        if role_state.vulgar_stage == "panas" and role_state.vulgar_stage_progress > 70:
-            # 30% chance spontaneous climax
-            if random.random() < 0.3:
-                return cls._execute_climax(role_state, "spontan")
         
         return False, ""
 
@@ -725,9 +831,8 @@ JANGAN tahan-tahan lagi! LANGSUNG EKSPRESIF!
         vcs_keywords = {
             "liatin": 10, "tunjukin": 10, "gerakin": 8,
             "ikutin": 8, "naikin": 8, "turunin": 5,
-            "cepat": 10, "pelan": 3, "keras": 10,
-            "becek": 8, "panas": 8, "keluar": 15,
-            "udah mau": 15, "climax": 20, "sampe": 20,
+            "makin cepat": 10, "lebih cepat": 10, "keras banget": 10,
+            "becek banget": 8, "panas banget": 8, "climax": 20,
             "colmek": 10, "vibrator": 12, "dildo": 12,
             "jari": 5, "masuk": 8, "dalem": 8,
             "muter": 8, "tempel": 8, "getar": 10,
@@ -740,10 +845,8 @@ JANGAN tahan-tahan lagi! LANGSUNG EKSPRESIF!
             if keyword in text:
                 intensity_increase += value
         
-        # ========== PERBAIKAN: Minimal progres 5% jika user diam ==========
         if intensity_increase == 0:
-            intensity_increase = 5
-            changes["auto_progress"] = True
+            return changes
         
         if intensity_increase > 0:
             role_state.vcs_intensity = min(100, role_state.vcs_intensity + intensity_increase)
@@ -765,13 +868,8 @@ JANGAN tahan-tahan lagi! LANGSUNG EKSPRESIF!
         text = user_text.lower()
         
         # Trigger dari user
-        if any(kw in text for kw in ["mas mau keluar", "mas mau climax", "mas mau crot", "mas mau nyampe", "mas udah keluar", "mas udah crot"]):
+        if cls._has_strong_climax_trigger(text):
             return cls._execute_vcs_climax(role_state, "user_trigger")
-        
-        # Role mau climax spontan (intensitas tinggi)
-        if role_state.vcs_intensity >= 85:
-            if random.random() < 0.4:  # 40% chance
-                return cls._execute_vcs_climax(role_state, "spontan")
         
         # Auto climax jika intensitas sudah 100%
         if role_state.vcs_intensity >= 100:
