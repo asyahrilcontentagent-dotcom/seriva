@@ -15,6 +15,7 @@ Saat ini implementasi di memori (in-memory), mirip dengan MilestoneStore.
 from __future__ import annotations
 
 from dataclasses import dataclass
+import math
 from threading import RLock
 from typing import Dict, List, Literal
 import re
@@ -44,6 +45,12 @@ class ScoredMessage:
     memory_type: str
 
 
+@dataclass
+class MemorySelection:
+    item: ScoredMessage
+    reason: str
+
+
 class MessageHistoryStore:
     """In-memory store untuk message history SERIVA.
 
@@ -55,6 +62,7 @@ class MessageHistoryStore:
     def __init__(self, max_per_pair: int = 100) -> None:
         self._lock = RLock()
         self._data: Dict[tuple[str, str], List[MessageSnippet]] = {}
+        self._pinned: Dict[tuple[str, str], List[MessageSnippet]] = {}
         self.max_per_pair = max_per_pair
 
     # ----------------------------------------
@@ -168,22 +176,18 @@ class MessageHistoryStore:
         """Bangun paket memory yang lebih ketat dan siap pakai."""
 
         recent = self.get_recent_messages(user_id, role_id, limit=max(top_k * 5, 30))
-        scored_items = sorted(
-            (
-                ScoredMessage(
-                    snippet=msg,
-                    score=self._score_message(msg, query_text=query_text),
-                    memory_type=self._classify_memory_type(msg),
-                )
-                for msg in recent
-            ),
-            key=lambda item: item.score,
-            reverse=True,
+        scored_items = self._build_scored_items(recent, query_text=query_text)
+        pinned_items = self._build_scored_items(
+            self.get_pinned_messages(user_id, role_id, limit=top_k),
+            query_text=query_text,
+            pinned_boost=28.0,
         )
-
-        kept = [item for item in scored_items if item.score >= min_score][:top_k]
-        if not kept:
-            kept = scored_items[: min(3, len(scored_items))]
+        kept = self._select_diverse_memories(
+            scored_items,
+            pinned_items,
+            top_k=top_k,
+            min_score=min_score,
+        )
 
         short_term = [item for item in kept if item.memory_type == "short_term"][:3]
         key_events = [item for item in kept if item.memory_type == "key_event"][:3]
@@ -194,6 +198,7 @@ class MessageHistoryStore:
             "short_term": short_term,
             "key_events": key_events,
             "long_term": long_term,
+            "pinned": [item for item in kept if self._is_pinned(user_id, role_id, item.snippet)],
         }
 
     def summarize_recent_messages(
@@ -252,9 +257,86 @@ class MessageHistoryStore:
         key = (user_id, role_id)
         with self._lock:
             self._data.pop(key, None)
+            self._pinned.pop(key, None)
+
+    def pin_message(
+        self,
+        user_id: str,
+        role_id: str,
+        snippet: MessageSnippet,
+    ) -> None:
+        """Pin memory penting agar tetap muncul walau sudah lama."""
+
+        key = (user_id, role_id)
+        with self._lock:
+            pinned = self._pinned.setdefault(key, [])
+            if any(
+                existing.timestamp == snippet.timestamp
+                and existing.from_who == snippet.from_who
+                and existing.content == snippet.content
+                for existing in pinned
+            ):
+                return
+            pinned.append(snippet)
+            if len(pinned) > 12:
+                del pinned[0 : len(pinned) - 12]
+
+    def maybe_pin_from_text(
+        self,
+        user_id: str,
+        role_id: str,
+        snippet: MessageSnippet,
+    ) -> bool:
+        """Pin otomatis untuk memory yang penting dan stabil."""
+
+        lowered = snippet.content.lower()
+        should_pin = any(
+            keyword in lowered
+            for keyword in [
+                "janji",
+                "ingat ini",
+                "jangan lupa",
+                "aku percaya",
+                "aku sayang",
+                "aku kangen",
+                "maaf",
+                "terima kasih",
+                "besok",
+            ]
+        )
+        if should_pin:
+            self.pin_message(user_id, role_id, snippet)
+        return should_pin
+
+    def get_pinned_messages(
+        self,
+        user_id: str,
+        role_id: str,
+        limit: int = 6,
+    ) -> List[MessageSnippet]:
+        key = (user_id, role_id)
+        with self._lock:
+            items = list(self._pinned.get(key, []))
+        return items[-limit:]
+
+    def get_memory_health(
+        self,
+        user_id: str,
+        role_id: str,
+        *,
+        query_text: str = "",
+    ) -> dict:
+        recent = self.get_recent_messages(user_id, role_id, limit=24)
+        scored_items = self._build_scored_items(recent, query_text=query_text)
+        return {
+            "recent_count": len(recent),
+            "pinned_count": len(self.get_pinned_messages(user_id, role_id, limit=20)),
+            "top_score": scored_items[0].score if scored_items else 0.0,
+            "diversity": len({item.memory_type for item in scored_items[:6]}),
+        }
 
     @staticmethod
-    def _score_message(msg: MessageSnippet, query_text: str = "") -> float:
+    def _score_message(msg: MessageSnippet, query_text: str = "", pinned_boost: float = 0.0) -> float:
         score = 0.0
         text = msg.content.lower()
         query_keywords = set(_tokenize_keywords(query_text))
@@ -262,6 +344,7 @@ class MessageHistoryStore:
 
         score += MessageHistoryStore._recency_score(msg.timestamp)
         score += MessageHistoryStore._semantic_relevance_score(query_text, text)
+        score += pinned_boost
         if msg.from_who == "user":
             score += 25
         if "?" in text:
@@ -305,9 +388,12 @@ class MessageHistoryStore:
 
     @staticmethod
     def _recency_score(timestamp: float) -> float:
-        # Timestamp besar tetap dibatasi agar skor tidak didominasi nilai waktu mentah.
-        coarse = int(timestamp) % 100000
-        return min(22.0, coarse / 5000)
+        if not timestamp:
+            return 0.0
+        age_seconds = max(0.0, _current_timestamp() - float(timestamp))
+        age_hours = age_seconds / 3600.0
+        decay = math.exp(-age_hours / 36.0)
+        return 22.0 * decay
 
     @staticmethod
     def _semantic_relevance_score(query_text: str, text: str) -> float:
@@ -339,6 +425,79 @@ class MessageHistoryStore:
             return compact
         return compact[: max_len - 3] + "..."
 
+    def _build_scored_items(
+        self,
+        messages: List[MessageSnippet],
+        *,
+        query_text: str = "",
+        pinned_boost: float = 0.0,
+    ) -> List[ScoredMessage]:
+        return sorted(
+            (
+                ScoredMessage(
+                    snippet=msg,
+                    score=self._score_message(msg, query_text=query_text, pinned_boost=pinned_boost),
+                    memory_type=self._classify_memory_type(msg),
+                )
+                for msg in messages
+            ),
+            key=lambda item: item.score,
+            reverse=True,
+        )
+
+    def _select_diverse_memories(
+        self,
+        scored_items: List[ScoredMessage],
+        pinned_items: List[ScoredMessage],
+        *,
+        top_k: int,
+        min_score: float,
+    ) -> List[ScoredMessage]:
+        selected: List[ScoredMessage] = []
+        selected_keys: set[tuple[float, str, str]] = set()
+
+        def _push(item: ScoredMessage) -> None:
+            key = (
+                item.snippet.timestamp,
+                item.snippet.from_who,
+                item.snippet.content,
+            )
+            if key in selected_keys:
+                return
+            selected.append(item)
+            selected_keys.add(key)
+
+        for bucket_name in ("short_term", "key_event", "long_term"):
+            pool = [
+                item for item in pinned_items + scored_items
+                if item.memory_type == bucket_name and item.score >= min_score
+            ]
+            if pool:
+                _push(pool[0])
+
+        for item in pinned_items:
+            _push(item)
+            if len(selected) >= top_k:
+                break
+
+        if len(selected) < top_k:
+            for item in scored_items:
+                if item.score < min_score and selected:
+                    continue
+                _push(item)
+                if len(selected) >= top_k:
+                    break
+
+        return selected[:top_k] if selected else scored_items[: min(3, len(scored_items))]
+
+    def _is_pinned(self, user_id: str, role_id: str, snippet: MessageSnippet) -> bool:
+        return any(
+            item.timestamp == snippet.timestamp
+            and item.from_who == snippet.from_who
+            and item.content == snippet.content
+            for item in self.get_pinned_messages(user_id, role_id, limit=20)
+        )
+
 
 def _tokenize_keywords(text: str) -> List[str]:
     if not text:
@@ -353,3 +512,9 @@ def _char_ngrams(text: str, n: int = 3) -> set[str]:
     if len(compact) < n:
         return {compact} if compact else set()
     return {compact[i : i + n] for i in range(len(compact) - n + 1)}
+
+
+def _current_timestamp() -> float:
+    import time
+
+    return time.time()
