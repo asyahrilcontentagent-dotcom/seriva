@@ -37,6 +37,8 @@ def build_dynamic_prompt_context(
     mood = role_state.emotions.mood
     scene = role_state.scene
     relationship_level = role_state.relationship.relationship_level
+    secondary_mood = getattr(role_state.emotions, "secondary_mood", Mood.NEUTRAL)
+    hidden_mood = getattr(role_state.emotions, "hidden_mood", Mood.NEUTRAL)
 
     lines = [
         "DYNAMIC BEHAVIOR RULES:",
@@ -46,6 +48,8 @@ def build_dynamic_prompt_context(
             "- Pilihan kata harus konsisten dengan level hubungan saat ini: "
             f"{relationship_level}/12."
         ),
+        f"- Emosi lapis kedua yang boleh terasa halus: {secondary_mood.value}.",
+        f"- Emosi yang tidak harus diucapkan terang-terangan: {hidden_mood.value}.",
     ]
 
     if scene.activity:
