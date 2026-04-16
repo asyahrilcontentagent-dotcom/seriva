@@ -196,15 +196,42 @@ class WorldEngine:
             "pelan ya",
             "suara kecil",
         ]
+        nova_status_markers = [
+            (["nova lagi di kamar", "nova di kamar", "istriku di kamar", "kakakmu di kamar"], True, "di kamar"),
+            (["nova lagi di dapur", "nova di dapur", "istriku di dapur", "kakakmu di dapur"], True, "di dapur"),
+            (["nova lagi mandi", "nova di kamar mandi", "istriku lagi mandi", "kakakmu lagi mandi"], True, "lagi mandi"),
+            (["nova lagi tidur", "nova tidur", "istriku lagi tidur", "kakakmu lagi tidur"], True, "lagi tidur"),
+            (["nova lagi di ruang tamu", "nova di ruang tamu", "istriku di ruang tamu", "kakakmu di ruang tamu"], True, "di ruang tamu"),
+            (["nova lagi keluar", "nova lagi pergi", "istriku lagi keluar", "istriku lagi pergi", "kakakmu lagi keluar", "kakakmu lagi pergi", "nova gak di rumah"], False, "di luar rumah"),
+            (["nova baru pulang", "nova di rumah", "istriku di rumah", "kakakmu di rumah", "nova lagi di rumah"], True, "di rumah"),
+        ]
 
         if any(marker in lowered for marker in nova_away_markers):
             world.nova_is_home = False
+            world.nova_last_known_status = "di luar rumah"
             world.current_household_note = "Nova sedang tidak di rumah; suasana lebih longgar tapi tetap harus masuk akal."
             changed = True
         elif any(marker in lowered for marker in nova_home_markers):
             world.nova_is_home = True
+            if world.nova_last_known_status == "di luar rumah":
+                world.nova_last_known_status = "di rumah"
             world.current_household_note = "Nova sedang di rumah; interaksi rumah tangga harus lebih hati-hati."
             changed = True
+
+        for markers, is_home, status_label in nova_status_markers:
+            if any(marker in lowered for marker in markers):
+                world.nova_is_home = is_home
+                world.nova_last_known_status = status_label
+                if is_home:
+                    world.current_household_note = (
+                        f"Nova terakhir diketahui {status_label}; status ini tetap dipakai sampai ada info baru dari Mas."
+                    )
+                else:
+                    world.current_household_note = (
+                        "Nova sedang tidak di rumah; status ini tetap dipakai sampai ada info baru dari Mas."
+                    )
+                changed = True
+                break
 
         if any(marker in lowered for marker in private_markers):
             world.house_privacy_level = "private"
