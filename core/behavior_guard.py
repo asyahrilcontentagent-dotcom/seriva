@@ -33,11 +33,26 @@ class BehaviorGuard:
         role_state: RoleState,
         user_text: str,
         reply_text: str,
+        *,
+        memory_context: str = "",
+        story_context: str = "",
     ) -> GuardResult:
         text = self._normalize(reply_text)
         warnings: list[str] = []
         severe = False
 
+        text, hard_warnings, hard_failed = self._run_hard_rules(
+            role_state,
+            user_text,
+            text,
+            memory_context=memory_context,
+            story_context=story_context,
+        )
+        warnings.extend(hard_warnings)
+        severe = severe or hard_failed
+
+        text, soft_warnings = self._run_soft_evaluation(role_state, text)
+        warnings.extend(soft_warnings)
         cleaned_lines = []
         for line in text.splitlines():
             lowered = line.lower()
@@ -73,6 +88,64 @@ class BehaviorGuard:
             should_retry=severe and len(text) < 120,
             repair_instructions=repair_instructions,
         )
+
+    def _run_hard_rules(
+        self,
+        role_state: RoleState,
+        user_text: str,
+        text: str,
+        *,
+        memory_context: str,
+        story_context: str,
+    ) -> tuple[str, list[str], bool]:
+        warnings: list[str] = []
+        severe = False
+        lowered = text.lower()
+
+        role_name = (role_state.role_display_name or role_state.role_id).lower()
+        if role_name and role_name not in lowered and len(text) < 24:
+            warnings.append("character_presence_weak")
+
+        if story_context:
+            story_keywords = {
+                token
+                for token in re.findall(r"[a-zA-Z_]{4,}", story_context.lower())
+                if token not in {"story", "important", "long_term", "immediate"}
+            }
+            if story_keywords and "lupa" in lowered:
+                warnings.append("story_continuity_risk")
+                severe = True
+
+        if memory_context:
+            if any(token in lowered for token in ["siapa ya kamu", "aku gak ingat"]) and any(
+                token in memory_context.lower() for token in ["pinned", "janji", "short-term"]
+            ):
+                warnings.append("important_memory_conflict")
+                severe = True
+
+        if any(pattern in lowered for pattern in META_PATTERNS):
+            severe = True
+
+        return text, warnings, severe
+
+    @staticmethod
+    def _run_soft_evaluation(
+        role_state: RoleState,
+        text: str,
+    ) -> tuple[str, list[str]]:
+        warnings: list[str] = []
+        lowered = text.lower()
+        mood = role_state.emotions.mood
+        secondary = getattr(role_state.emotions, "secondary_mood", None)
+
+        if mood == Mood.TIRED and len(text) > 260:
+            text = text[:257].rstrip() + "..."
+            warnings.append("soft_pacing_trimmed")
+        if mood == Mood.PLAYFUL and "..." in lowered and "?" not in lowered:
+            warnings.append("playful_low_energy")
+        if secondary == Mood.JEALOUS and not any(token in lowered for token in ["kok", "masa", "hmm", "jadi"]):
+            warnings.append("secondary_emotion_underexpressed")
+        return text, warnings
 
     @staticmethod
     def _normalize(text: str) -> str:
@@ -160,6 +233,9 @@ class BehaviorGuard:
             "emotion_style_adjusted": "hindari gaya bercanda yang bentrok dengan mood saat ini",
             "early_relationship_trimmed": "jaga respons lebih hemat dan wajar untuk hubungan yang masih awal",
             "meta_reference_removed": "jangan menyebut AI, prompt, atau sistem",
+            "story_continuity_risk": "jangan memutus continuity cerita yang sudah berjalan",
+            "important_memory_conflict": "jangan bertentangan dengan memory penting yang sudah tersimpan",
+            "secondary_emotion_underexpressed": "biarkan emosi lapis kedua tetap terasa halus",
         }
         issues = [issue_map[item] for item in warnings if item in issue_map]
         if not issues:
