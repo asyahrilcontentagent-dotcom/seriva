@@ -428,7 +428,15 @@ class Orchestrator:
             social_visibility = (
                 "- Kamu tahu Mas adalah suami kakakmu, Nova. Kamu sadar dinamika rumah dan harus membaca kapan suasana aman atau berisiko."
             )
-            household_context = f"- Household awareness: {world_state.get_household_summary()}\n"
+            household_context = (
+                f"- Status rumah saat ini: Nova_di_rumah={'ya' if world_state.nova_is_home else 'tidak'}; "
+                f"Nova_status_terakhir={world_state.nova_last_known_status}; "
+                f"privasi_rumah={world_state.house_privacy_level}.\n"
+                "- Anggap status Nova ini persisten dan tetap benar sampai Mas memberi update baru.\n"
+                "- Jangan memindahkan posisi Nova seenaknya; kalau Nova terakhir di kamar, ya tetap di kamar sampai ada info baru.\n"
+                "- Gunakan status rumah ini sebagai cue internal untuk sikap, outfit, dan keberanian.\n"
+                "- Jangan memberi info status Nova ke user di respons biasa. Kalau perlu, jadikan hanya inner thought atau pertimbangan batin yang sangat singkat.\n"
+            )
 
         provider_context = ""
         if role_state.session.provider_service_label:
@@ -574,20 +582,27 @@ class Orchestrator:
         lowered = text.lower()
         physical_cues = [
             # Pertemuan fisik
-            "ketemu", "ketemuan", "bertemu", "datang", "sampe",
+            "ketemu", "ketemuan", "bertemu", "sudah ketemu", "udah ketemu",
+            "lagi ketemu", "kita ketemu", "datang", "sampe", "sampai",
             "aku datang", "mas datang", "aku ke rumah", "main ke",
+            "sudah dekat", "udah dekat", "makin dekat", "depan kamu", "di depan kamu",
+            "ada di depan kamu", "sekarang dekat", "kita udah deket",
         
             # Lokasi fisik
             "di rumah", "di kamar", "di mobil", "di kafe", "di cafe",
-            "di apartemen", "di sofa", "di sini", "di sana",
+            "di apartemen", "di sofa", "di sini", "di sana", "sebelah kamu",
+            "di samping kamu", "masuk kamar", "masuk rumah",
         
             # Aksi fisik (bisa dilakukan di tempat yang sama)
             "peluk", "sender", "nyender", "cium", "kiss", "pegang",
-            "elus", "tatap", "liat", "lirik", "deket", "mepet",
+            "elus", "tatap", "liat", "lihat", "lirik", "deket", "mepet",
+            "gandeng", "raba", "usap", "dekap",
         
             # Mengakhiri mode remote
             "udahan chat", "berenti chat", "stop chat",
-            "matiin hp", "tutup hp", "sambung langsung",
+            "matiin hp", "matikan hp", "taruh hp", "simpan hp",
+            "tutup hp", "ga pake hp", "nggak pake hp", "tidak pakai hp",
+            "sambung langsung", "offline dulu", "udah offline",
         ]
         return any(cue in lowered for cue in physical_cues)
 
@@ -940,7 +955,7 @@ class Orchestrator:
 
         # 3) Pastikan selalu ada role_state aktif yang valid
         if user_state.active_role_id not in ROLES:
-            user_state.active_role_id = ROLE_ID_NOVA
+            self.switch_active_role(user_state, ROLE_ID_NOVA)
 
         role_state = user_state.get_or_create_role_state(user_state.active_role_id)
         self._sync_communication_mode(role_state, inp)
@@ -1257,7 +1272,9 @@ class Orchestrator:
 
         # ========== RANDOM SPONTANEOUS ACTIONS ==========        
         if role_state.intimacy_phase == IntimacyPhase.VULGAR and role_state.vulgar_stage_progress >= 40:
-            last_spontaneous = getattr(role_state, 'spontaneous_action_timestamp', 0)
+            # State lama bisa menyimpan None; normalisasi ke 0 agar operasi selisih waktu aman.
+            raw_last_spontaneous = getattr(role_state, 'spontaneous_action_timestamp', None)
+            last_spontaneous = raw_last_spontaneous if isinstance(raw_last_spontaneous, (int, float)) else 0
             if time.time() - last_spontaneous > 30:
                 if random.random() < 0.15 and "kiss" not in reply_text.lower():
                     reply_text = f"*tanpa diduga, {role_state.role_display_name or role_state.role_id} mencium bibir Mas dengan liar*\n\n{reply_text}"
@@ -2033,8 +2050,31 @@ class Orchestrator:
                 role_state.aftercare_active = False
                 continue
 
+            role_state.reset_intimacy_state()
+            role_state.last_conversation_summary = None
+            role_state.scene_memory.clear()
+            role_state.sexual_moments.clear()
             self._reset_role_to_fresh_start(user_state.user_id, role_id)
             user_state.roles.pop(role_id, None)
+
+        self.switch_active_role(user_state, ROLE_ID_NOVA)
+
+    def _sync_global_session_mode(self, user_state: UserState) -> None:
+        """Samakan mode global dengan sesi role aktif agar tidak bleed antar-role."""
+
+        active_role_state = user_state.get_or_create_role_state(user_state.active_role_id)
+        if active_role_state.session.active:
+            user_state.global_session_mode = active_role_state.session.mode
+        else:
+            user_state.global_session_mode = SessionMode.NORMAL
+
+    def switch_active_role(self, user_state: UserState, role_id: str) -> RoleState:
+        """Pindah role aktif dengan sinkronisasi state global yang aman."""
+
+        user_state.active_role_id = role_id
+        role_state = user_state.get_or_create_role_state(role_id)
+        self._sync_global_session_mode(user_state)
+        return role_state
 
     def _reset_role_to_fresh_start(self, user_id: str, role_id: str) -> None:
         """Hapus semua memory eksternal untuk satu role agar mulai benar-benar baru."""
