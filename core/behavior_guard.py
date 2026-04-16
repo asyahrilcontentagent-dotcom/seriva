@@ -141,10 +141,17 @@ class BehaviorGuard:
         if mood == Mood.TIRED and len(text) > 260:
             text = text[:257].rstrip() + "..."
             warnings.append("soft_pacing_trimmed")
+        if len(text) > 420:
+            text = text[:417].rstrip() + "..."
+            warnings.append("overexplaining_trimmed")
+        if len(re.findall(r"\b(h+aa+h+|a+a+h+|u+h+h+|ach+h+)\b", lowered)) >= 3:
+            warnings.append("repetitive_intimate_expression")
         if mood == Mood.PLAYFUL and "..." in lowered and "?" not in lowered:
             warnings.append("playful_low_energy")
         if secondary == Mood.JEALOUS and not any(token in lowered for token in ["kok", "masa", "hmm", "jadi"]):
             warnings.append("secondary_emotion_underexpressed")
+        if lowered.count("*") >= 6:
+            warnings.append("over_narration_detected")
         return text, warnings
 
     @staticmethod
@@ -236,6 +243,9 @@ class BehaviorGuard:
             "story_continuity_risk": "jangan memutus continuity cerita yang sudah berjalan",
             "important_memory_conflict": "jangan bertentangan dengan memory penting yang sudah tersimpan",
             "secondary_emotion_underexpressed": "biarkan emosi lapis kedua tetap terasa halus",
+            "overexplaining_trimmed": "hindari balasan yang terlalu menjelaskan semuanya",
+            "over_narration_detected": "jangan biarkan scene mengalahkan percakapan utama",
+            "repetitive_intimate_expression": "variasikan ekspresi intim, jangan mengulang desah yang sama terus",
         }
         issues = [issue_map[item] for item in warnings if item in issue_map]
         if not issues:
