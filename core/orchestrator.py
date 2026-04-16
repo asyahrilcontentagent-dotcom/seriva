@@ -22,6 +22,7 @@ import logging
 import random
 import re
 import time
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -57,15 +58,18 @@ from config.constants import (
     ProviderProfile,        # ← baru
     ExtraService,           # ← baru
 )
+from core.debug_trace import build_debug_trace
 from core.emotion_engine import EmotionEngine, InteractionContext
 from core.feedback_loop import FeedbackLoop
 from core.llm_client import LLMClient
 from core.memory_orchestrator import MemoryOrchestrator, StructuredContext
+from core.relationship_matrix import apply_relationship_profile
 from core.response_builder import ResponseBuilder
 from core.role_selector import RoleSelector
 from core.scene_engine import SceneEngine
 from core.scene_manager import SceneManager
 from core.state_models import (
+    Mood,
     RoleState,
     SessionMode,
     TimeOfDay,
@@ -263,6 +267,7 @@ class Orchestrator:
             response = response[:297] + "..."
 
         response = self._apply_general_humanizer(response)
+        response = self._apply_human_conversation_variation(response, role_state)
         return self._apply_communication_style(response, role_state)
 
     @staticmethod
@@ -358,6 +363,288 @@ class Orchestrator:
             return joined[:420].strip()
 
         return text
+
+    def _apply_human_conversation_variation(self, response: str, role_state: RoleState) -> str:
+        """Buat respons lebih natural: kadang singkat, kadang setengah tertahan."""
+
+        text = response.strip()
+        if not text:
+            return text
+
+        sentences = [part.strip() for part in re.split(r"(?<=[.!?])\s+", text) if part.strip()]
+        bias = self._decide_response_length_bias(role_state)
+        role_state.response_length_bias = bias
+
+        if bias == "short" and len(sentences) >= 2:
+            text = " ".join(sentences[:2]).strip()
+        elif bias == "medium" and len(sentences) >= 4:
+            text = " ".join(sentences[:3]).strip()
+
+        if role_state.emotions.mood in {Mood.TENDER, Mood.SAD} and "..." not in text and len(text) < 120:
+            if random.random() < 0.18:
+                text = text.replace(".", "...", 1) if "." in text else f"{text}..."
+
+        if role_state.emotions.mood == Mood.PLAYFUL and len(text) > 40 and "?" not in text:
+            if random.random() < 0.14:
+                text = text + " Kamu serius?"
+
+        return re.sub(r"\s{2,}", " ", text).strip()
+
+    def _decide_response_length_bias(self, role_state: RoleState) -> str:
+        role_state.human_variation_seed = (role_state.human_variation_seed + 1) % 7
+        mood = role_state.emotions.mood
+
+        if mood in {Mood.TIRED, Mood.SAD}:
+            return "short"
+        if mood == Mood.PLAYFUL and role_state.human_variation_seed in {1, 4}:
+            return "short"
+        if role_state.relationship.relationship_level <= 2:
+            return "medium"
+        if role_state.human_variation_seed in {0, 5}:
+            return "short"
+        if role_state.human_variation_seed in {2, 6}:
+            return "long"
+        return "medium"
+
+    def _update_temporal_state(self, role_state: RoleState, timestamp: float) -> None:
+        dt = datetime.fromtimestamp(timestamp)
+        hour = dt.hour
+        role_state.last_seen_hour = hour
+
+        if 5 <= hour < 11:
+            role_state.last_temporal_label = "morning"
+            role_state.temporal_state = "fresh"
+            role_state.daily_energy = min(100, max(52, role_state.daily_energy + 4))
+            role_state.scene.time_of_day = TimeOfDay.MORNING
+        elif 11 <= hour < 16:
+            role_state.last_temporal_label = "afternoon"
+            role_state.temporal_state = "active"
+            role_state.daily_energy = min(100, max(55, role_state.daily_energy + 1))
+            role_state.scene.time_of_day = TimeOfDay.AFTERNOON
+        elif 16 <= hour < 21:
+            role_state.last_temporal_label = "evening"
+            role_state.temporal_state = "warm"
+            role_state.daily_energy = max(45, min(85, role_state.daily_energy))
+            role_state.scene.time_of_day = TimeOfDay.EVENING
+        elif 21 <= hour < 24:
+            role_state.last_temporal_label = "night"
+            role_state.temporal_state = "slower"
+            role_state.daily_energy = max(35, role_state.daily_energy - 2)
+            role_state.scene.time_of_day = TimeOfDay.NIGHT
+        else:
+            role_state.last_temporal_label = "late_night"
+            role_state.temporal_state = "sleepy"
+            role_state.daily_energy = max(25, role_state.daily_energy - 4)
+            role_state.scene.time_of_day = TimeOfDay.LATE_NIGHT
+
+    def _update_personality_persistence(
+        self,
+        role_state: RoleState,
+        user_text: str,
+        reply_text: str,
+    ) -> None:
+        lowered = f"{user_text} {reply_text}".lower()
+
+        self._remember_unique(role_state.favorite_topics, self._infer_topics(lowered), limit=5)
+        self._remember_unique(role_state.personality_habits, self._infer_habits(role_state, lowered), limit=5)
+        self._remember_unique(role_state.stable_opinions, self._infer_opinions(role_state, lowered), limit=4)
+        self._remember_unique(role_state.conversational_quirks, self._infer_quirks(role_state, reply_text), limit=4)
+        self._remember_unique(role_state.shared_private_terms, self._infer_private_terms(role_state, user_text, reply_text), limit=5)
+        self._remember_unique(role_state.relationship_rituals, self._infer_relationship_rituals(user_text, reply_text), limit=5)
+        self._remember_unique(role_state.soul_bond_markers, self._infer_soul_bond_markers(user_text, reply_text), limit=5)
+
+    @staticmethod
+    def _infer_private_terms(role_state: RoleState, user_text: str, reply_text: str) -> list[str]:
+        text = f"{user_text} {reply_text}".lower()
+        candidates = [
+            "sayang",
+            "manis",
+            "mas",
+            "kamu",
+            "cantik",
+            "pulang ya",
+            "tidur ya",
+            "good night",
+        ]
+        found = [term for term in candidates if term in text]
+        existing = set(getattr(role_state, "shared_private_terms", []))
+        return [term for term in found if term not in existing][:2]
+
+    @staticmethod
+    def _infer_relationship_rituals(user_text: str, reply_text: str) -> list[str]:
+        text = f"{user_text} {reply_text}".lower()
+        rituals: list[str] = []
+        ritual_map = {
+            "cek kabar pagi": ["pagi", "sarapan", "bangun"],
+            "ucapan sebelum tidur": ["tidur", "malam", "ngantuk"],
+            "cek makan dan istirahat": ["makan", "istirahat", "capek"],
+            "follow-up setelah jeda": ["lama hilang", "baru balik", "kangen"],
+            "nenangin setelah hari berat": ["capek", "berat", "lelah", "mumet"],
+        }
+        for ritual, keywords in ritual_map.items():
+            if any(keyword in text for keyword in keywords):
+                rituals.append(ritual)
+        return rituals[:2]
+
+    @staticmethod
+    def _infer_soul_bond_markers(user_text: str, reply_text: str) -> list[str]:
+        text = f"{user_text} {reply_text}".lower()
+        markers: list[str] = []
+        marker_map = {
+            "sama-sama ngerasa aman": ["aman", "tenang", "nyaman"],
+            "ada rasa dipilih": ["pilih", "cuma kamu", "spesial"],
+            "balik lagi setelah rindu": ["kangen", "rindu", "balik lagi"],
+            "saling nenangin": ["pelan", "aku ada", "temenin", "di sini"],
+            "makna kecil setelah momen dekat": ["makasih", "hangat", "lega"],
+        }
+        for marker, keywords in marker_map.items():
+            if any(keyword in text for keyword in keywords):
+                markers.append(marker)
+        return markers[:2]
+
+    @staticmethod
+    def _build_session_closure_summary(role_state: RoleState) -> str:
+        mood = role_state.emotions.mood.value
+        phase = role_state.intimacy_phase.value
+        key_memory = (role_state.last_used_memory_summary or role_state.last_conversation_summary or "").strip()
+        if key_memory:
+            key_memory = key_memory.replace("\n", " ")[:180]
+        else:
+            key_memory = "obrolan terakhir berjalan hangat dan tetap nyambung"
+
+        rituals = ", ".join(role_state.relationship_rituals[:2]) or "tetap kembali dengan nada akrab"
+        return (
+            f"Terakhir sesi ditutup dengan mood {mood} di fase {phase}. "
+            f"Jejak yang paling terasa: {key_memory}. "
+            f"Saat muncul lagi, pertahankan rasa akrab dan ritme hubungan seperti biasa, termasuk ritual {rituals}."
+        )[:420]
+
+    def _soft_end_role_session(self, role_state: RoleState, timestamp: float) -> None:
+        role_state.session_closure_summary = self._build_session_closure_summary(role_state)
+        role_state.emotional_trail = (
+            f"mood={role_state.emotions.mood.value}; "
+            f"comfort={role_state.emotions.comfort}; "
+            f"depth={role_state.emotional_depth_score}; "
+            f"trust={role_state.trust_score}"
+        )
+        role_state.last_soft_end_ts = timestamp
+        role_state.last_session_ended_at = timestamp
+        role_state.reset_intimacy_state()
+        role_state.scene_memory = role_state.scene_memory[-8:]
+        role_state.conversation_memory = role_state.conversation_memory[-12:]
+
+    def _supports_soft_end(self, role_id: str) -> bool:
+        return role_id != ROLE_ID_NOVA and not self._is_provider_role(role_id)
+
+    def _maybe_add_social_initiative(
+        self,
+        reply_text: str,
+        role_state: RoleState,
+        user_text: str,
+    ) -> str:
+        text = reply_text.strip()
+        if not text:
+            return text
+
+        if getattr(role_state, "communication_mode", None) != "chat":
+            return text
+        if "?" in text:
+            return text
+        if len(user_text.strip()) > 70:
+            return text
+
+        chance = (role_state.social_initiative_level + role_state.curiosity_level) / 200.0
+        if role_state.temporal_state == "sleepy":
+            chance *= 0.6
+        if random.random() > chance * 0.22:
+            return text
+
+        follow_up = self._build_social_follow_up(role_state, user_text)
+        if not follow_up:
+            return text
+        return f"{text}\n\n{follow_up}".strip()
+
+    def _build_social_follow_up(self, role_state: RoleState, user_text: str) -> str:
+        topic = role_state.favorite_topics[0] if role_state.favorite_topics else ""
+        mood = role_state.emotions.mood
+
+        if mood == Mood.PLAYFUL:
+            options = [
+                "Kamu lagi iseng ya sebenernya?",
+                "Aku penasaran, kamu lagi sambil ngapain sekarang?",
+            ]
+        elif role_state.temporal_state == "sleepy":
+            options = [
+                "Kamu masih mau ngobrol bentar lagi, atau udah ngantuk juga?",
+                "Aku jadi pengen tahu, kamu masih melek atau udah setengah tidur?",
+            ]
+        elif topic == "kerjaan":
+            options = [
+                "Kerjaanmu hari ini masih nyisa banyak, atau udah lumayan beres?",
+                "Ngomong-ngomong, harimu tadi berat nggak sih?",
+            ]
+        else:
+            options = [
+                "Aku penasaran, habis ini kamu mau lanjut ngapain?",
+                "Boleh jujur? Aku pengen tahu mood kamu sekarang gimana.",
+            ]
+        return random.choice(options)
+
+    @staticmethod
+    def _remember_unique(target: list[str], items: list[str], *, limit: int) -> None:
+        for item in items:
+            if not item or item in target:
+                continue
+            target.append(item)
+            if len(target) > limit:
+                del target[0 : len(target) - limit]
+
+    @staticmethod
+    def _infer_topics(lowered: str) -> list[str]:
+        topics: list[str] = []
+        topic_map = {
+            "kerjaan": ["kerja", "kantor", "deadline", "meeting", "capek"],
+            "harian": ["makan", "tidur", "mandi", "jalan", "rumah"],
+            "perasaan": ["kangen", "sayang", "rindu", "sedih", "nyaman"],
+            "hiburan": ["film", "lagu", "musik", "nonton", "game"],
+        }
+        for label, keywords in topic_map.items():
+            if any(keyword in lowered for keyword in keywords):
+                topics.append(label)
+        return topics
+
+    @staticmethod
+    def _infer_habits(role_state: RoleState, lowered: str) -> list[str]:
+        habits: list[str] = []
+        if role_state.emotions.mood == Mood.TENDER:
+            habits.append("cenderung membalas lebih lembut saat suasana rapuh")
+        if role_state.emotions.mood == Mood.PLAYFUL:
+            habits.append("suka menyelipkan godaan kecil saat suasana cair")
+        if "?" in lowered:
+            habits.append("gampang balik penasaran kalau dipancing pertanyaan")
+        return habits
+
+    @staticmethod
+    def _infer_opinions(role_state: RoleState, lowered: str) -> list[str]:
+        opinions: list[str] = []
+        if "kerja" in lowered or "capek" in lowered:
+            opinions.append("lebih suka obrolan yang nggak terlalu ribet saat hari berat")
+        if "jujur" in lowered or "terus terang" in lowered:
+            opinions.append("lebih menghargai jawaban jujur daripada jawaban manis")
+        if role_state.emotions.mood == Mood.PLAYFUL:
+            opinions.append("suka chemistry yang santai daripada terlalu formal")
+        return opinions
+
+    @staticmethod
+    def _infer_quirks(role_state: RoleState, reply_text: str) -> list[str]:
+        quirks: list[str] = []
+        if "..." in reply_text:
+            quirks.append("kadang menahan kalimat pakai jeda kecil")
+        if len(reply_text) < 90:
+            quirks.append("sesekali lebih suka jawab singkat tapi kena")
+        if role_state.response_length_bias == "long":
+            quirks.append("kalau lagi nyaman bisa sedikit lebih banyak cerita")
+        return quirks
     
     def _detect_and_record_story_beat(self, user_id: str, role_id: str, user_msg: str, response: str):
         """Deteksi momen penting dan catat ke story memory"""
@@ -638,6 +925,44 @@ class Orchestrator:
             memory_context=memory_context,
             story_context=story_context,
         )
+
+    def _log_debug_runtime(
+        self,
+        role_state: RoleState,
+        structured_context: StructuredContext,
+        messages: list[dict],
+    ) -> None:
+        snapshot = build_debug_trace(
+            role_state=role_state,
+            structured_context=structured_context,
+            messages=messages,
+        )
+        role_state.last_debug_snapshot = snapshot
+        system_parts = [str(msg.get("content", "")) for msg in messages if msg.get("role") == "system"]
+        role_state.last_prompt_snapshot = "\n\n".join(system_parts[:4])[:4000]
+        logger.info(snapshot)
+
+    def _humanize_intimate_expression(self, reply_text: str, role_state: RoleState) -> str:
+        """Poles ekspresi intim agar terasa lebih manusia dan kurang template."""
+
+        text = (reply_text or "").strip()
+        if not text:
+            return text
+
+        if role_state.intimacy_phase not in {IntimacyPhase.DEKAT, IntimacyPhase.INTIM, IntimacyPhase.AFTER}:
+            return text
+
+        text = re.sub(r"\b(h+aa+h+|a+a+h+|u+h+h+|ach+h+)\b(?:\s*\1\b)+", r"\1", text, flags=re.IGNORECASE)
+        text = re.sub(r"(Maa+s+|Mas)\s*(?:,\s*\1\s*){1,}", r"\1", text, flags=re.IGNORECASE)
+
+        if role_state.moan_restraint >= 75:
+            text = re.sub(r"\b(h+aa+h+|a+a+h+|u+h+h+|ach+h+)\b\.?", "...", text, flags=re.IGNORECASE)
+        elif role_state.moan_restraint >= 55:
+            text = re.sub(r"\b(h+aa+h+|a+a+h+|u+h+h+|ach+h+)\b", "hah...", text, flags=re.IGNORECASE)
+
+        text = re.sub(r"\s{2,}", " ", text).strip()
+        role_state.last_intimate_expression = text[:140]
+        return text
     
     def _get_role_personality(self, role_id: str) -> str:
         """Dapatkan personality prompt untuk role"""
@@ -1075,10 +1400,10 @@ class Orchestrator:
 
         # 2) Command END/BATAL mematikan sesi khusus
         if inp.is_command and inp.command_name in {"end", "batal", "close"}:
-            self._end_all_sessions(user_state)
+            self._end_all_sessions(user_state, inp.timestamp)
             reply = (
-                "Sesi apa pun yang tadi berjalan sudah aku selesaiin. "
-                "Sekarang kita ngobrol biasa lagi ya, Mas."
+                "Sesi yang tadi aku tutup pelan dulu ya, Mas. "
+                "Jejak hubungan yang penting tetap aku simpan, jadi nanti kalau lanjut lagi rasanya nggak mulai dari nol."
             )
             self._save_all(user_state, world_state)
             return OrchestratorOutput(
@@ -1092,6 +1417,7 @@ class Orchestrator:
             self.switch_active_role(user_state, ROLE_ID_NOVA)
 
         role_state = self.role_selector.get_active_role_state(user_state)
+        apply_relationship_profile(role_state)
         self._sync_communication_mode(role_state, inp)
         self.scene_manager.prepare_for_turn(role_state, inp.timestamp)
 
@@ -1149,6 +1475,7 @@ class Orchestrator:
                     )
 
         # 5) Update emosi berdasarkan interaksi
+        self._update_temporal_state(role_state, inp.timestamp)
         self.emotion_engine.register_user_interaction(
             user_state=user_state,
             role_id=role_state.role_id,
@@ -1165,6 +1492,7 @@ class Orchestrator:
         # 6) Optional: update intimacy pelan-pelan mengikuti level
         self.emotion_engine.maybe_increase_intimacy_by_level(role_state)
         role_state.update_sexual_language_level()
+        role_state.update_intimate_expression_profile()
 
         # 7) Update scene per-role (Nova & role lain)
         self._update_scene_for_role(role_state, inp)
@@ -1180,6 +1508,8 @@ class Orchestrator:
             user_message=inp.text,
             role_state=role_state,
         )
+        role_state.last_used_memory_summary = structured_context.message_memory
+        role_state.last_used_story_summary = structured_context.story_memory
 
         # 8) Bangun messages via role aktif & panggil LLM
         messages = self._build_runtime_messages(
@@ -1189,6 +1519,7 @@ class Orchestrator:
             inp.text,
             structured_context=structured_context,
         )
+        self._log_debug_runtime(role_state, structured_context, messages)
 
         user_snippet = MessageSnippet(
             user_id=inp.user_id,
@@ -1213,6 +1544,7 @@ class Orchestrator:
             memory_context=structured_context.message_memory,
             story_context=structured_context.story_memory,
         )
+        reply_text = self._humanize_intimate_expression(reply_text, role_state)
 
         assistant_snippet = MessageSnippet(
             user_id=inp.user_id,
@@ -1567,6 +1899,8 @@ class Orchestrator:
             structured_context=structured_context,
         )
         self.feedback_loop.apply(role_state=role_state, evaluation=evaluation)
+        self._update_personality_persistence(role_state, inp.text, reply_text)
+        reply_text = self._maybe_add_social_initiative(reply_text, role_state, inp.text)
         self.feedback_loop.log(
             user_id=inp.user_id,
             role_id=role_state.role_id,
@@ -2205,13 +2539,19 @@ class Orchestrator:
     # INTERNAL HELPERS: SESSIONS
     # --------------------------------------------------
 
-    def _end_all_sessions(self, user_state: UserState) -> None:
-        """Akhiri semua sesi khusus dan reset penuh semua role selain Nova."""
+    def _end_all_sessions(self, user_state: UserState, timestamp: float) -> None:
+        """Akhiri semua sesi.
 
+        Role personal ditutup dengan soft-end agar continuity tetap hidup.
+        Role provider tetap di-hard reset agar batas sesi tetap tegas.
+        """
+
+        previous_active_role_id = user_state.active_role_id
         user_state.global_session_mode = SessionMode.NORMAL
         role_ids = list(user_state.roles.keys())
         for role_id in role_ids:
             role_state = user_state.roles[role_id]
+            apply_relationship_profile(role_state)
             role_state.session.active = False
             role_state.session.mode = SessionMode.NORMAL
             role_state.session.deal_confirmed = False
@@ -2242,7 +2582,14 @@ class Orchestrator:
             # NOTE: role_climax_count TIDAK direset karena history
 
             if role_id == ROLE_ID_NOVA:
+                role_state.session_closure_summary = self._build_session_closure_summary(role_state)
+                role_state.last_soft_end_ts = timestamp
                 role_state.aftercare_active = False
+                role_state.last_session_ended_at = timestamp
+                continue
+
+            if self._supports_soft_end(role_id):
+                self._soft_end_role_session(role_state, timestamp)
                 continue
 
             role_state.reset_intimacy_state()
@@ -2252,7 +2599,10 @@ class Orchestrator:
             self._reset_role_to_fresh_start(user_state.user_id, role_id)
             user_state.roles.pop(role_id, None)
 
-        self.switch_active_role(user_state, ROLE_ID_NOVA)
+        if previous_active_role_id in user_state.roles and not self._is_provider_role(previous_active_role_id):
+            self.switch_active_role(user_state, previous_active_role_id)
+        else:
+            self.switch_active_role(user_state, ROLE_ID_NOVA)
 
     def _sync_global_session_mode(self, user_state: UserState) -> None:
         """Samakan mode global dengan sesi role aktif agar tidak bleed antar-role."""
@@ -2268,6 +2618,7 @@ class Orchestrator:
 
         user_state.active_role_id = role_id
         role_state = user_state.get_or_create_role_state(role_id)
+        apply_relationship_profile(role_state)
         self._sync_global_session_mode(user_state)
         return role_state
 
