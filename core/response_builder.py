@@ -35,11 +35,26 @@ class ResponseBuilder:
         role_state: RoleState,
         user_text: str,
         reply_text: str,
+        *,
+        memory_context: str = "",
+        story_context: str = "",
     ) -> str:
-        guard_result = self.guard_reply(role_state, user_text, reply_text)
+        guard_result = self.guard_reply(
+            role_state,
+            user_text,
+            reply_text,
+            memory_context=memory_context,
+            story_context=story_context,
+        )
         if guard_result.should_retry:
             repaired = self._repair_response(role_state, guard_result.reply_text)
-            second_pass = self.guard_reply(role_state, user_text, repaired)
+            second_pass = self.guard_reply(
+                role_state,
+                user_text,
+                repaired,
+                memory_context=memory_context,
+                story_context=story_context,
+            )
             return second_pass.reply_text
         return guard_result.reply_text
 
@@ -48,8 +63,17 @@ class ResponseBuilder:
         role_state: RoleState,
         user_text: str,
         reply_text: str,
+        *,
+        memory_context: str = "",
+        story_context: str = "",
     ) -> GuardResult:
-        guard_result = self.behavior_guard.validate(role_state, user_text, reply_text)
+        guard_result = self.behavior_guard.validate(
+            role_state,
+            user_text,
+            reply_text,
+            memory_context=memory_context,
+            story_context=story_context,
+        )
         role_state.last_guard_warnings = list(guard_result.warnings)
         return guard_result
 
