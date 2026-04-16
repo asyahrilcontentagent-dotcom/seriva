@@ -1801,6 +1801,7 @@ class WorldState:
     drama_level: int = 0
     events: List[WorldEvent] = field(default_factory=list)
     nova_is_home: bool = True
+    nova_last_known_status: str = "di rumah"
     dietha_is_home: bool = True
     house_privacy_level: str = "guarded"
     current_household_note: str = "Malam biasa di rumah; Nova ada di rumah."
@@ -1816,6 +1817,7 @@ class WorldState:
     def get_household_summary(self) -> str:
         return (
             f"Nova_di_rumah={'ya' if self.nova_is_home else 'tidak'}; "
+            f"Nova_status={self.nova_last_known_status}; "
             f"Dietha_di_rumah={'ya' if self.dietha_is_home else 'tidak'}; "
             f"privasi_rumah={self.house_privacy_level}; "
             f"catatan={self.current_household_note}"
