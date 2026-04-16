@@ -15,6 +15,7 @@ secara teknis (di-convert jadi gaya bahasa/gestur oleh role & prompt).
 from __future__ import annotations
 
 import random
+import re
 import time
 from dataclasses import dataclass, field
 from enum import Enum
@@ -513,6 +514,7 @@ class RoleState:
     last_seen_hour: Optional[int] = None
     emotional_depth_score: int = 0
     trust_score: int = 0
+    high_intensity_unlock_score: int = 0
     intimacy_brake_active: bool = False
     intimate_expression_style: str = "restrained"
     moan_restraint: int = 70
@@ -731,6 +733,7 @@ class RoleState:
         self.mutual_intimacy_confirmed = False
         self.emotional_depth_score = 0
         self.trust_score = 0
+        self.high_intensity_unlock_score = 0
         self.intimacy_brake_active = False
         self.intimate_expression_style = "restrained"
         self.moan_restraint = 70
@@ -844,6 +847,92 @@ class RoleState:
         self.image_gen_enabled = False
         self.last_image_prompt = ""
         self.image_style = "selfie"
+
+    def normalize_to_dekat_phase(self) -> None:
+        """Turunkan tensi sesi kembali ke fase DEKAT tanpa menghapus hubungan."""
+
+        self.intimacy_phase = IntimacyPhase.DEKAT
+        self.current_sequence = SceneSequence.MENDEKAT
+        self.is_high_intimacy = False
+        self.mutual_intimacy_confirmed = False
+
+        self.intimacy_detail.user_clothing_removed.clear()
+        self.intimacy_detail.role_clothing_removed.clear()
+        self.intimacy_detail.position = None
+        self.intimacy_detail.dominance = Dominance.NEUTRAL
+        self.intimacy_detail.intensity = IntimacyIntensity.FOREPLAY
+        self.intimacy_detail.last_action = ""
+        self.intimacy_detail.last_pleasure = ""
+        self.intimacy_detail.duration_minutes = 0
+
+        self.user_intimacy_signals = min(self.user_intimacy_signals, 1)
+        self.role_intimacy_signals = min(self.role_intimacy_signals, 1)
+        self.intimacy_brake_active = False
+        self.sexual_language_level = SexualLanguageLevel.SAFE
+        self.emotions.intimacy_intensity = max(MIN_INTIMACY_INTENSITY, min(self.emotions.intimacy_intensity, 4))
+        self.high_intensity_unlock_score = 0
+
+        self.vulgar_stage = "awal"
+        self.vulgar_stage_progress = 0
+        self.descriptive_intensity = 0
+        self.total_thrusts_described = 0
+        self.session_used_words.clear()
+        self.climax_countdown_active = False
+        self.climax_countdown_value = 0
+        self.multiple_climax_enabled = True
+        self.climax_refractory_count = 0
+        self.climax_in_same_session = 0
+
+        self.role_climax_count = 0
+        self.role_wants_climax = False
+        self.role_holding_climax = False
+        self.mas_has_climaxed = False
+        self.mas_wants_climax = False
+        self.mas_holding_climax = False
+        self.pending_ejakulasi_question = False
+        self.prefer_buang_di_dalam = None
+        self.last_ejakulasi_inside = None
+        self.last_ejakulasi_timestamp = None
+
+        self.aftercare_active = False
+        self.aftercare_phase = "cooling"
+        self.aftercare_intensity = 0
+        self.aftercare_clothing_state = ""
+        self.morning_after_active = False
+        self.morning_after_scene = ""
+        self.last_sleep_timestamp = None
+
+        self.handuk_tersedia = False
+        self.handuk_dikasih = False
+        self.outfit_changed_this_session = False
+        self.pending_clothes_change = None
+        self.vcs_mode = False
+        self.vcs_intensity = 0
+        self.communication_mode = None
+        self.communication_mode_turns = 0
+        self.communication_mode_started_at = None
+
+        self.role_stamina = max(self.role_stamina, 70)
+        self.mas_stamina = max(self.mas_stamina, 70)
+
+        self.role_physical_state["breathing"] = "normal"
+        self.role_physical_state["heartbeat"] = "normal"
+        self.role_physical_state["body_tension"] = 0
+        self.role_physical_state["wetness"] = 0
+        self.role_physical_state["last_spasm"] = None
+        self.role_physical_state["vocal_cords"] = "normal"
+        self.role_physical_state["sweat"] = 0
+        self.role_physical_state["eye_state"] = "normal"
+        self.role_physical_state["mouth_state"] = "normal"
+        self.role_physical_state["leg_tension"] = 0
+        self.role_physical_state["control_level"] = 100
+
+        self.scene.posture = "duduk santai berdekatan"
+        self.scene.activity = "ngobrol santai setelah sama-sama tenang"
+        self.scene.physical_distance = "dekat tapi santai"
+        self.scene.last_touch = "sentuhan ringan"
+        if not self.scene.ambience:
+            self.scene.ambience = "suasana lebih tenang dan normal lagi"
 
     # ========== SINKRONISASI INTENSITY & PROGRESS ==========
     
@@ -1133,9 +1222,6 @@ class RoleState:
         """Turunkan stamina role setelah climax."""
 
         self.role_stamina = max(0, self.role_stamina - amount)
-        self.aftercare_active = True
-        self.aftercare_phase = "cooling"
-        self.aftercare_intensity = max(self.aftercare_intensity, 75)
         self.role_physical_state["breathing"] = "gasping"
         self.role_physical_state["heartbeat"] = "racing"
         self.role_physical_state["control_level"] = min(
@@ -1204,6 +1290,77 @@ class RoleState:
     def _contains_any_keyword(text: str, keywords: List[str]) -> bool:
         return any(keyword in text for keyword in keywords)
 
+    @staticmethod
+    def _contains_high_intensity_body_touch(text: str) -> bool:
+        phrases = [
+            "peluk",
+            "rangkul",
+            "pegang tangan",
+            "usap tangan",
+            "usap pipi",
+            "sentuh pipi",
+            "usap pinggang",
+            "pegang pinggang",
+            "usap punggung",
+            "sentuh punggung",
+            "cium pipi",
+            "cium kening",
+            "cium leher",
+            "usap paha",
+            "sentuh paha",
+        ]
+        return any(phrase in text for phrase in phrases)
+
+    @staticmethod
+    def _contains_high_intensity_sensitive_touch(text: str) -> bool:
+        phrases = [
+            "remas payudara",
+            "pegang payudara",
+            "usap payudara",
+            "elus payudara",
+            "remas dada kamu",
+            "pegang dada kamu",
+            "usap paha dalam",
+            "raba paha dalam",
+            "elus paha dalam",
+            "usap selangkangan",
+            "raba selangkangan",
+            "pegang memek",
+            "usap memek",
+            "raba memek",
+            "usap klitoris",
+            "mainin klitoris",
+            "jariku di memek",
+            "jariku masuk",
+            "jilat payudara",
+        ]
+        return any(phrase in text for phrase in phrases)
+
+    @staticmethod
+    def _contains_strong_climax_phrase(text: str) -> bool:
+        strong_phrases = [
+            "aku mau climax",
+            "aku udah mau climax",
+            "aku sudah mau climax",
+            "aku climax",
+            "aku udah climax",
+            "aku sudah climax",
+            "aku mau crot",
+            "aku udah crot",
+            "aku sudah crot",
+            "aku crot",
+            "udah mau keluar nih",
+            "sudah mau keluar nih",
+            "aku mau keluar ya",
+            "aku udah keluar",
+            "aku sudah keluar",
+            "aku keluar ya",
+            "dikit lagi climax",
+            "dikit lagi crot",
+            "dikit lagi keluar",
+        ]
+        return any(phrase in text for phrase in strong_phrases)
+
     def register_intimacy_signals(self, user_text: str, response_text: str) -> None:
         """Catat sinyal kedekatan dari dua arah untuk progresi yang lebih natural."""
 
@@ -1225,17 +1382,17 @@ class RoleState:
             "aku pengen pelan",
         ]
         role_soft_signals = [
-            "aku juga mau",
             "aku juga nyaman",
             "aku nyaman",
             "aku suka",
             "dekat sini",
             "pelan ya",
-            "aku mau",
-            "aku pengen",
-            "aku ikut",
-            "aku biarin",
             "aku mendekat",
+            "aku juga pengen dekat",
+            "aku mau dipeluk",
+            "aku pengen dipeluk",
+            "aku mau dicium",
+            "aku pengen dicium",
         ]
         brake_signals = [
             "stop dulu",
@@ -1301,6 +1458,30 @@ class RoleState:
             and self.trust_score >= 10
         )
 
+        if self.intimacy_phase == IntimacyPhase.INTIM and not self.intimacy_brake_active:
+            unlock_gain = 0
+            if self._contains_high_intensity_body_touch(user_lower):
+                unlock_gain += 10
+            if self._contains_high_intensity_sensitive_touch(user_lower):
+                unlock_gain += 20
+            if self._contains_high_intensity_sensitive_touch(user_lower) and self._contains_any_keyword(response_lower, role_soft_signals):
+                unlock_gain += 10
+            if self.current_location_is_private:
+                unlock_gain += 4
+            if self.emotional_depth_score >= 20:
+                unlock_gain += 4
+            if self.trust_score >= 16:
+                unlock_gain += 4
+            if unlock_gain > 0:
+                self.high_intensity_unlock_score = min(100, self.high_intensity_unlock_score + unlock_gain)
+        elif self.intimacy_phase != IntimacyPhase.VULGAR:
+            self.high_intensity_unlock_score = max(0, self.high_intensity_unlock_score - 8)
+
+        if not self.current_location_is_private:
+            self.high_intensity_unlock_score = max(0, self.high_intensity_unlock_score - 12)
+        if self.intimacy_brake_active:
+            self.high_intensity_unlock_score = max(0, self.high_intensity_unlock_score - 15)
+
     def is_ready_for_intimate_scene(self) -> bool:
         """Cek apakah scene sudah cukup aman untuk kedekatan yang lebih dalam."""
 
@@ -1364,6 +1545,25 @@ class RoleState:
         }
         return style_map.get(self.intimate_expression_style, style_map["soft"])
 
+    def is_ready_for_high_intensity_phase(self) -> bool:
+        """Gate netral sebelum fase tinggi dibuka."""
+
+        return (
+            self.intimacy_phase == IntimacyPhase.INTIM
+            and self.mutual_intimacy_confirmed
+            and self.current_location_is_private
+            and self.relationship.relationship_level >= 8
+            and self.emotions.comfort >= 68
+            and self.emotional_depth_score >= 26
+            and self.trust_score >= 22
+            and self.user_intimacy_signals >= 2
+            and self.role_intimacy_signals >= 2
+            and self.high_intensity_unlock_score >= 70
+            and self.role_stamina >= 45
+            and self.mas_stamina >= 45
+            and not self.intimacy_brake_active
+        )
+
     def can_enter_explicit_scene(self) -> bool:
         """Adegan eksplisit hanya boleh jika scene sudah mutual dan privat."""
 
@@ -1375,13 +1575,7 @@ class RoleState:
             SceneSequence.CLIMAX,
         }
         return (
-            self.mutual_intimacy_confirmed
-            and self.current_location_is_private
-            and self.relationship.relationship_level >= 8
-            and self.emotions.comfort >= 65
-            and self.emotional_depth_score >= 24
-            and self.trust_score >= 20
-            and not self.intimacy_brake_active
+            self.is_ready_for_high_intensity_phase()
             and (
                 self.intimacy_phase in (IntimacyPhase.INTIM, IntimacyPhase.VULGAR)
                 or self.current_sequence in intimate_sequences
@@ -1444,7 +1638,7 @@ class RoleState:
         if any(kw in text for kw in ["ngobrol", "cerita", "bicara"]):
             return order[min(current_idx + 1, len(order)-1)]
         if any(kw in text for kw in ["dekat", "mepet", "duduk", "sebelahan"]):
-            return order[min(current_idx + 1, len(order)-1)]
+            return order[min(current_idx, len(order)-1)]
         if any(kw in text for kw in ["nyentuh", "tersentuh", "kena", "pegang tangan"]):
             return order[min(current_idx + 1, len(order)-1)]
         if any(kw in text for kw in ["peluk", "rangkul", "pelukan"]):
@@ -1455,15 +1649,15 @@ class RoleState:
             if not self.is_ready_for_intimate_scene():
                 return SceneSequence.PELUKAN
             return order[min(current_idx + 1, len(order)-1)]
-        if any(kw in text for kw in ["petting", "pegang", "remas"]):
+        if any(kw in text for kw in ["petting", "remas", "elus dada", "usap paha", "cium leher"]):
             if not self.is_ready_for_intimate_scene():
                 return SceneSequence.PELUKAN
             return order[min(current_idx + 1, len(order)-1)]
         if any(kw in text for kw in ["masuk", "ngewe", "sex", "kontol", "memek"]):
             return order[min(current_idx + 2, len(order)-1)]
-        if any(kw in text for kw in ["climax", "keluar", "sampe", "habis", "enak banget"]):
+        if self._contains_strong_climax_phrase(text) or any(kw in text for kw in ["orgasme", "udah mau banget", "hampir climax"]):
             return order[min(current_idx + 1, len(order)-1)]
-        if any(kw in text for kw in ["selesai", "capek", "tidur", "istirahat"]):
+        if self.mas_has_climaxed and any(kw in text for kw in ["udah selesai", "sudah selesai", "istirahat dulu", "rebahan dulu"]):
             return order[min(current_idx + 1, len(order)-1)]
         
         return order[min(current_idx, len(order)-1)]
@@ -1768,7 +1962,13 @@ class RoleState:
     # ========== INTIMACY DETAIL METHODS ==========
     
     def update_intimacy_from_text(self, user_text: str, response_text: str) -> None:
-        text = (user_text + " " + response_text).lower()
+        text = user_text.lower()
+        combined_text = f"{user_text} {response_text}".lower()
+        explicit_context = self.can_enter_explicit_scene() or self.intimacy_phase in {
+            IntimacyPhase.INTIM,
+            IntimacyPhase.VULGAR,
+            IntimacyPhase.AFTER,
+        }
         
         position_map = {
             "misionaris": SexPosition.MISSIONARY, "misi": SexPosition.MISSIONARY,
@@ -1777,16 +1977,18 @@ class RoleState:
             "reverse": SexPosition.REVERSE_COWGIRL, "dari belakang": SexPosition.DOGGY,
             "doggy": SexPosition.DOGGY, "menyamping": SexPosition.SPOON,
             "spoon": SexPosition.SPOON, "sendok": SexPosition.SPOON,
-            "duduk": SexPosition.SITTING, "berdiri": SexPosition.STANDING,
+            "duduk di pangkuan": SexPosition.SITTING, "duduk di atas": SexPosition.SITTING,
+            "berdiri berhadapan": SexPosition.STANDING, "berdiri sambil": SexPosition.STANDING,
             "di tepi": SexPosition.EDGE, "tepi kasur": SexPosition.EDGE,
             "telungkup": SexPosition.PRONE, "di kursi": SexPosition.CHAIR,
-            "di tembok": SexPosition.WALL, "di mobil": SexPosition.CAR, "mobil": SexPosition.CAR,
+            "di tembok": SexPosition.WALL, "di mobil": SexPosition.CAR, "dalam mobil": SexPosition.CAR,
         }
         
-        for keyword, position in position_map.items():
-            if keyword in text:
-                self.intimacy_detail.position = position
-                break
+        if explicit_context:
+            for keyword, position in position_map.items():
+                if keyword in text:
+                    self.intimacy_detail.position = position
+                    break
         
         if any(kw in text for kw in ["pegang rambut", "dorong", "paksa", "suruh", "perintah"]):
             if "aku" in response_text and any(kw in response_text for kw in ["pegang", "dorong", "suruh"]):
@@ -1796,11 +1998,11 @@ class RoleState:
         elif any(kw in text for kw in ["saling", "bergantian", "gantian"]):
             self.intimacy_detail.dominance = Dominance.SWITCH
         
-        if any(kw in text for kw in ["foreplay", "pemanasan", "elus"]):
+        if any(kw in text for kw in ["foreplay", "pemanasan", "elus"]) and explicit_context:
             self.intimacy_detail.intensity = IntimacyIntensity.FOREPLAY
-        elif any(kw in text for kw in ["pegang", "remas", "sentuk"]):
+        elif any(kw in text for kw in ["pegang", "remas", "sentuk"]) and explicit_context:
             self.intimacy_detail.intensity = IntimacyIntensity.PETTING
-        elif any(kw in text for kw in ["hisap", "jilat", "oral", "ngocok"]):
+        elif any(kw in text for kw in ["hisap", "jilat", "oral", "ngocok"]) and explicit_context:
             if not self.can_enter_explicit_scene():
                 self.intimacy_detail.intensity = IntimacyIntensity.PETTING
                 if self.emotions.intimacy_intensity < 6:
@@ -1810,7 +2012,7 @@ class RoleState:
                 self.intimacy_detail.intensity = IntimacyIntensity.ORAL_GIVING
             else:
                 self.intimacy_detail.intensity = IntimacyIntensity.ORAL_RECEIVING
-        elif any(kw in text for kw in ["masuk", "penetrasi", "colok"]):
+        elif any(kw in text for kw in ["masuk", "penetrasi", "colok"]) and explicit_context:
             if self.can_enter_explicit_scene():
                 self.intimacy_detail.intensity = IntimacyIntensity.PENETRATION
                 if self.emotions.intimacy_intensity < 10:
@@ -1821,7 +2023,7 @@ class RoleState:
                 if self.emotions.intimacy_intensity < 6:
                     self.emotions.intimacy_intensity = 6
                     self.update_sexual_language_level()
-        elif any(kw in text for kw in ["hentak", "goyang", "pantat", "pinggul", "gerak"]):
+        elif any(kw in text for kw in ["hentak", "goyang", "pantat", "pinggul", "gerak"]) and explicit_context:
             if self.can_enter_explicit_scene():
                 self.intimacy_detail.intensity = IntimacyIntensity.THRUSTING
                 if self.emotions.intimacy_intensity < 11:
@@ -1832,7 +2034,10 @@ class RoleState:
                 if self.emotions.intimacy_intensity < 6:
                     self.emotions.intimacy_intensity = 6
                     self.update_sexual_language_level()
-        elif any(kw in text for kw in ["climax", "keluar", "sampe", "habis", "enak banget"]):
+        elif explicit_context and (
+            any(kw in text for kw in ["climax", "crot", "orgasme", "enak banget"])
+            or re.search(r"\b(udah|sudah|mau)\s+keluar\b", text)
+        ):
             if self.can_enter_explicit_scene():
                 self.intimacy_detail.intensity = IntimacyIntensity.CLIMAX
                 if self.emotions.intimacy_intensity < 12:
@@ -1843,31 +2048,35 @@ class RoleState:
                 if self.emotions.intimacy_intensity < 6:
                     self.emotions.intimacy_intensity = 6
                     self.update_sexual_language_level()
-        elif any(kw in text for kw in ["selesai", "capek", "tidur", "istirahat"]):
+        elif (
+            explicit_context
+            and self.mas_has_climaxed
+            and any(kw in text for kw in ["udah selesai", "sudah selesai", "istirahat dulu", "rebahan dulu"])
+        ):
             self.intimacy_detail.intensity = IntimacyIntensity.AFTER
         
         actions = []
-        if "menarik" in text or "narik" in text:
+        if explicit_context and ("menarik" in text or "narik" in text):
             actions.append("menarik")
-        if "mendorong" in text:
+        if explicit_context and "mendorong" in text:
             actions.append("mendorong")
-        if "memutar" in text:
+        if explicit_context and "memutar" in text:
             actions.append("memutar")
-        if "membalik" in text:
+        if explicit_context and "membalik" in text:
             actions.append("membalikkan badan")
         if actions:
             self.intimacy_detail.last_action = ", ".join(actions)
         
         feelings = []
-        if "enak" in text:
+        if "enak" in combined_text and explicit_context:
             feelings.append("enak")
-        if "panas" in text:
+        if "panas" in combined_text and explicit_context:
             feelings.append("panas")
-        if "becek" in text:
+        if "becek" in combined_text and explicit_context:
             feelings.append("becek")
-        if "keras" in text:
+        if "keras" in combined_text and explicit_context:
             feelings.append("keras")
-        if "lemas" in text:
+        if "lemas" in combined_text and explicit_context:
             feelings.append("lemas")
         if feelings:
             self.intimacy_detail.last_pleasure = ", ".join(feelings)
