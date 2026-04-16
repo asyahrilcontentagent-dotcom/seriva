@@ -435,6 +435,13 @@ def status_handler(orchestrator: Orchestrator, admin_id: str):
         communication_turns_text = f"{communication_turns} turn" if communication_mode else "0 turn"
         vcs_status = f"AKTIF ({vcs_intensity}%)" if vcs_mode else "NONAKTIF"
         
+        # Emoji untuk mode komunikasi
+        mode_emoji = {
+            "chat": "💬",
+            "call": "📞",
+            "vps": "📹",
+        }.get(communication_mode, "👤")
+        
         position_value = safe_str(getattr(intimacy.position, 'value', None) if intimacy.position else None)
         dominance_value = safe_str(getattr(intimacy.dominance, 'value', None) if intimacy.dominance else None)
         intensity_value = safe_str(getattr(intimacy.intensity, 'value', None) if intimacy.intensity else None)
@@ -457,6 +464,7 @@ def status_handler(orchestrator: Orchestrator, admin_id: str):
             "📍 LOKASI & SCENE",
             f"   🏠 Lokasi: {current_location} ({location_icon})",
             f"   🏡 Nova di rumah: {nova_home}",
+            f"   Status Nova terakhir: {nova_status}",
             f"   Fase: {phase_value}",
             f"   Sequence: {sequence_value}",
             f"   🪑 Postur: {posture}",
@@ -466,6 +474,9 @@ def status_handler(orchestrator: Orchestrator, admin_id: str):
             f"   📏 Jarak: {physical_distance}",
             f"   ✋ Sentuhan: {last_touch}",
             f"   Unlock vulgar: {unlock_score}/100",
+            f"   {mode_emoji} Mode komunikasi: {communication_label}",
+            f"   🔁 Durasi mode: {communication_turns_text}",
+            f"   📹 VCS: {vcs_status}",
             "",
             "👕 STATUS PAKAIAN",
             "",
@@ -495,27 +506,10 @@ def status_handler(orchestrator: Orchestrator, admin_id: str):
             f"   📍 Preferensi buang: {prefer_text}",
         ]
 
-        text_lines[18:18] = [
-            f"   ðŸ“± Mode komunikasi: {communication_label}",
-            f"   ðŸ” Durasi mode: {communication_turns_text}",
-            f"   ðŸŽ¥ VCS: {vcs_status}",
-        ]
-
-        text_lines[18] = f"   Mode komunikasi: {communication_label}"
-        text_lines[19] = f"   Durasi mode: {communication_turns_text}"
-        text_lines[20] = f"   VCS: {vcs_status}"
-        lokasi_header_index = next(
-            (idx for idx, line in enumerate(text_lines) if "LOKASI & SCENE" in line),
-            None,
-        )
-        if lokasi_header_index is not None:
-            text_lines.insert(lokasi_header_index + 3, f"   Status Nova terakhir: {nova_status}")
-
         # Kirim tanpa parse_mode untuk menghindari error markdown
         await chat.send_message("\n".join(text_lines))
 
     return _handler
-
 
 # ==============================
 # HANDLER /PAUSE dan /RESUME
