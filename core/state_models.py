@@ -330,6 +330,9 @@ class EmotionState:
     jealousy: int = 0         # seberapa cemburu
     comfort: int = 40         # seberapa nyaman
     mood: Mood = Mood.NEUTRAL
+    secondary_mood: Mood = Mood.NEUTRAL
+    hidden_mood: Mood = Mood.NEUTRAL
+    emotional_drift: float = 0.0
 
     # Intensitas intim non-vulgar (1–12, sejalan dengan relationship_level)
     intimacy_intensity: int = MIN_INTIMACY_INTENSITY
@@ -342,6 +345,7 @@ class EmotionState:
         self.longing = max(0, min(100, self.longing))
         self.jealousy = max(0, min(100, self.jealousy))
         self.comfort = max(0, min(100, self.comfort))
+        self.emotional_drift = max(-1.0, min(1.0, self.emotional_drift))
 
         self.intimacy_intensity = max(
             MIN_INTIMACY_INTENSITY,
