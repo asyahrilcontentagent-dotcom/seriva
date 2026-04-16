@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from core.behavior_guard import BehaviorGuard
+from core.behavior_guard import BehaviorGuard, GuardResult
 from core.state_models import RoleState, UserState
 
 
@@ -36,8 +36,22 @@ class ResponseBuilder:
         user_text: str,
         reply_text: str,
     ) -> str:
-        guard_result = self.behavior_guard.validate(role_state, user_text, reply_text)
+        guard_result = self.guard_reply(role_state, user_text, reply_text)
+        if guard_result.should_retry:
+            repaired = self._repair_response(role_state, guard_result.reply_text)
+            second_pass = self.guard_reply(role_state, user_text, repaired)
+            return second_pass.reply_text
         return guard_result.reply_text
+
+    def guard_reply(
+        self,
+        role_state: RoleState,
+        user_text: str,
+        reply_text: str,
+    ) -> GuardResult:
+        guard_result = self.behavior_guard.validate(role_state, user_text, reply_text)
+        role_state.last_guard_warnings = list(guard_result.warnings)
+        return guard_result
 
     def maybe_append_command_hint(
         self,
@@ -62,3 +76,11 @@ class ResponseBuilder:
             )
 
         return reply_text
+
+    @staticmethod
+    def _repair_response(role_state: RoleState, reply_text: str) -> str:
+        role_name = role_state.role_display_name or role_state.role_id
+        if reply_text:
+            shortened = reply_text.strip()[:180]
+            return f"{role_name} membalas lebih singkat dan tetap menjaga suasana: {shortened}"
+        return f"{role_name} membalas dengan singkat, hati-hati, dan tetap in-character."
