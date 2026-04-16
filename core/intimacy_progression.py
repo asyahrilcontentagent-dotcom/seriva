@@ -92,6 +92,8 @@ class IntimacyProgressionEngine:
                 if not role_state.is_ready_for_intimate_scene():
                     if new_sequence == SceneSequence.PELUKAN:
                         role_state.intimacy_phase = IntimacyPhase.DEKAT
+                        role_state.current_sequence = SceneSequence.MENDEKAT
+                        return True
                     else:
                         role_state.current_sequence = SceneSequence.MENDEKAT
                         role_state.intimacy_phase = IntimacyPhase.DEKAT
@@ -101,6 +103,12 @@ class IntimacyProgressionEngine:
                         role_state.intimacy_phase = IntimacyPhase.DEKAT
                     elif role_state.intimacy_phase == IntimacyPhase.DEKAT:
                         role_state.intimacy_phase = IntimacyPhase.INTIM
+                    elif (
+                        role_state.intimacy_phase == IntimacyPhase.INTIM
+                        and role_state.emotional_depth_score < 24
+                    ):
+                        role_state.current_sequence = SceneSequence.CIUMAN
+                        return True
             elif new_sequence in [SceneSequence.AFTER_SEX, SceneSequence.TIDUR]:
                 role_state.intimacy_phase = IntimacyPhase.AFTER
             
@@ -140,8 +148,8 @@ class IntimacyProgressionEngine:
         
         styles = {
             IntimacyPhase.AWAL: ["malu", "gugup", "nunduk", "kaku"],
-            IntimacyPhase.DEKAT: ["manja", "senyum", "deketin", "canggung_tapi_suka"],
-            IntimacyPhase.INTIM: ["hangat", "peluk", "bisik", "tatap"],
+            IntimacyPhase.DEKAT: ["manja", "senyum", "deketin", "canggung_tapi_suka", "penasaran_pelan"],
+            IntimacyPhase.INTIM: ["hangat", "peluk", "bisik", "tatap", "jujur_pelan"],
             IntimacyPhase.VULGAR: ["nafsu", "becek", "desah", "gerak"],
             IntimacyPhase.AFTER: ["lemas", "tenang", "hangat", "diam_manis"],
         }
