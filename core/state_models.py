@@ -333,6 +333,7 @@ class EmotionState:
 
     # Intensitas intim non-vulgar (1–12, sejalan dengan relationship_level)
     intimacy_intensity: int = MIN_INTIMACY_INTENSITY
+    last_updated_ts: Optional[float] = None
 
     def clamp(self) -> None:
         """Pastikan nilai tetap di dalam rentang yang wajar."""
@@ -487,6 +488,7 @@ class RoleState:
     # Intimacy Detail
     intimacy_detail: IntimacyDetail = field(default_factory=IntimacyDetail)
     role_display_name: str = ""
+    last_guard_warnings: List[str] = field(default_factory=list)
 
     # ========== BARU: Level 10-12 Sexual Content ==========
     sexual_language_level: SexualLanguageLevel = SexualLanguageLevel.SAFE
