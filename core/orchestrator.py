@@ -58,7 +58,9 @@ from config.constants import (
     ExtraService,           # ← baru
 )
 from core.emotion_engine import EmotionEngine, InteractionContext
+from core.feedback_loop import FeedbackLoop
 from core.llm_client import LLMClient
+from core.memory_orchestrator import MemoryOrchestrator, StructuredContext
 from core.response_builder import ResponseBuilder
 from core.role_selector import RoleSelector
 from core.scene_engine import SceneEngine
@@ -77,7 +79,8 @@ from core.state_models import (
 )
 from core.world_engine import WorldEngine
 from memory.milestones import MilestoneStore
-from memory.message_history import MessageHistoryStore
+from memory.message_history import MessageHistoryStore, MessageSnippet
+from memory.story_analyzer import StoryAnalyzer
 from memory.story_memory import StoryMemoryStore, StoryBeat
 from roles.role_registry import get_role
 from core.intimacy_progression import IntimacyProgressionEngine
@@ -190,6 +193,9 @@ class Orchestrator:
         # Init stores untuk story memory & message history
         self.message_history = message_history_store or MessageHistoryStore()
         self.story_memory = story_memory_store or StoryMemoryStore()
+        self.memory_orchestrator = MemoryOrchestrator(self.message_history, self.story_memory)
+        self.story_analyzer = StoryAnalyzer(self.story_memory)
+        self.feedback_loop = FeedbackLoop()
         
         self.scene_engine = SceneEngine()
         self.scene_manager = SceneManager(self.scene_engine)
@@ -554,6 +560,7 @@ class Orchestrator:
         world_state: WorldState,
         role_state: RoleState,
         user_text: str,
+        structured_context: StructuredContext | None = None,
     ) -> list[dict]:
         role_impl = get_role(role_state.role_id)
         memory_context = self._build_runtime_memory_context(
@@ -562,15 +569,20 @@ class Orchestrator:
             role_state,
             query_text=user_text,
         )
+        if structured_context:
+            memory_context = (
+                f"{structured_context.to_prompt_block()}\n\n"
+                f"{memory_context}"
+            )
         dynamic_context = build_dynamic_prompt_context(
             role_state,
-            memory_summary=self.message_history.summarize_recent_messages(
+            memory_summary=structured_context.message_memory if structured_context else self.message_history.summarize_recent_messages(
                 user_state.user_id,
                 role_state.role_id,
                 limit=4,
                 query_text=user_text,
             ),
-            story_summary=self.story_memory.get_story_summary(user_state.user_id, role_state.role_id),
+            story_summary=structured_context.story_memory if structured_context else self.story_memory.get_story_summary(user_state.user_id, role_state.role_id),
         )
         return self.response_builder.build_messages(
             role_impl,
@@ -586,6 +598,9 @@ class Orchestrator:
         messages: list[dict],
         role_state: RoleState,
         user_text: str,
+        *,
+        memory_context: str = "",
+        story_context: str = "",
     ) -> str:
         temperature = self._get_llm_temperature(role_state)
         reply_text = self.llm.generate_text(
@@ -597,7 +612,13 @@ class Orchestrator:
             max_tokens=LLM_MAX_TOKENS,
         )
         reply_text = self._vary_response(reply_text, role_state)
-        guard_result = self.response_builder.guard_reply(role_state, user_text, reply_text)
+        guard_result = self.response_builder.guard_reply(
+            role_state,
+            user_text,
+            reply_text,
+            memory_context=memory_context,
+            story_context=story_context,
+        )
         if guard_result.should_retry and guard_result.repair_instructions:
             retry_messages = list(messages)
             retry_messages.append({"role": "system", "content": guard_result.repair_instructions})
@@ -610,7 +631,13 @@ class Orchestrator:
                 max_tokens=LLM_MAX_TOKENS,
             )
             reply_text = self._vary_response(reply_text, role_state)
-        return self.response_builder.finalize_reply(role_state, user_text, reply_text)
+        return self.response_builder.finalize_reply(
+            role_state,
+            user_text,
+            reply_text,
+            memory_context=memory_context,
+            story_context=story_context,
+        )
     
     def _get_role_personality(self, role_id: str) -> str:
         """Dapatkan personality prompt untuk role"""
@@ -1147,26 +1174,61 @@ class Orchestrator:
         self._update_pre_reply_climax_state(role_state, inp.text, inp.timestamp)
         self._apply_aftercare_decay(role_state, inp.text, inp.timestamp)
 
-        # 8) Bangun messages via role aktif & panggil LLM
-        messages = self._build_runtime_messages(user_state, world_state, role_state, inp.text)
+        structured_context = self.memory_orchestrator.build_context(
+            user_id=inp.user_id,
+            role_id=role_state.role_id,
+            user_message=inp.text,
+            role_state=role_state,
+        )
 
-        self.message_history.add_message(
+        # 8) Bangun messages via role aktif & panggil LLM
+        messages = self._build_runtime_messages(
+            user_state,
+            world_state,
+            role_state,
+            inp.text,
+            structured_context=structured_context,
+        )
+
+        user_snippet = MessageSnippet(
             user_id=inp.user_id,
             role_id=role_state.role_id,
             from_who="user",
             timestamp=inp.timestamp,
             content=inp.text[:500],
         )
-
-        reply_text = self._generate_guarded_reply(messages, role_state, inp.text)
-
         self.message_history.add_message(
+            user_id=user_snippet.user_id,
+            role_id=user_snippet.role_id,
+            from_who=user_snippet.from_who,
+            timestamp=user_snippet.timestamp,
+            content=user_snippet.content,
+        )
+        self.message_history.maybe_pin_from_text(inp.user_id, role_state.role_id, user_snippet)
+
+        reply_text = self._generate_guarded_reply(
+            messages,
+            role_state,
+            inp.text,
+            memory_context=structured_context.message_memory,
+            story_context=structured_context.story_memory,
+        )
+
+        assistant_snippet = MessageSnippet(
             user_id=inp.user_id,
             role_id=role_state.role_id,
             from_who="assistant",
             timestamp=inp.timestamp,
             content=reply_text[:500],
         )
+        self.message_history.add_message(
+            user_id=assistant_snippet.user_id,
+            role_id=assistant_snippet.role_id,
+            from_who=assistant_snippet.from_who,
+            timestamp=assistant_snippet.timestamp,
+            content=assistant_snippet.content,
+        )
+        self.message_history.maybe_pin_from_text(inp.user_id, role_state.role_id, assistant_snippet)
 
         # ========== AUTO PROGRESS JIKA USER DIAM ==========
         if role_state.intimacy_phase == IntimacyPhase.VULGAR:
@@ -1479,6 +1541,18 @@ class Orchestrator:
             inp.text,
             reply_text,
         )
+        analysis_result = self.story_analyzer.analyze_and_apply(
+            user_id=inp.user_id,
+            role_id=role_state.role_id,
+            user_text=inp.text,
+            reply_text=reply_text,
+        )
+        if analysis_result.emotional_spike:
+            self.message_history.pin_message(
+                inp.user_id,
+                role_state.role_id,
+                assistant_snippet,
+            )
 
         # 9) Update waktu interaksi terakhir
         user_state.last_interaction_ts = inp.timestamp
@@ -1486,6 +1560,18 @@ class Orchestrator:
         # 10) Perbarui ringkasan percakapan terakhir (per role)
         self._update_conversation_summary(user_state, role_state, inp, reply_text)
         self._update_long_term_summary(user_state, role_state)
+        evaluation = self.feedback_loop.evaluate(
+            role_state=role_state,
+            user_text=inp.text,
+            reply_text=reply_text,
+            structured_context=structured_context,
+        )
+        self.feedback_loop.apply(role_state=role_state, evaluation=evaluation)
+        self.feedback_loop.log(
+            user_id=inp.user_id,
+            role_id=role_state.role_id,
+            evaluation=evaluation,
+        )
         reply_text = self.response_builder.maybe_append_command_hint(reply_text, role_state, inp.text)
 
         # 11) Auto-milestone: first_confession untuk Nova
