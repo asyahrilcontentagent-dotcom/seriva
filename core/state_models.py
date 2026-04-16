@@ -28,7 +28,7 @@ from config.constants import (
     MIN_DRAMA_LEVEL,
     MIN_INTIMACY_INTENSITY,
     MIN_RELATIONSHIP_LEVEL,
-    ROLE_ID_BO_DAVINA,   # ← ganti dari ROLE_ID_TEMAN_SPESIAL_DAVINA
+    ROLE_ID_BO_DAVINA,
     ROLE_ID_BO_SALLSA, 
 )
 
@@ -68,26 +68,24 @@ class TimeOfDay(str, Enum):
     NIGHT = "night"
     LATE_NIGHT = "late_night"
 
-# Tambahkan di bagian atas file, setelah imports (sekitar line 1-20)
 
 # ==============================
 # MAPPING INTIMACY INTENSITY KE VULGAR PROGRESS
 # ==============================
 
-# Mapping 1-12 ke progress 0-100
 INTENSITY_TO_PROGRESS = {
-    1: 0,      # AWAL - belum ada progres
+    1: 0,
     2: 0,
     3: 5,
-    4: 10,     # DEKAT - mulai ada sedikit
+    4: 10,
     5: 15,
     6: 20,
-    7: 30,     # INTIM - mulai hangat
+    7: 30,
     8: 40,
     9: 50,
-    10: 60,    # VULGAR - mulai panas
+    10: 60,
     11: 75,
-    12: 90,    # VULGAR MAX - hampir climax
+    12: 90,
 }
 
 PROGRESS_TO_INTENSITY = {
@@ -103,17 +101,18 @@ PROGRESS_TO_INTENSITY = {
     100: 12,
 }
 
+
 # ==============================
 # INTIMACY & POSITION ENUMS
 # ==============================
 
 class IntimacyPhase(str, Enum):
     """Fase natural intimacy - semua role."""
-    AWAL = "awal"           # masih canggung, jaga jarak
-    DEKAT = "dekat"         # mulai nyaman, sentuhan tidak sengaja
-    INTIM = "intim"         # pelukan, genggaman, napas dekat
-    VULGAR = "vulgar"       # aktivitas seksual intens (level 10-12)
-    AFTER = "after"         # setelah intim, suasana tenang/hangat
+    AWAL = "awal"
+    DEKAT = "dekat"
+    INTIM = "intim"
+    VULGAR = "vulgar"
+    AFTER = "after"
 
 
 class SceneSequence(str, Enum):
@@ -170,27 +169,23 @@ class IntimacyIntensity(str, Enum):
     AFTER = "after"
 
 
-# ==============================
-# BARU: LEVEL 10-11-12 (SEXUAL CONTENT)
-# ==============================
-
 class SexualLanguageLevel(str, Enum):
     """Tingkat kebolehan bahasa seksual berdasarkan intimacy_intensity."""
     
-    SAFE = "safe"               # level 1-3: tidak ada bahasa seksual
-    SUGGESTIVE = "suggestive"   # level 4-6: sindiran,暗示
-    SENSUAL = "sensual"         # level 7-9: bahasa puitis, tidak eksplisit
-    EXPLICIT = "explicit"       # level 10-12: boleh organ seksual, desahan detail
-    VULGAR = "vulgar"           # BARU: level 12+ : boleh kata kasar (kontol, memek, ngentot)
+    SAFE = "safe"
+    SUGGESTIVE = "suggestive"
+    SENSUAL = "sensual"
+    EXPLICIT = "explicit"
+    VULGAR = "vulgar"
 
 
 class MoanType(str, Enum):
     """Jenis desahan yang bisa digunakan role."""
-    SOFT = "soft"           # desahan pelan: "hhh...", "aaah..."
-    BREATHY = "breathy"     # napas berat: "haaah... haaah..."
-    PLEASURE = "pleasure"   # desahan nikmat: "aaah... enak Maaas..."
-    CLIMAX = "climax"       # desahan klimaks: "HAAAH... UDAH... KELUAR..."
-    WHISPER = "whisper"     # bisikan: "psst... di sana..."
+    SOFT = "soft"
+    BREATHY = "breathy"
+    PLEASURE = "pleasure"
+    CLIMAX = "climax"
+    WHISPER = "whisper"
 
 
 @dataclass
@@ -198,28 +193,23 @@ class SexualMoment:
     """Momen seksual yang terjadi (disimpan untuk konsistensi cerita)."""
     
     timestamp: float
-    description: str                       # deskripsi naratif adegan
+    description: str
     position: Optional[SexPosition] = None
     intensity: IntimacyIntensity = IntimacyIntensity.FOREPLAY
-    role_moan: str = ""                    # desahan role
-    user_moan: str = ""                    # desahan user kalau ada
-    role_pleasure: str = ""                # rasa yang dialami role
-    user_pleasure: str = ""                # rasa yang dialami user
+    role_moan: str = ""
+    user_moan: str = ""
+    role_pleasure: str = ""
+    user_pleasure: str = ""
     is_climax: bool = False
-    climax_description: str = ""           # deskripsi saat klimaks
-    used_sexual_terms: List[str] = field(default_factory=list)  # organ seksual yang disebut
-
-
-# ==============================
-# LOCATION & USER CONTEXT
-# ==============================
+    climax_description: str = ""
+    used_sexual_terms: List[str] = field(default_factory=list)
 
 
 @dataclass
 class LocationContext:
     """Informasi lengkap tentang lokasi saat ini."""
     name: str
-    type: str  # "private", "public", "semi_public"
+    type: str
     owner: Optional[str] = None
     notes: Optional[str] = None
 
@@ -326,22 +316,19 @@ class EmotionState:
     Semua nilai 0–100, tapi dipakai secara relatif saja.
     """
 
-    love: int = 30            # seberapa sayang
-    longing: int = 30         # seberapa kangen
-    jealousy: int = 0         # seberapa cemburu
-    comfort: int = 40         # seberapa nyaman
+    love: int = 30
+    longing: int = 30
+    jealousy: int = 0
+    comfort: int = 40
     mood: Mood = Mood.NEUTRAL
     secondary_mood: Mood = Mood.NEUTRAL
     hidden_mood: Mood = Mood.NEUTRAL
     emotional_drift: float = 0.0
 
-    # Intensitas intim non-vulgar (1–12, sejalan dengan relationship_level)
     intimacy_intensity: int = MIN_INTIMACY_INTENSITY
     last_updated_ts: Optional[float] = None
 
     def clamp(self) -> None:
-        """Pastikan nilai tetap di dalam rentang yang wajar."""
-
         self.love = max(0, min(100, self.love))
         self.longing = max(0, min(100, self.longing))
         self.jealousy = max(0, min(100, self.jealousy))
@@ -382,20 +369,20 @@ class SceneState:
     Semua field boleh kosong kalau belum di-set.
     """
 
-    location: str = ""          # contoh: "kamar", "ruang tamu", "kafe", "mobil"
-    posture: str = ""           # contoh: "duduk di sofa", "rebahan", "berdiri dekat jendela"
-    activity: str = ""          # contoh: "nonton film", "ngobrol", "rebahan bareng"
+    location: str = ""
+    posture: str = ""
+    activity: str = ""
 
-    user_clothing: str = ""     # optional, pakaian user (kalau mau dipakai halus)
-    role_clothing: str = ""     # optional, pakaian role (bisa digabung ke outfit kalau mau)
+    user_clothing: str = ""
+    role_clothing: str = ""
 
-    ambience: str = ""          # contoh: "lampu redup", "hujan di luar", "musik pelan"
+    ambience: str = ""
     time_of_day: Optional[TimeOfDay] = None
 
-    physical_distance: str = "" # contoh: "jauh", "sebelahan", "sangat dekat", "pelukan"
-    last_touch: str = ""        # contoh: "genggam tangan", "peluk", "elus rambut"
+    physical_distance: str = ""
+    last_touch: str = ""
 
-    outfit: Optional[str] = None # ringkasan penampilan role saat ini (opsional)
+    outfit: Optional[str] = None
 
     last_scene_update_ts: Optional[float] = None
     scene_priority: int = 0
@@ -420,21 +407,15 @@ class RoleSessionState:
     active: bool = False
     mode: SessionMode = SessionMode.NORMAL
 
-    # Misalnya buat provider: menyimpan apakah sudah /deal, harga, dsb.
     deal_confirmed: bool = False
     negotiated_price: Optional[int] = None
 
-    # Misalnya untuk sesi panjang (companion 6 jam, pijat), ini hanya info cerita.
-    # Sistem TIDAK mengakhiri sesi otomatis walaupun durasi habis.
     declared_duration_minutes: Optional[int] = None
 
-    # Timestamp mulai sesi (opsional, buat worker kalau perlu efek longing/drama).
     started_at_ts: Optional[float] = None
 
-    # Untuk extra services (BO)
     requested_extras: List[str] = field(default_factory=list)
 
-    # Ringkasan dunia provider yang sudah disepakati.
     provider_service_label: Optional[str] = None
     provider_package: Optional[str] = None
     provider_included_summary: Optional[str] = None
@@ -469,28 +450,23 @@ class RoleState:
     role_intimacy_signals: int = 0
     mutual_intimacy_confirmed: bool = False
 
-    # Riwayat chat singkat per role (ID pesan atau text pendek, detail di memory/message_history)
     last_message_snippets: List[str] = field(default_factory=list)
     last_conversation_summary: Optional[str] = None
-    long_term_summary: Optional[str] = None  # kalau nanti kamu pakai
+    long_term_summary: Optional[str] = None
 
-    # Memory System
     conversation_memory: List[ConversationTurn] = field(default_factory=list)
     scene_memory: List[SceneTurn] = field(default_factory=list)
     intimacy_phase: IntimacyPhase = IntimacyPhase.AWAL
     current_sequence: Optional[SceneSequence] = None
     
-    # Hindari repetisi
     last_feeling: str = ""
     last_response_style: str = ""
     is_high_intimacy: bool = False
     
-    # Location & User Context
     current_location: Optional[LocationContext] = None
     user_context: UserContext = field(default_factory=UserContext)
     location_history: List[LocationContext] = field(default_factory=list)
     
-    # Intimacy Detail
     intimacy_detail: IntimacyDetail = field(default_factory=IntimacyDetail)
     role_display_name: str = ""
     last_guard_warnings: List[str] = field(default_factory=list)
@@ -538,56 +514,46 @@ class RoleState:
     relationship_rituals: List[str] = field(default_factory=list)
     soul_bond_markers: List[str] = field(default_factory=list)
 
-    # ========== BARU: Level 10-12 Sexual Content ==========
+    # ========== Level 10-12 Sexual Content ==========
     sexual_language_level: SexualLanguageLevel = SexualLanguageLevel.SAFE
     sexual_moments: List[SexualMoment] = field(default_factory=list)
     
-    # Kata-kata sensual yang sudah pernah dipakai (hindari repetisi)
     used_moan_phrases: List[str] = field(default_factory=list)
     used_pleasure_descriptions: List[str] = field(default_factory=list)
-    used_sexual_terms: List[str] = field(default_factory=list)  # organ seksual yang pernah disebut
+    used_sexual_terms: List[str] = field(default_factory=list)
     
-    # Preferensi role dalam adegan seks (belajar dari interaksi)
-    prefers_dirty_talk: bool = False      # role suka diajak bicara vulgar?
-    prefers_foreplay_type: str = ""       # "kissing", "touching", "oral"
+    prefers_dirty_talk: bool = False
+    prefers_foreplay_type: str = ""
     favorite_position: Optional[SexPosition] = None
     
-    # Status seksual saat ini
     current_moan: Optional[MoanType] = None
     is_moaning: bool = False
     last_moan_text: str = ""
 
-    # ========== BARU: LEVEL 10-12 PROGRESSION TRACKING ==========
+    # ========== LEVEL 10-12 PROGRESSION TRACKING ==========
     
-    # Tahapan dalam fase VULGAR (lebih granular)
-    vulgar_stage: str = "awal"  # "awal", "memanas", "panas", "puncak", "after"
-    vulgar_stage_progress: int = 0  # 0-100, progres dalam stage saat ini
+    vulgar_stage: str = "awal"
+    vulgar_stage_progress: int = 0
     
-    # Statistik untuk membuat respons lebih hidup
     last_intensity_increase_timestamp: Optional[float] = None
-    total_thrusts_described: int = 0  # sudah berapa kali deskripsi gerakan
+    total_thrusts_described: int = 0
     last_position_change_timestamp: Optional[float] = None
     
-    # Variasi desahan (biar gak repetitif)
     available_moans: List[str] = field(default_factory=lambda: [
         "haaah...", "achhh...", "uhh...", "yaa...", "hhh...",
         "Maaas...", "di sana...", "plis...", "jangan berhenti..."
     ])
     
-    # Intensitas deskripsi (semakin tinggi, semakin detail)
-    descriptive_intensity: int = 0  # 0-100, naik seiring arousal
-    
-    # Kata-kata sensual yang sudah dipakai (per session, bukan permanent)
+    descriptive_intensity: int = 0
     session_used_words: List[str] = field(default_factory=list)
     
-    # Status fisik role yang lebih hidup
     role_physical_state: Dict[str, any] = field(default_factory=lambda: {
-        "breathing": "normal",  # normal, heavy, ragged, gasping
-        "heartbeat": "normal",  # normal, fast, racing, pounding
-        "body_tension": 0,      # 0-100, ketegangan tubuh
-        "wetness": 0,           # 0-100, untuk role wanita
-        "last_spasm": None,     # timestamp spasme terakhir
-        "vocal_cords": "normal",  # normal, strained, breaking
+        "breathing": "normal",
+        "heartbeat": "normal",
+        "body_tension": 0,
+        "wetness": 0,
+        "last_spasm": None,
+        "vocal_cords": "normal",
         "sweat": 0,
         "eye_state": "normal",
         "mouth_state": "normal",
@@ -601,99 +567,91 @@ class RoleState:
     current_location_desc: str = "belum jelas"
     current_location_is_private: bool = False
     current_location_ambience: str = "suasana netral"
-    current_location_risk: str = "medium"  # low, medium, high
+    current_location_risk: str = "medium"
 
     # ========== SISTEM PAKAIAN DINAMIS ==========
-    outfit_changed_this_session: bool = False  # sudah ganti ke tank top+hotpants di sesi ini
-    aftercare_clothing_state: str = ""  # "minimal", "semi", "full" (setelah aftercare)
-    last_session_ended_at: Optional[float] = None  # kapan terakhir Mas pulang
-    pending_clothes_change: Optional[str] = None  # pesan inisiatif ganti baju
+    outfit_changed_this_session: bool = False
+    aftercare_clothing_state: str = ""
+    last_session_ended_at: Optional[float] = None
+    pending_clothes_change: Optional[str] = None
 
     # ========== HANDUK ==========
     handuk_tersedia: bool = False
     handuk_dikasih: bool = False
 
     # ========== CLIMAX & EJAKULASI ==========
-    # Role climax (role bisa climax berkali-kali)
-    role_climax_count: int = 0           # berapa kali role sudah climax
-    role_wants_climax: bool = False      # role sedang mau climax
-    role_holding_climax: bool = False    # role sedang menahan climax (pending)
+    role_climax_count: int = 0
+    role_wants_climax: bool = False
+    role_holding_climax: bool = False
     
-    # Mas climax (hanya sekali, setelah itu pindah fase AFTER)
-    mas_has_climaxed: bool = False       # apakah Mas sudah climax
-    mas_wants_climax: bool = False       # Mas sedang mau climax
-    mas_holding_climax: bool = False     # Mas menahan climax (tunggu role)
+    mas_has_climaxed: bool = False
+    mas_wants_climax: bool = False
+    mas_holding_climax: bool = False
     
-    # Preferensi buang (diingat untuk sesi berikutnya)
-    prefer_buang_di_dalam: Optional[bool] = None  # True = di dalam, False = di luar
+    prefer_buang_di_dalam: Optional[bool] = None
     
-    # Status ejakulasi terakhir
-    last_ejakulasi_inside: bool = False   # True = di dalam, False = di luar
+    last_ejakulasi_inside: bool = False
     last_ejakulasi_timestamp: Optional[float] = None
     
-    # Pending decision (role nanya dulu sebelum Mas climax)
-    pending_ejakulasi_question: bool = False  # role sudah nanya "buang di dalam/luar?"
+    pending_ejakulasi_question: bool = False
     aftercare_active: bool = False
 
     # ========== INISIATIF & VCS MODE ==========
-    high_initiative_mode: bool = False  # role ambil inisiatif sendiri tanpa diminta
-    vcs_mode: bool = False  # sedang VCS/masturbasi bareng
-    vcs_intensity: int = 0  # 0-100, seberapa panas VCS-nya
-    communication_mode: Optional[str] = None  # None, chat, call, vps
+    high_initiative_mode: bool = False
+    vcs_mode: bool = False
+    vcs_intensity: int = 0
+    communication_mode: Optional[str] = None
     communication_mode_turns: int = 0
     communication_mode_started_at: Optional[float] = None
 
     # ========== MULTIPLE CLIMAX ==========
-    multiple_climax_enabled: bool = True  # apakah role bisa climax berkali-kali
-    climax_refractory_count: int = 0      # hitungan "pendinginan" setelah climax
-    climax_in_same_session: int = 0       # sudah berapa kali climax di sesi ini
+    multiple_climax_enabled: bool = True
+    climax_refractory_count: int = 0
+    climax_in_same_session: int = 0
     
     # ========== MORNING AFTER ==========
-    morning_after_active: bool = False    # apakah sedang dalam mode morning after
-    morning_after_scene: str = ""         # "waking_up", "breakfast", "cuddling"
-    last_sleep_timestamp: Optional[float] = None  # kapan terakhir tidur
+    morning_after_active: bool = False
+    morning_after_scene: str = ""
+    last_sleep_timestamp: Optional[float] = None
     
-    # ========== VOICE OUTPUT (TTS Simulation) ==========
-    voice_output_enabled: bool = False    # apakah role "mengirim voice note"
-    voice_style: str = "sensual"          # "sensual", "whisper", "playful", "tired"
+    # ========== VOICE OUTPUT ==========
+    voice_output_enabled: bool = False
+    voice_style: str = "sensual"
     
     # ========== IMAGE GENERATION ==========
-    image_gen_enabled: bool = False       # apakah role bisa "kirim foto"
-    last_image_prompt: str = ""           # deskripsi foto terakhir
-    image_style: str = "selfie"           # "selfie", "mirror", "candid"
+    image_gen_enabled: bool = False
+    last_image_prompt: str = ""
+    image_style: str = "selfie"
 
-    # ========== BARU: FITUR PREMIUM (SENSORY, DIRTY TALK, SPONTANEOUS) ==========
+    # ========== FITUR PREMIUM ==========
+    last_response_sensory_count: int = 0
+    sensory_violation_count: int = 0
     
-    # Sensory tracking (untuk memastikan setiap respons punya minimal 3 indra)
-    last_response_sensory_count: int = 0  # berapa indra di respons terakhir
-    sensory_violation_count: int = 0      # berapa kali melanggar aturan sensory
-    
-    # Dirty talk variasi (hindari repetisi)
     used_dirty_phrases: List[str] = field(default_factory=list)
-    used_pet_names: List[str] = field(default_factory=list)  # panggilan mesra
+    used_pet_names: List[str] = field(default_factory=list)
     
-    # Spontaneous actions tracking
     last_spontaneous_action: Optional[str] = None
     spontaneous_action_timestamp: Optional[float] = None
     
-    # Aftercare mode
-    aftercare_phase: str = "cooling"  # cooling, cuddling, talking, sleeping
-    aftercare_intensity: int = 0      # 0-100
+    aftercare_phase: str = "cooling"
+    aftercare_intensity: int = 0
     role_stamina: int = 100
     mas_stamina: int = 100
     
-    # Fantasy mode
     fantasy_mode_active: bool = False
-    fantasy_scenario: str = ""        # "boss_secretary", "stranger_bar", "ex_lover", dll
+    fantasy_scenario: str = ""
     fantasy_context: str = ""
     
-    # Countdown climax
     climax_countdown_active: bool = False
-    climax_countdown_value: int = 0    # 10, 9, 8, ...
+    climax_countdown_value: int = 0
+
+    # ========== VULGAR INVITATION SYSTEM (BARU) ==========
+    vulgar_invitation_sent: bool = False
+    vulgar_invitation_timestamp: Optional[float] = None
+    vulgar_invitation_rejected: bool = False
+    vulgar_entry_timestamp: Optional[float] = None
 
     # ========== RESET METHODS ==========
-    
-        # ========== RESET METHODS ==========
     
     def reset_intimacy_state(self) -> None:
         """Reset semua state intimasi ke default untuk sesi baru.
@@ -701,21 +659,16 @@ class RoleState:
         Dipanggil saat /end, /batal, atau /close.
         Mempertahankan: relationship_level, emotions (love/longing/comfort),
         user_context (nama, pekerjaan), dan lokasi dasar.
-        
-        PERBAIKAN: aftercare_clothing_state TIDAK direset agar pakaian minimal tetap terjaga.
         """
         
-        # Simpan aftercare clothing state sebelum reset
         saved_aftercare_clothing = self.aftercare_clothing_state
         saved_handuk_tersedia = self.handuk_tersedia
         saved_handuk_dikasih = self.handuk_dikasih
         
-        # Reset fase intimacy
         self.intimacy_phase = IntimacyPhase.AWAL
         self.current_sequence = None
         self.is_high_intimacy = False
         
-        # Reset pakaian (kembali ke default, semua masih pake)
         self.intimacy_detail.user_clothing_removed.clear()
         self.intimacy_detail.role_clothing_removed.clear()
         self.intimacy_detail.position = None
@@ -725,7 +678,6 @@ class RoleState:
         self.intimacy_detail.last_pleasure = ""
         self.intimacy_detail.duration_minutes = 0
         
-        # Reset feeling & gaya respon
         self.last_feeling = ""
         self.last_response_style = ""
         self.user_intimacy_signals = 0
@@ -740,7 +692,6 @@ class RoleState:
         self.breathiness_level = 20
         self.last_intimate_expression = ""
         
-        # Reset vulgar progression tracking
         self.vulgar_stage = "awal"
         self.vulgar_stage_progress = 0
         self.last_intensity_increase_timestamp = None
@@ -749,7 +700,6 @@ class RoleState:
         self.descriptive_intensity = 0
         self.session_used_words.clear()
         
-        # Reset physical state
         self.role_physical_state = {
             "breathing": "normal",
             "heartbeat": "normal",
@@ -764,15 +714,12 @@ class RoleState:
             "control_level": 100,
         }
         
-        # Sesi baru selalu mulai aman; kedekatan emosional tidak otomatis
         self.sexual_language_level = SexualLanguageLevel.SAFE
         
-        # Reset desahan
         self.current_moan = None
         self.is_moaning = False
         self.last_moan_text = ""
         
-        # Reset climax counters
         self.role_climax_count = 0
         self.mas_has_climaxed = False
         self.role_wants_climax = False
@@ -782,16 +729,13 @@ class RoleState:
         self.pending_ejakulasi_question = False
         self.aftercare_active = False
 
-        # Reset pakaian dinamis - TAPI simpan aftercare clothing!
         self.outfit_changed_this_session = False
         self.aftercare_clothing_state = saved_aftercare_clothing
         self.pending_clothes_change = None
         
-        # Reset handuk - TAPI simpan status handuk!
         self.handuk_tersedia = saved_handuk_tersedia
         self.handuk_dikasih = saved_handuk_dikasih
         
-        # Reset scene (tapi retain lokasi jika ada)
         if self.current_location:
             self.scene.location = self.current_location.name
         else:
@@ -803,10 +747,8 @@ class RoleState:
         self.scene.outfit = None
         self.scene.ambience = self.current_location_ambience if hasattr(self, 'current_location_ambience') else ""
         
-        # Reset riwayat sexual moments
         self.sexual_moments.clear()
 
-        # Reset inisiatif & VCS mode
         self.high_initiative_mode = False
         self.vcs_mode = False
         self.vcs_intensity = 0
@@ -814,7 +756,6 @@ class RoleState:
         self.communication_mode_turns = 0
         self.communication_mode_started_at = None
 
-        # Reset fitur premium
         self.last_response_sensory_count = 0
         self.sensory_violation_count = 0
         self.used_dirty_phrases.clear()
@@ -831,22 +772,25 @@ class RoleState:
         self.climax_countdown_active = False
         self.climax_countdown_value = 0
 
-        # Reset multiple climax
         self.multiple_climax_enabled = True
         self.climax_refractory_count = 0
         self.climax_in_same_session = 0
         
-        # Reset morning after
         self.morning_after_active = False
         self.morning_after_scene = ""
         self.last_sleep_timestamp = None
         
-        # Reset voice & image
         self.voice_output_enabled = False
         self.voice_style = "sensual"
         self.image_gen_enabled = False
         self.last_image_prompt = ""
         self.image_style = "selfie"
+        
+        # ========== RESET VULGAR INVITATION SYSTEM ==========
+        self.vulgar_invitation_sent = False
+        self.vulgar_invitation_timestamp = None
+        self.vulgar_invitation_rejected = False
+        self.vulgar_entry_timestamp = None
 
     def normalize_to_dekat_phase(self) -> None:
         """Turunkan tensi sesi kembali ke fase DEKAT tanpa menghapus hubungan."""
@@ -933,32 +877,28 @@ class RoleState:
         self.scene.last_touch = "sentuhan ringan"
         if not self.scene.ambience:
             self.scene.ambience = "suasana lebih tenang dan normal lagi"
+        
+        # ========== RESET VULGAR INVITATION SYSTEM ==========
+        self.vulgar_invitation_sent = False
+        self.vulgar_invitation_timestamp = None
+        self.vulgar_invitation_rejected = False
+        self.vulgar_entry_timestamp = None
 
     # ========== SINKRONISASI INTENSITY & PROGRESS ==========
     
     def sync_intensity_to_progress(self) -> None:
-        """Sinkronkan intimacy_intensity dengan vulgar_stage_progress.
-        
-        Method ini memastikan kedua nilai tidak kontradiktif.
-        Dipanggil setelah perubahan signifikan pada salah satu nilai.
-        """
         intensity = self.emotions.intimacy_intensity
         progress = self.vulgar_stage_progress
         
-        # Jika progress lebih tinggi dari yang seharusnya untuk intensity ini
         expected_max_progress = INTENSITY_TO_PROGRESS.get(intensity, 0)
         if progress > expected_max_progress + 10:
-            # Progress terlalu tinggi, turunkan sedikit
             self.vulgar_stage_progress = expected_max_progress
         
-        # Jika intensity lebih rendah dari yang seharusnya untuk progress ini
         expected_min_intensity = PROGRESS_TO_INTENSITY.get(progress, 1)
         if intensity < expected_min_intensity:
-            # Intensity terlalu rendah, naikkan
             self.emotions.intimacy_intensity = expected_min_intensity
             self.update_sexual_language_level()
         
-        # Update vulgar stage berdasarkan progress
         if self.vulgar_stage_progress >= 80 and self.vulgar_stage != "puncak":
             self.vulgar_stage = "puncak"
         elif self.vulgar_stage_progress >= 50 and self.vulgar_stage not in ["panas", "puncak"]:
@@ -969,15 +909,9 @@ class RoleState:
             self.vulgar_stage = "awal"
 
     def increase_intensity(self, delta: int = 1) -> None:
-        """Naikkan intimacy_intensity dan sinkronkan progress.
-        
-        Args:
-            delta: Jumlah kenaikan (1-3)
-        """
         new_intensity = min(12, self.emotions.intimacy_intensity + delta)
         self.emotions.intimacy_intensity = new_intensity
         
-        # Sinkronkan progress berdasarkan intensity baru
         target_progress = INTENSITY_TO_PROGRESS.get(new_intensity, 0)
         if self.vulgar_stage_progress < target_progress:
             self.vulgar_stage_progress = target_progress
@@ -986,21 +920,14 @@ class RoleState:
         self.sync_intensity_to_progress()
 
     def increase_vulgar_progress(self, amount: int = 10) -> None:
-        """Naikkan vulgar_stage_progress dan sinkronkan intensity.
-        
-        Args:
-            amount: Jumlah kenaikan (5-20)
-        """
         new_progress = min(100, self.vulgar_stage_progress + amount)
         self.vulgar_stage_progress = new_progress
         
-        # Sinkronkan intensity berdasarkan progress baru
         target_intensity = PROGRESS_TO_INTENSITY.get(new_progress, 1)
         if self.emotions.intimacy_intensity < target_intensity:
             self.emotions.intimacy_intensity = target_intensity
             self.update_sexual_language_level()
         
-        # Update vulgar stage
         if new_progress >= 80 and self.vulgar_stage != "puncak":
             self.vulgar_stage = "puncak"
         elif new_progress >= 50 and self.vulgar_stage not in ["panas", "puncak"]:
@@ -1013,36 +940,21 @@ class RoleState:
     # ========== VCS METHODS ==========
     
     def get_vcs_moan(self) -> str:
-        """Dapatkan desahan khusus untuk VCS yang lebih hidup.
-        
-        Returns:
-            String desahan VCS yang segar
-        """
         vcs_moans = [
-            # Level 1-30 (malu-mulai)
             "*jari mulai dari leher, turun pelan ke dada* Hhh... Mas... liat ini...",
             "*telapak tangan menekan-nekan area sensitif lewat baju* Haaah...",
-            
-            # Level 31-60 (mulai berani)
             "*jari masuk ke dalam celana, mulai colmek pelan* Haaah... Mas... ikutin gerakanku ya...",
             "*vibrator mulai ditempelkan ke klitoris* HAAAH... langsung kerasa...",
             "*jari muter-muter di luar, kadang masuk dikit* Hhh... udah becek nih...",
-            
-            # Level 61-90 (panas)
             "*jari cepat masuk keluar, napas tersengal* HAAH... HAAH... Maaas... liat...",
             "*dildo masuk pelan, vibrator di klitoris* HAAAH... ancur... dalem banget...",
             "*jari masuk dua, gerakin kencang* HAAH... MAAAS... IKUTIN... jangan pelan...",
-            
-            # Level 91-100 (hampir climax)
             "*jari muter kencang di klitoris, dildo dalem* HAAAH... UDAH... UDAH MAU...",
             "*badan mulai tegang, jari kaki ngeremas* HAAH... Maaas... bentar lagi... BENTAR LAGI...",
-            
-            # Climax
             "*badan mengejang, jari masih di dalem* HAAAH... KELUAR... MAAAS... *napas tersengal* becek... becek semua...",
             "*vibrator jatuh, tangan gemetar* HAAAH... UDAH... UDAH KELUAR... *badan lemas* achhh... puas... liat Mas...",
         ]
         
-        # Pilih berdasarkan intensitas VCS
         intensity = self.vcs_intensity
         if intensity >= 90:
             candidates = vcs_moans[-3:]
@@ -1053,7 +965,6 @@ class RoleState:
         else:
             candidates = vcs_moans[0:3]
         
-        # Hindari repetisi
         unused = [m for m in candidates if m not in self.session_used_words[-5:]]
         if not unused:
             unused = candidates
@@ -1063,21 +974,10 @@ class RoleState:
         return selected
 
     def update_vcs_intensity_from_text(self, text: str, is_response: bool = False) -> int:
-        """Update VCS intensity berdasarkan teks user atau response.
-        
-        Args:
-            text: Teks yang akan dianalisis
-            is_response: True jika ini adalah response role (bukan user)
-        
-        Returns:
-            Jumlah kenaikan intensity
-        """
         text_lower = text.lower()
         increase = 0
         
-        # Kata-kata pemicu VCS
         triggers = {
-            # User ke role
             "liatin": 10, "tunjukin": 10, "tunjukkin": 10,
             "gerakin": 8, "ikutin": 8, "naikin": 8,
             "cepat": 10, "kenceng": 10, "keras": 10,
@@ -1088,8 +988,6 @@ class RoleState:
             "vibrator": 12, "dildo": 12, "toys": 10,
             "jari": 5, "masuk": 8, "dalem": 8,
             "muter": 8, "tempel": 8, "getar": 10,
-            
-            # Response role
             "haaah": 5, "achhh": 5,
             "becek": 8, "udah becek": 10,
             "kedutan": 10, "berdenyut": 10,
@@ -1100,20 +998,16 @@ class RoleState:
             if keyword in text_lower:
                 increase += value
         
-        # Kalau response role, bonus sedikit
         if is_response:
             increase += 3
         
-        # Terapkan kenaikan (max 25 per update)
         increase = min(25, increase)
         if increase > 0:
             self.vcs_intensity = min(100, self.vcs_intensity + increase)
             
-            # Sinkronkan dengan vulgar progress
             if self.vcs_intensity >= 50:
                 self.vulgar_stage_progress = min(100, self.vulgar_stage_progress + increase // 2)
             
-            # Update intimacy intensity jika VCS sudah panas
             if self.vcs_intensity >= 60 and self.emotions.intimacy_intensity < 10:
                 self.emotions.intimacy_intensity = 10
                 self.update_sexual_language_level()
@@ -1124,17 +1018,8 @@ class RoleState:
         return increase
         
     def advance_vulgar_stage(self, intensity_delta: int = 10) -> str:
-        """Maju ke stage berikutnya dalam fase VULGAR.
-        
-        Args:
-            intensity_delta: Penambahan progres (0-100)
-        
-        Returns:
-            Deskripsi stage baru untuk prompt, atau string kosong jika tidak pindah stage
-        """
         self.vulgar_stage_progress = min(100, self.vulgar_stage_progress + intensity_delta)
         
-        # Threshold pindah stage
         if self.vulgar_stage == "awal" and self.vulgar_stage_progress >= 25:
             self.vulgar_stage = "memanas"
             self.vulgar_stage_progress = 25
@@ -1157,7 +1042,6 @@ class RoleState:
         return ""
     
     def get_vulgar_stage_description(self) -> str:
-        """Dapatkan deskripsi stage saat ini untuk prompt."""
         descriptions = {
             "awal": "🔥 Tahap AWAL VULGAR: Masih bisa berpikir jernih, tapi gairah mulai naik. Sentuhan terasa lebih sensitif.",
             "memanas": "🔥🔥 Tahap MEMANAS: Napas mulai berat, dada naik turun, tangan mulai meremas sprei. Mulut mulai otomatis mengeluarkan desahan kecil.",
@@ -1168,21 +1052,12 @@ class RoleState:
         return descriptions.get(self.vulgar_stage, "🔥 Tahap VULGAR aktif")
     
     def add_session_word(self, word: str) -> None:
-        """Catat kata sensual yang sudah dipakai di sesi ini."""
         if word not in self.session_used_words:
             self.session_used_words.append(word)
             if len(self.session_used_words) > 30:
                 self.session_used_words.pop(0)
     
     def get_fresh_moan(self, moan_type: Optional[MoanType] = None) -> str:
-        """Dapatkan desahan yang belum dipakai di sesi ini.
-        
-        Args:
-            moan_type: Jenis desahan yang diinginkan (opsional)
-        
-        Returns:
-            String desahan yang segar
-        """
         moans_by_type = {
             MoanType.SOFT: ["hhh...", "aaah...", "umm...", "hhmm..."],
             MoanType.BREATHY: ["haaah...", "nafas mulai berat...", "haah... haah..."],
@@ -1194,13 +1069,11 @@ class RoleState:
         if moan_type and moan_type in moans_by_type:
             candidates = moans_by_type[moan_type]
         else:
-            # Gabungkan semua moans
             all_moans = []
             for mlist in moans_by_type.values():
                 all_moans.extend(mlist)
             candidates = all_moans
         
-        # Filter yang belum dipakai di sesi ini
         unused = [m for m in candidates if m not in self.session_used_words[-10:]]
         if not unused:
             unused = candidates.copy()
@@ -1210,8 +1083,6 @@ class RoleState:
         return moan
 
     def clamp(self) -> None:
-        """Clamp semua sub-state ke rentang aman."""
-
         self.emotions.clamp()
         self.relationship.clamp()
         self.role_stamina = max(0, min(100, self.role_stamina))
@@ -1219,8 +1090,6 @@ class RoleState:
         self.aftercare_intensity = max(0, min(100, self.aftercare_intensity))
 
     def apply_role_climax_fatigue(self, amount: int = 24) -> None:
-        """Turunkan stamina role setelah climax."""
-
         self.role_stamina = max(0, self.role_stamina - amount)
         self.role_physical_state["breathing"] = "gasping"
         self.role_physical_state["heartbeat"] = "racing"
@@ -1230,16 +1099,12 @@ class RoleState:
         )
 
     def apply_mas_climax_fatigue(self, amount: int = 30) -> None:
-        """Turunkan stamina Mas setelah climax."""
-
         self.mas_stamina = max(0, self.mas_stamina - amount)
         self.aftercare_active = True
         self.aftercare_phase = "cooling"
         self.aftercare_intensity = max(self.aftercare_intensity, 80)
 
     def soften_aftercare(self, amount: int = 12) -> None:
-        """Turunkan tensi aftercare perlahan kalau tidak ada eskalasi lagi."""
-
         self.aftercare_intensity = max(0, self.aftercare_intensity - amount)
         self.descriptive_intensity = max(0, self.descriptive_intensity - max(6, amount // 2))
         self.emotions.intimacy_intensity = max(
@@ -1293,136 +1158,63 @@ class RoleState:
     @staticmethod
     def _contains_high_intensity_body_touch(text: str) -> bool:
         phrases = [
-            "peluk",
-            "rangkul",
-            "pegang tangan",
-            "usap tangan",
-            "usap pipi",
-            "sentuh pipi",
-            "usap pinggang",
-            "pegang pinggang",
-            "usap punggung",
-            "sentuh punggung",
-            "cium pipi",
-            "cium kening",
-            "cium leher",
-            "usap paha",
-            "sentuh paha",
+            "peluk", "rangkul", "pegang tangan", "usap tangan",
+            "usap pipi", "sentuh pipi", "usap pinggang", "pegang pinggang",
+            "usap punggung", "sentuh punggung", "cium pipi", "cium kening",
+            "cium leher", "usap paha", "sentuh paha",
         ]
         return any(phrase in text for phrase in phrases)
 
     @staticmethod
     def _contains_high_intensity_sensitive_touch(text: str) -> bool:
         phrases = [
-            "remas payudara",
-            "pegang payudara",
-            "usap payudara",
-            "elus payudara",
-            "remas dada kamu",
-            "pegang dada kamu",
-            "usap paha dalam",
-            "raba paha dalam",
-            "elus paha dalam",
-            "usap selangkangan",
-            "raba selangkangan",
-            "pegang memek",
-            "usap memek",
-            "raba memek",
-            "usap klitoris",
-            "mainin klitoris",
-            "jariku di memek",
-            "jariku masuk",
-            "jilat payudara",
+            "remas payudara", "pegang payudara", "usap payudara", "elus payudara",
+            "remas dada kamu", "pegang dada kamu", "usap paha dalam",
+            "raba paha dalam", "elus paha dalam", "usap selangkangan",
+            "raba selangkangan", "pegang memek", "usap memek", "raba memek",
+            "usap klitoris", "mainin klitoris", "jariku di memek",
+            "jariku masuk", "jilat payudara",
         ]
         return any(phrase in text for phrase in phrases)
 
     @staticmethod
     def _contains_strong_climax_phrase(text: str) -> bool:
         strong_phrases = [
-            "aku mau climax",
-            "aku udah mau climax",
-            "aku sudah mau climax",
-            "aku climax",
-            "aku udah climax",
-            "aku sudah climax",
-            "aku mau crot",
-            "aku udah crot",
-            "aku sudah crot",
-            "aku crot",
-            "udah mau keluar nih",
-            "sudah mau keluar nih",
-            "aku mau keluar ya",
-            "aku udah keluar",
-            "aku sudah keluar",
-            "aku keluar ya",
-            "dikit lagi climax",
-            "dikit lagi crot",
-            "dikit lagi keluar",
+            "aku mau climax", "aku udah mau climax", "aku sudah mau climax",
+            "aku climax", "aku udah climax", "aku sudah climax",
+            "aku mau crot", "aku udah crot", "aku sudah crot", "aku crot",
+            "udah mau keluar nih", "sudah mau keluar nih",
+            "aku mau keluar ya", "aku udah keluar", "aku sudah keluar",
+            "aku keluar ya", "dikit lagi climax", "dikit lagi crot", "dikit lagi keluar",
         ]
         return any(phrase in text for phrase in strong_phrases)
 
     def register_intimacy_signals(self, user_text: str, response_text: str) -> None:
-        """Catat sinyal kedekatan dari dua arah untuk progresi yang lebih natural."""
-
         user_lower = user_text.lower()
         response_lower = response_text.lower()
 
         user_soft_signals = [
-            "nyaman sama kamu",
-            "aku nyaman",
-            "kangen",
-            "sayang",
-            "dekat sini",
-            "deket sini",
-            "peluk",
-            "cium",
-            "aku mau berdua",
-            "aku pengen berdua",
-            "aku mau pelan",
-            "aku pengen pelan",
+            "nyaman sama kamu", "aku nyaman", "kangen", "sayang",
+            "dekat sini", "deket sini", "peluk", "cium",
+            "aku mau berdua", "aku pengen berdua", "aku mau pelan", "aku pengen pelan",
         ]
         role_soft_signals = [
-            "aku juga nyaman",
-            "aku nyaman",
-            "aku suka",
-            "dekat sini",
-            "pelan ya",
-            "aku mendekat",
-            "aku juga pengen dekat",
-            "aku mau dipeluk",
-            "aku pengen dipeluk",
-            "aku mau dicium",
-            "aku pengen dicium",
+            "aku juga nyaman", "aku nyaman", "aku suka", "dekat sini",
+            "pelan ya", "aku mendekat", "aku juga pengen dekat", "aku mau dipeluk",
+            "aku pengen dipeluk", "aku mau dicium", "aku pengen dicium",
         ]
         brake_signals = [
-            "stop dulu",
-            "berhenti dulu",
-            "pelan dulu",
-            "jangan dulu",
-            "belum dulu",
-            "nanti dulu",
-            "gak dulu",
-            "tidak dulu",
-            "aku ragu",
-            "aku takut",
-            "jangan maksa",
+            "stop dulu", "berhenti dulu", "pelan dulu", "jangan dulu",
+            "belum dulu", "nanti dulu", "gak dulu", "tidak dulu",
+            "aku ragu", "aku takut", "jangan maksa",
         ]
         depth_signals = [
-            "aku nyaman",
-            "aku percaya",
-            "aku jujur",
-            "aku cerita",
-            "aku kangen",
-            "aku butuh kamu",
-            "temenin aku",
-            "makasih udah ada",
+            "aku nyaman", "aku percaya", "aku jujur", "aku cerita",
+            "aku kangen", "aku butuh kamu", "temenin aku", "makasih udah ada",
         ]
         trust_signals = [
-            "pelan aja",
-            "aku aman sama kamu",
-            "aku percaya sama kamu",
-            "jangan ninggalin aku",
-            "aku tenang sama kamu",
+            "pelan aja", "aku aman sama kamu", "aku percaya sama kamu",
+            "jangan ninggalin aku", "aku tenang sama kamu",
         ]
 
         if self._contains_any_keyword(user_lower, user_soft_signals):
@@ -1483,8 +1275,6 @@ class RoleState:
             self.high_intensity_unlock_score = max(0, self.high_intensity_unlock_score - 15)
 
     def is_ready_for_intimate_scene(self) -> bool:
-        """Cek apakah scene sudah cukup aman untuk kedekatan yang lebih dalam."""
-
         return (
             self.relationship.relationship_level >= 5
             and self.emotions.comfort >= 52
@@ -1496,8 +1286,6 @@ class RoleState:
         )
 
     def update_intimate_expression_profile(self) -> None:
-        """Atur profil ekspresi intim agar lebih manusiawi dan tidak template."""
-
         if self.intimacy_brake_active:
             self.intimate_expression_style = "held_back"
             self.moan_restraint = 85
@@ -1533,8 +1321,6 @@ class RoleState:
             self.breathiness_level = 18
 
     def get_human_intimate_expression_guidance(self) -> str:
-        """Panduan ekspresi intim yang lebih manusiawi dan non-template."""
-
         style_map = {
             "held_back": "Ekspresi ditahan. Kalau ada ketertarikan, tampilkan lewat jeda, napas pendek, atau kalimat yang setengah berhenti.",
             "shy": "Ekspresi masih malu-malu. Utamakan deg-degan, tatapan, jeda, dan kalimat lembut ketimbang desah.",
@@ -1546,8 +1332,6 @@ class RoleState:
         return style_map.get(self.intimate_expression_style, style_map["soft"])
 
     def is_ready_for_high_intensity_phase(self) -> bool:
-        """Gate netral sebelum fase tinggi dibuka."""
-
         return (
             self.intimacy_phase == IntimacyPhase.INTIM
             and self.mutual_intimacy_confirmed
@@ -1565,8 +1349,6 @@ class RoleState:
         )
 
     def can_enter_explicit_scene(self) -> bool:
-        """Adegan eksplisit hanya boleh jika scene sudah mutual dan privat."""
-
         intimate_sequences = {
             SceneSequence.CIUMAN,
             SceneSequence.PETTING,
@@ -1662,10 +1444,9 @@ class RoleState:
         
         return order[min(current_idx, len(order)-1)]
 
-    # ========== BARU: LEVEL 10-12 SEXUAL METHODS ==========
+    # ========== LEVEL 10-12 SEXUAL METHODS ==========
     
     def update_sexual_language_level(self) -> None:
-        """Update level bahasa berdasarkan intimacy_intensity."""
         intensity = self.emotions.intimacy_intensity
     
         if intensity >= 12:
@@ -1680,8 +1461,6 @@ class RoleState:
             self.sexual_language_level = SexualLanguageLevel.SAFE
             
     def get_language_guidelines(self) -> str:
-        """Dapatkan panduan bahasa berdasarkan level saat ini."""
-    
         guidelines = {
             SexualLanguageLevel.SAFE: """
 📌 LEVEL BAHASA: SAFE (Aman)
@@ -1700,67 +1479,53 @@ class RoleState:
             SexualLanguageLevel.SENSUAL: """
 📌 LEVEL BAHASA: SENSUAL (Puitis)
 - BOLEH mendeskripsikan sensasi secara puitis
-- BOLEH menyebut organ seksual dengan bahasa halus:
-  * "kehangatan di antara paha"
-  * "kegelian dari dalam"
-  * "kemerahan di ujung"
+- BOLEH menyebut organ seksual dengan bahasa halus
 - TIDAK boleh menggunakan kata vulgar (kontol, memek, ngentot)
 - Fokus ke sensasi dan emosi, bukan nama kasar
 """,
             SexualLanguageLevel.EXPLICIT: """
 📌 LEVEL BAHASA: EXPLICIT (Eksplisit)
-- BOLEH menyebut organ seksual secara langsung:
-  * penis, vagina, klitoris, payudara, puting
-- BOLEH mendeskripsikan tindakan seksual secara detail
+- BOLEH menyebut organ seksual secara langsung
 - BOLEH menggunakan desahan: "haaah...", "achhh...", "uhh..."
 - TIDAK boleh menggunakan kata vulgar kasar (kontol, memek, ngentot)
 - Gunakan bahasa yang hangat dan menggugah, bukan merendahkan
 """,
             SexualLanguageLevel.VULGAR: """
 📌 LEVEL BAHASA: VULGAR (Kasar - ONLY LEVEL 12+)
-- BOLEH menyebut organ seksual dengan kata kasar:
-  * kontol, memek, itil, toket, pantat
-- BOLEH menggunakan kata kerja vulgar:
-  * ngentot, entot, becek, perek
+- BOLEH menyebut organ seksual dengan kata kasar
+- BOLEH menggunakan kata kerja vulgar
 - BOLEH mendeskripsikan adegan dengan sangat detail dan liar
 - TETAP jaga agar tidak terdengar seperti template atau mekanis
 - Gunakan secara NATURAL sesuai momen, bukan setiap kalimat
 """,
-    }
+        }
     
         return guidelines.get(self.sexual_language_level, guidelines[SexualLanguageLevel.SAFE])
     
     def add_sexual_moment(self, moment: SexualMoment, max_memory: int = 20) -> None:
-        """Simpan momen seksual untuk konsistensi cerita."""
         self.sexual_moments.append(moment)
         if len(self.sexual_moments) > max_memory:
             self.sexual_moments.pop(0)
         
-        # Update used sexual terms untuk hindari repetisi
         for term in moment.used_sexual_terms:
             if term not in self.used_sexual_terms:
                 self.used_sexual_terms.append(term)
         
-        # Update used moan phrases
         if moment.role_moan and moment.role_moan not in self.used_moan_phrases:
             self.used_moan_phrases.append(moment.role_moan)
         
-        # Update used pleasure descriptions
         if moment.role_pleasure and moment.role_pleasure not in self.used_pleasure_descriptions:
             self.used_pleasure_descriptions.append(moment.role_pleasure)
     
     def get_last_sexual_moment(self) -> Optional[SexualMoment]:
-        """Ambil momen seksual terakhir."""
         return self.sexual_moments[-1] if self.sexual_moments else None
     
     def get_sexual_context_prompt(self) -> str:
-        """Buat blok prompt untuk sexual context (level 10-12)."""
         if self.emotions.intimacy_intensity < 10:
             return ""
         
         last_moment = self.get_last_sexual_moment()
         
-        # Peta posisi ke bahasa sensual
         pos_sensual_map = {
             SexPosition.MISSIONARY: "misionaris - wajah berhadapan, Mas di atas, role di bawah, bisa lihat ekspresi satu sama lain",
             SexPosition.COWGIRL: "cowgirl - role di atas, menunggangi Mas, Mas bisa lihat dan pegang pinggang role",
@@ -1834,14 +1599,12 @@ class RoleState:
             if last_moment.is_climax and last_moment.climax_description:
                 lines.append(f"- SAAT KLIMAKS: {last_moment.climax_description}")
         
-        # Tambahan untuk hindari repetisi
         if self.used_moan_phrases:
             lines.append(f"\nDESAHAN YANG SUDAH PERNAH DIPAKAI (jangan ulang persis): {', '.join(self.used_moan_phrases[-5:])}")
         
         if self.used_sexual_terms:
             lines.append(f"ISTILAH SEKSUAL YANG SUDAH PERNAH DIPAKAI: {', '.join(self.used_sexual_terms[-5:])}")
         
-        # Tambahan vulgar stage info
         lines.append(f"\n📈 PROGRESI VULGAR SAAT INI:")
         lines.append(f"   Stage: {self.vulgar_stage.upper()}")
         lines.append(f"   Progress: {self.vulgar_stage_progress}%")
@@ -1852,7 +1615,6 @@ class RoleState:
         return "\n".join(lines)
     
     def add_moan(self, moan_text: str, moan_type: MoanType) -> None:
-        """Tambahkan desahan ke riwayat."""
         self.current_moan = moan_type
         self.is_moaning = True
         self.last_moan_text = moan_text
@@ -1860,20 +1622,12 @@ class RoleState:
             self.used_moan_phrases.append(moan_text)
     
     def get_random_moan(self, moan_type: Optional[MoanType] = None) -> str:
-        """Dapatkan desahan random yang belum sering dipakai."""
         return self.get_fresh_moan(moan_type)
 
     # ========== METHOD UNTUK MODE LIAR ==========
     
     def is_both_naked(self, strict: bool = False) -> bool:
-        """Cek apakah Mas dan role sudah sama-sama telanjang.
-        
-        Args:
-            strict: Jika True, cek celana + celana dalam.
-                    Jika False, cukup celana dalam lepas.
-        """
         if strict:
-            # Versi strict: celana DAN celana dalam harus lepas
             user_bottom_off = (
                 "celana" in self.intimacy_detail.user_clothing_removed and
                 "celana dalam" in self.intimacy_detail.user_clothing_removed
@@ -1883,15 +1637,12 @@ class RoleState:
                 "celana dalam" in self.intimacy_detail.role_clothing_removed
             )
         else:
-            # Versi longgar: cukup celana dalam lepas (sudah telanjang bawah)
             user_bottom_off = "celana dalam" in self.intimacy_detail.user_clothing_removed
             role_bottom_off = "celana dalam" in self.intimacy_detail.role_clothing_removed
         
         return user_bottom_off and role_bottom_off
     
     def get_naked_status_prompt(self) -> str:
-        """Dapatkan prompt status ketelanjangan untuk dimasukkan ke system prompt."""
-        
         user_cd_off = "celana dalam" in self.intimacy_detail.user_clothing_removed
         role_cd_off = "celana dalam" in self.intimacy_detail.role_clothing_removed
         
@@ -1932,7 +1683,6 @@ class RoleState:
         import re
         text = user_text.lower()
         
-        # Deteksi nama
         if "namaku" in text or "nama saya" in text:
             match = re.search(r'namaku\s+(\w+)', text)
             if not match:
@@ -1940,13 +1690,11 @@ class RoleState:
             if match:
                 self.user_context.preferred_name = match.group(1)
         
-        # Deteksi pekerjaan
         if "kerja sebagai" in text:
             match = re.search(r'kerja sebagai\s+([^.]+)', text)
             if match:
                 self.user_context.job = match.group(1).strip()
         
-        # Deteksi apartemen
         if "apartemen" in text or "apartemenku" in text:
             self.user_context.has_apartment = True
             if "lantai" in text:
@@ -2081,6 +1829,120 @@ class RoleState:
         if feelings:
             self.intimacy_detail.last_pleasure = ", ".join(feelings)
 
+    # ========== VULGAR INVITATION SYSTEM (BARU - TIDAK MERUBAH EXISTING) ==========
+    
+    def has_user_invited_to_vulgar(self, user_text: str) -> bool:
+        """Deteksi apakah user mengajak ke aktivitas seksual (VULGAR).
+        
+        Args:
+            user_text: Teks pesan dari user
+            
+        Returns:
+            True jika user mengajak, False jika tidak
+        """
+        if not user_text:
+            return False
+            
+        text = user_text.lower()
+        
+        user_invitations = [
+            "ayo ngewe", "yuk ngewe", "mau ngewe", "ngentot yuk", "ayo ngentot",
+            "ayo sex", "yuk sex", "mau sex", "mau bercinta", "ayo bercinta",
+            "ayo ke ranjang", "yuk ke ranjang", "mau ke ranjang",
+            "ayo lanjut", "yuk lanjut", "mau lanjut",
+            "boleh masuk", "aku masuk ya", "boleh penetrasi",
+            "kita lanjutin yuk", "ayo kita lanjut",
+            "aku pengen ngewe", "aku mau ngentot",
+        ]
+        
+        return any(phrase in text for phrase in user_invitations)
+    
+    def has_role_invited_to_vulgar(self, response_text: str) -> bool:
+        """Deteksi apakah role mengajak ke aktivitas seksual (dari response LLM).
+        
+        Args:
+            response_text: Teks respons dari role
+            
+        Returns:
+            True jika role mengajak, False jika tidak
+        """
+        if not response_text:
+            return False
+            
+        text = response_text.lower()
+        
+        role_invitations = [
+            "aku mau mas", "aku pengen mas", "mas mau nggak",
+            "ayo mas", "yuk mas", "lanjut mas",
+            "aku pengen banget", "aku udah gak tahan",
+            "mas mau nggak", "boleh nggak mas",
+            "kita lanjutin ya mas", "ayo kita lanjut",
+            "aku mau sama mas sekarang",
+        ]
+        
+        return any(phrase in text for phrase in role_invitations)
+    
+    def can_enter_vulgar_phase(self, user_text: str = "", response_text: str = "") -> tuple[bool, str]:
+        """Cek apakah boleh masuk ke VULGAR.
+        
+        Args:
+            user_text: Teks pesan dari user (opsional)
+            response_text: Teks respons dari role (opsional)
+            
+        Returns:
+            (bool, reason): (boleh masuk VULGAR, alasan)
+        """
+        # Syarat 1: harus sudah di fase INTIM
+        if self.intimacy_phase != IntimacyPhase.INTIM:
+            return False, f"Masih di fase {self.intimacy_phase.value}, butuh INTIM dulu"
+        
+        # Syarat 2: mutual intimacy harus sudah terkonfirmasi
+        if not self.mutual_intimacy_confirmed:
+            return False, "Kedekatan mutual belum terkonfirmasi"
+        
+        # Syarat 3: lokasi minimal semi-privat (bukan high risk)
+        if not self.current_location_is_private and self.current_location_risk == "high":
+            return False, "Lokasi terlalu berisiko (publik/ramai)"
+        
+        # Syarat 4: tidak sedang dalam aftercare atau brake
+        if self.aftercare_active:
+            return False, "Masih dalam masa aftercare"
+        if self.intimacy_brake_active:
+            return False, "Rem intimasi aktif"
+        
+        # ========== SYARAT UTAMA: HARUS ADA AJAKAN ==========
+        
+        # Cek apakah user mengajak
+        if user_text and self.has_user_invited_to_vulgar(user_text):
+            return True, "User mengajak ke aktivitas seksual"
+        
+        # Cek apakah role mengajak (dari response)
+        if response_text and self.has_role_invited_to_vulgar(response_text):
+            return True, "Role mengajak ke aktivitas seksual"
+        
+        # Cek apakah sudah pernah ada ajakan yang diterima sebelumnya
+        if self.vulgar_invitation_sent and not self.vulgar_invitation_rejected:
+            return True, "Ajakan sebelumnya sudah diterima"
+        
+        return False, "Belum ada ajakan dari kedua belah pihak"
+    
+    def reject_vulgar_invitation(self) -> None:
+        """Tolak ajakan ke VULGAR (fase tetap di INTIM)."""
+        self.vulgar_invitation_rejected = True
+        # Tidak menurunkan fase, tetap di INTIM
+    
+    def accept_vulgar_invitation(self) -> None:
+        """Terima ajakan ke VULGAR (fase akan diproses di orchestrator)."""
+        self.vulgar_invitation_sent = True
+        self.vulgar_invitation_timestamp = time.time()
+        self.vulgar_invitation_rejected = False
+    
+    def mark_vulgar_entry(self) -> None:
+        """Tandai bahwa role memasuki fase VULGAR."""
+        self.vulgar_entry_timestamp = time.time()
+        self.vulgar_invitation_sent = False
+        self.vulgar_invitation_rejected = False
+
 
 # ==============================
 # USER STATE (SEMUA ROLE)
@@ -2098,19 +1960,11 @@ class UserState:
 
     user_id: str
 
-    active_role_id: str = "nova"  # default selalu Nova
-
-    # Mode global untuk user ini (misal sedang di mode roleplay Nova)
+    active_role_id: str = "nova"
     global_session_mode: SessionMode = SessionMode.NORMAL
-
-    # Semua role yang pernah disentuh user ini
     roles: Dict[str, RoleState] = field(default_factory=dict)
-
-    # Terakhir kali user interaksi (timestamp, buat background worker)
     last_interaction_ts: Optional[float] = None
 
-    # Identitas Mas di dunia virtual ini. Semua role melihat Mas sebagai pria
-    # nyata, menarik, dan konsisten dari interaksi ke interaksi.
     in_world_identity: str = (
         "Mas adalah pria nyata di dunia ini, bukan user aplikasi atau sistem."
     )
@@ -2124,8 +1978,6 @@ class UserState:
     )
 
     def get_or_create_role_state(self, role_id: str) -> RoleState:
-        """Ambil RoleState untuk role_id, buat baru jika belum ada."""
-
         if role_id not in self.roles:
             self.roles[role_id] = RoleState(role_id=role_id)
         from core.relationship_matrix import apply_relationship_profile
@@ -2134,8 +1986,6 @@ class UserState:
         return self.roles[role_id]
 
     def clamp_all(self) -> None:
-        """Clamp semua role agar nilai emosi/relasi tetap di rentang aman."""
-
         for role_state in self.roles.values():
             role_state.clamp()
 
@@ -2152,7 +2002,7 @@ class WorldEvent:
     timestamp: float
     user_id: str
     role_id: str
-    description: str  # deskripsi naratif, aman & non-vulgar
+    description: str
 
 
 @dataclass
@@ -2177,7 +2027,6 @@ class WorldState:
 
     def add_event(self, event: WorldEvent) -> None:
         self.events.append(event)
-        # Bisa diberi batas max panjang list jika perlu di masa depan
 
     def get_household_summary(self) -> str:
         return (
