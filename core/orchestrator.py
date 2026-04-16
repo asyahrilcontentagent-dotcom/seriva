@@ -2960,9 +2960,11 @@ class Orchestrator:
     # --------------------------------------------------
 
     def _update_scene_for_nova(self, role_state: RoleState, inp: OrchestratorInput) -> None:
-        """Update SceneState Nova secara sangat sederhana."""
+        """Update SceneState Nova dengan eskalasi bertahap."""
 
         scene = role_state.scene
+        t = inp.text.lower()
+        phase = role_state.intimacy_phase
 
         # Baseline sekali saja
         if not scene.location:
@@ -2978,19 +2980,47 @@ class Orchestrator:
         if not scene.physical_distance:
             scene.physical_distance = "sebelahan"
 
-        t = inp.text.lower()
+        # ========== KAMAR / KASUR - ESKALASI BERTAHAP ==========
+        if any(kw in t for kw in ["kamar", "kasur", "ranjang"]):
+            scene.location = "kamar"
+            if phase == IntimacyPhase.VULGAR:
+                scene.posture = "berbaring bersebelahan"
+                scene.activity = "bercengkrama sambil berbaring"
+                scene.ambience = "lampu redup, suasana hangat dan intim"
+            elif phase == IntimacyPhase.INTIM:
+                # Deteksi apakah minta dipangku atau mendekat
+                if any(kw in t for kw in ["duduk dipangku", "naik ke pangkuan", "minta dipangku", "pangku", "deket"]):
+                    scene.posture = "duduk di pangkuan Mas"
+                    scene.activity = "bersandar di dada Mas sambil ngobrol"
+                    scene.ambience = "suasana hangat, napas mulai beradu"
+                    if not hasattr(role_state, 'lap_proximity_established'):
+                        role_state.lap_proximity_established = True
+                else:
+                    scene.posture = "duduk bersebelahan"
+                    scene.activity = "ngobrol santai"
+                    scene.ambience = "suasana kamar yang hangat"
+            else:
+                scene.posture = "duduk bersebelahan"
+                scene.activity = "ngobrol santai"
+                scene.ambience = "suasana kamar yang nyaman"
 
-        # Sentuhan / pelukan / sender
+        # Sentuhan / pelukan / sender (tetap sopan di INTIM)
         if any(word in t for word in ["peluk", "pelukan"]):
-            self.scene_engine.gentle_hug(scene)
-        elif any(word in t for word in ["sender", "nyender"]):
-            self.scene_engine.lean_on_shoulder(scene)
+            if phase == IntimacyPhase.VULGAR:
+                self.scene_engine.gentle_hug(scene)
+            else:
+                scene.last_touch = "pelukan ringan"
+                scene.physical_distance = "dekat"
 
-        # (Opsional) jarak fisik eksplisit dari teks
+        if any(word in t for word in ["sender", "nyender"]):
+            scene.last_touch = "menyender di bahu"
+            scene.physical_distance = "dekat"
+
+        # Jarak fisik eksplisit dari teks
         if any(kw in t for kw in ["mepet", "deket", "dekat", "rapat"]):
             scene.physical_distance = "sangat dekat"
 
-        # (Opsional) outfit sederhana
+        # Outfit sederhana
         if "piyama" in t or "pyjama" in t:
             scene.outfit = "piyama santai yang nyaman"
         elif "dress" in t:
@@ -3005,16 +3035,11 @@ class Orchestrator:
     # --------------------------------------------------
 
     def _update_scene_for_tasha(self, role_state: RoleState, inp: OrchestratorInput) -> None:
-        """Update SceneState untuk Tasha Dietha (ipar_tasha).
-
-        Tujuan:
-        - Kalau belum ada scene, default di rumah keluarga (ruang keluarga / dapur).
-        - Tangkap sinyal pindah lokasi (ruang keluarga â†’ dapur â†’ teras â†’ mobil).
-        - Tangkap jarak fisik & sentuhan kecil ala ipar yang mulai terlalu dekat.
-        """
+        """Update SceneState untuk Tasha Dietha (ipar_tasha)."""
 
         scene = role_state.scene
         t = inp.text.lower()
+        phase = role_state.intimacy_phase
 
         # Default baseline: ruang keluarga di rumah keluarga
         if not scene.location:
@@ -3044,28 +3069,85 @@ class Orchestrator:
             scene.activity = "ngobrol pelan sambil lihat jalan depan rumah"
             scene.ambience = "suasana malam agak sepi, lampu teras kuning hangat"
 
-        # User menyebut kamar
+        # ========== KAMAR - SESUAIKAN DENGAN FASE ==========
         if "kamar" in t or "room" in t:
-            scene.location = "kamar kamu di rumah keluarga"
-            scene.posture = "duduk diatas kasur, berdekatan tubuh bersentuhan"
-            scene.activity = "saling memberi kehangatan"
-            scene.ambience = "pintu terkunci, suasana hening, tirai tertutup, lampu redup"
+            scene.location = "kamar"
+            if phase == IntimacyPhase.VULGAR:
+                scene.posture = "duduk berhadapan di kasur, tubuh berdekatan"
+                scene.activity = "menikmati kebersamaan yang lebih intens"
+                scene.ambience = "lampu redup, suasana hangat dan intim"
+            elif phase == IntimacyPhase.INTIM:
+                scene.posture = "duduk bersebelahan di tepi kasur"
+                scene.activity = "ngobrol santai sambil sesekali melirik"
+                scene.ambience = "suasana kamar yang tenang, lampu tidur menyala pelan"
+            else:
+                scene.posture = "duduk di tepi kasur dengan jarak sopan"
+                scene.activity = "mengobrol biasa"
+                scene.ambience = "suasana kamar yang nyaman"
 
-        # User menyebut tempat tidur
-        if any(kw in t for kw in ["kasur", "ranjang", "bersandar dikasur"]):
-            scene.location = "kamar kamu, kamar mas"
-            scene.posture = "duduk diatas kasur, duduk dipangkuan mas, memeluk payudara menempel"
-            scene.activity = "duduk bersandar dipelukan mas"
-            scene.ambience = "pintu terkunci, suasana hening, tirai tertutup, lampu redup"
-          
-        # User menyebut petting
-        if any(kw in t for kw in ["petting", "duduk diatas mas", "gesekin memek ke kontol mas"]):
-            scene.location = "kasur, sofa"
-            scene.posture = "uduk dipangkuan mas, gesek memek ke kontol mas, memeluk payudara menempel"
-            scene.activity = "menggesek memek ke kontol mas"
-            scene.ambience = "pintu terkunci, suasana hening, tirai tertutup, lampu redup"
+        # ========== KASUR / TEMPAT TIDUR - ESKALASI BERTAHAP ==========
+        if any(kw in t for kw in ["kasur", "ranjang"]):
+            scene.location = "kamar"
+            if phase == IntimacyPhase.VULGAR:
+                scene.posture = "duduk di pangkuan Mas"
+                scene.activity = "berpelukan erat"
+                scene.ambience = "lampu redup, suasana sangat intim"
+            elif phase == IntimacyPhase.INTIM:
+                # Deteksi apakah user minta dipangku atau role inisiatif
+                if any(kw in t for kw in ["duduk dipangku", "naik ke pangkuan", "minta dipangku", "pangku"]):
+                    scene.posture = "duduk di pangkuan Mas"
+                    scene.activity = "bersandar di dada Mas sambil ngobrol"
+                    scene.ambience = "suasana kamar hangat, napas mulai beradu"
+                    # Catat bahwa sudah ada inisiatif mendekat
+                    if not hasattr(role_state, 'lap_proximity_established'):
+                        role_state.lap_proximity_established = True
+                else:
+                    scene.posture = "duduk bersebelahan di kasur"
+                    scene.activity = "ngobrol sambil sesekali bersandar"
+                    scene.ambience = "suasana kamar yang hangat"
+            else:
+                scene.posture = "duduk di tepi kasur dengan jarak sopan"
+                scene.activity = "mengobrol biasa"
+                scene.ambience = "suasana kamar yang nyaman"
 
-        # User menyebut mobil / parkiran â†’ momen berdua di luar rumah
+        # ========== DUDUK DI PANGKUAN / MEMELUK - ESKALASI ==========
+        if any(kw in t for kw in ["duduk dipangku", "naik ke pangkuan", "duduk di pangkuan", "memeluk dari belakang"]):
+            if phase == IntimacyPhase.INTIM:
+                # Di INTIM, ini masih wajar sebagai bentuk kedekatan
+                scene.posture = "duduk di pangkuan Mas"
+                scene.activity = "bersandar di dada Mas sambil ngobrol"
+                scene.ambience = "suasana hangat, napas mulai beradu"
+                if not hasattr(role_state, 'lap_proximity_established'):
+                    role_state.lap_proximity_established = True
+            elif phase == IntimacyPhase.VULGAR:
+                scene.posture = "duduk di pangkuan Mas, tubuh saling menempel"
+                scene.activity = "menikmati kedekatan yang semakin dalam"
+                scene.ambience = "lampu redup, suasana sangat intim"
+
+        # ========== PETTING / SENTUHAN LANJUTAN - HANYA JIKA SUDAH ADA ESKALASI ==========
+        if any(kw in t for kw in ["petting", "gesek", "remas", "usap paha dalam", "usap selangkangan"]):
+            # Cek apakah sudah ada eskalasi (duduk dipangkuan) atau sudah VULGAR
+            has_escalation = getattr(role_state, 'lap_proximity_established', False) or phase == IntimacyPhase.VULGAR
+            
+            if phase == IntimacyPhase.VULGAR:
+                scene.posture = "duduk dipangkuan Mas"
+                scene.activity = "menikmati kedekatan yang semakin dalam"
+                scene.ambience = "lampu redup, suasana sangat intim"
+            elif has_escalation and phase == IntimacyPhase.INTIM:
+                # Masih di INTIM tapi sudah ada eskalasi, user mungkin mencoba memberikan rangsangan
+                # Belum pindah ke VULGAR, tapi catat sebagai pending
+                scene.posture = "duduk di pangkuan Mas"
+                scene.activity = "bernafas lebih berat, tubuh mulai merespon"
+                scene.ambience = "suasana makin hangat, napas beradu"
+                # Catat bahwa user sedang memberikan rangsangan
+                role_state.pending_arousal_signals = getattr(role_state, 'pending_arousal_signals', 0) + 1
+            else:
+                # Belum ada eskalasi, abaikan atau turunkan ke sentuhan ringan
+                scene.posture = "duduk berdekatan"
+                scene.activity = "berpegangan tangan"
+                scene.ambience = "suasana hangat"
+
+        # User menyebut mobil / parkiran → momen berdua di luar rumah
         if "mobil" in t or "parkiran" in t or "parkir" in t:
             scene.location = "mobil Mas di parkiran dekat rumah"
             scene.posture = "duduk di kursi depan, Dietha di samping Mas"
@@ -3089,16 +3171,11 @@ class Orchestrator:
     # --------------------------------------------------
 
     def _update_scene_for_ipeh(self, role_state: RoleState, inp: OrchestratorInput) -> None:
-        """Update SceneState untuk Ipeh (teman_kantor_ipeh).
-
-        Tujuan:
-        - Kalau belum ada scene, default di kantor.
-        - Tangkap sinyal pindah lokasi (kantor â†’ kafe â†’ mobil).
-        - Tangkap sedikit jarak fisik & sentuhan.
-        """
+        """Update SceneState untuk Ipeh (teman_kantor_ipeh) dengan eskalasi bertahap."""
 
         scene = role_state.scene
         t = inp.text.lower()
+        phase = role_state.intimacy_phase
 
         # Default baseline di kantor
         if not scene.location:
@@ -3130,21 +3207,43 @@ class Orchestrator:
             scene.activity = "ngobrol santai sambil siap berangkat"
             scene.ambience = "suasana malam, lampu jalan dari luar kaca"
 
-        # User menyebut kamar
+        # ========== KAMAR - ESKALASI BERTAHAP ==========
         if "kamar" in t or "room" in t:
-            scene.location = "kamar mas di apartemen"
-            scene.posture = "duduk diatas kasur, berdekatan tubuh bersentuhan"
-            scene.activity = "saling memberi kehangatan"
-            scene.ambience = "suasana hening, tirai tertutup, lampu redup"
+            scene.location = "kamar apartemen"
+            if phase == IntimacyPhase.VULGAR:
+                scene.posture = "duduk berhadapan di kasur"
+                scene.activity = "menikmati kebersamaan"
+                scene.ambience = "lampu redup, suasana intim"
+            elif phase == IntimacyPhase.INTIM:
+                if any(kw in t for kw in ["duduk dipangku", "naik ke pangkuan", "minta dipangku", "pangku"]):
+                    scene.posture = "duduk di pangkuan Mas"
+                    scene.activity = "bersandar di dada Mas sambil ngobrol"
+                    scene.ambience = "suasana hangat, napas mulai beradu"
+                    if not hasattr(role_state, 'lap_proximity_established'):
+                        role_state.lap_proximity_established = True
+                else:
+                    scene.posture = "duduk bersebelahan di kasur"
+                    scene.activity = "ngobrol santai"
+                    scene.ambience = "suasana kamar yang nyaman"
+            else:
+                scene.posture = "duduk bersebelahan di kasur"
+                scene.activity = "ngobrol santai"
+                scene.ambience = "suasana kamar yang nyaman"
 
-        # User menyebut tempat tugas
+        # ========== TEMPAT TUGAS / LEMBUR - HANYA VULGAR YANG INTIM ==========
         if any(kw in t for kw in ["tugas", "lembur", "pulang malam"]):
-            scene.location = "gudang kantor"
-            scene.posture = "duduk diatas sofa, duduk dipangkuan mas, memeluk payudara menempel"
-            scene.activity = "menggesek memek ke kontol mas"
-            scene.ambience = "pintu terkunci, suasana hening, duduk disofa, lampu redup"
+            if phase == IntimacyPhase.VULGAR:
+                scene.location = "ruang kantor yang sepi"
+                scene.posture = "duduk berdekatan di sofa kantor"
+                scene.activity = "melepas penat setelah lembur"
+                scene.ambience = "lampu kantor redup, suasana hening"
+            else:
+                scene.location = "ruang kantor"
+                scene.posture = "duduk di kursi masing-masing"
+                scene.activity = "menyelesaikan tugas"
+                scene.ambience = "suasana kantor malam yang sepi"
 
-        # Jarak fisik & sentuhan halus ala ipar
+        # Jarak fisik & sentuhan halus
         if any(kw in t for kw in ["mepet", "deket", "dekat", "rapat"]):
             scene.physical_distance = "sangat dekat, paha bersentuhan"
 
@@ -3152,25 +3251,20 @@ class Orchestrator:
             scene.last_touch = "genggam tangan singkat dan lama"
 
         if any(kw in t for kw in ["sender", "nyender", "sandaran"]):
-            scene.last_touch = "Dietha menyender pelan ke dada Mas, minta peluk"
+            scene.last_touch = "Ipeh menyender pelan ke bahu Mas"
 
         scene.last_scene_update_ts = inp.timestamp
-
+    
     # --------------------------------------------------
     # INTERNAL HELPERS: SCENE UNTUK WIDYA (TEMAN LAMA)
     # --------------------------------------------------
 
     def _update_scene_for_widya(self, role_state: RoleState, inp: OrchestratorInput) -> None:
-        """Update SceneState untuk Widya (teman_lama_widya).
-
-        Tujuan:
-        - Kalau belum ada scene, default di tempat nostalgia (kafe / tempat nongkrong lama).
-        - Tangkap sinyal pindah lokasi (kafe â†’ mobil â†’ balkon/pantai).
-        - Tangkap sedikit jarak fisik & sentuhan ala teman lama yang mulai dekat lagi.
-        """
+        """Update SceneState untuk Widya (teman_lama_widya) dengan eskalasi bertahap."""
 
         scene = role_state.scene
         t = inp.text.lower()
+        phase = role_state.intimacy_phase
 
         # Default baseline: kafe tenang / tempat nongkrong nostalgia
         if not scene.location:
@@ -3186,41 +3280,60 @@ class Orchestrator:
         if not scene.physical_distance:
             scene.physical_distance = "cukup dekat, bahu hampir bersentuhan"
 
-        # User merasa sumpek / butuh udara segar â†’ pindah ke luar
+        # User merasa sumpek / butuh udara segar → pindah ke luar
         if any(kw in t for kw in ["sumpek", "jenuh", "bosen", "bosan"]):
             scene.location = "teras kafe yang menghadap jalan"
             scene.posture = "duduk bersebelahan menghadap luar"
             scene.activity = "ngobrol sambil lihat lampu jalan"
             scene.ambience = "udara malam yang agak sejuk, lampu jalan berkelip"
 
-        # Mention kafe / coffee shop eksplisit (kalau user nyebut lagi)
+        # Mention kafe / coffee shop eksplisit
         if "kafe" in t or "cafe" in t or "cafÃ©" in t or "coffee shop" in t:
             scene.location = "kafe tenang dengan sofa empuk"
-            scene.posture = "duduk miring sedikit ke arah Mas"
-            scene.activity = "ngobrol nostalgia sambil minum kopi dan ngemil"
-            scene.ambience = "lampu temaram, musik pelan, suasana intim tapi tetap publik"
+            scene.posture = "duduk bersebelahan di sofa"
+            scene.activity = "ngobrol nostalgia sambil minum kopi"
+            scene.ambience = "lampu temaram, musik pelan"
 
-        # Mention mobil â†’ nostalgia di mobil / pulang bareng
+        # Mention mobil → nostalgia di mobil / pulang bareng
         if "mobil" in t or "parkiran" in t:
             scene.location = "mobil Mas di parkiran kafe"
             scene.posture = "duduk di kursi depan, Widya di samping Mas"
-            scene.activity = "ngobrol santai sebelum pulang, kadang saling melirik"
+            scene.activity = "ngobrol santai sebelum pulang"
             scene.ambience = "suasana malam, lampu jalan terlihat dari kaca depan"
 
-        # Mention balkon / rooftop / pantai â†’ spot nostalgia romantis
+        # Mention balkon / rooftop / pantai → spot nostalgia romantis
         if any(kw in t for kw in ["balkon", "rooftop", "atap"]):
             scene.location = "rooftop gedung dengan city lights di kejauhan"
-            scene.posture = "berdiri dekat pagar, bahu hampir bersentuhan"
+            scene.posture = "berdiri bersebelahan di pagar"
             scene.activity = "ngobrol pelan sambil lihat lampu kota"
-            scene.ambience = "angin malam sejuk, suasana agak sepi dan intim"
+            scene.ambience = "angin malam sejuk, suasana agak sepi"
 
         if "pantai" in t or "losari" in t:
             scene.location = "pinggir pantai yang tenang di malam hari"
             scene.posture = "duduk bersebelahan di bangku menghadap laut"
             scene.activity = "ngobrol nostalgia sambil dengar suara ombak"
-            scene.ambience = "suasana malam, angin laut dan lampu kota dari kejauhan"
+            scene.ambience = "suasana malam, angin laut"
 
-        # Jarak fisik & sentuhan halus ala teman lama yang mulai dekat lagi
+        # ========== KAMAR / TEMPAT PRIVAT - ESKALASI BERTAHAP ==========
+        if "kamar" in t or "room" in t:
+            scene.location = "kamar"
+            if phase == IntimacyPhase.VULGAR:
+                scene.posture = "duduk berhadapan di kasur"
+                scene.activity = "menikmati kebersamaan"
+                scene.ambience = "lampu redup, suasana intim"
+            elif phase == IntimacyPhase.INTIM:
+                if any(kw in t for kw in ["duduk dipangku", "naik ke pangkuan", "minta dipangku", "pangku"]):
+                    scene.posture = "duduk di pangkuan Mas"
+                    scene.activity = "bersandar di dada Mas"
+                    scene.ambience = "suasana hangat, napas mulai beradu"
+                    if not hasattr(role_state, 'lap_proximity_established'):
+                        role_state.lap_proximity_established = True
+                else:
+                    scene.posture = "duduk bersebelahan di kasur"
+                    scene.activity = "ngobrol santai"
+                    scene.ambience = "suasana kamar yang hangat"
+
+        # Jarak fisik & sentuhan halus
         if any(kw in t for kw in ["mepet", "deket", "dekat", "rapat"]):
             scene.physical_distance = "sangat dekat, paha hampir bersentuhan"
 
@@ -3237,17 +3350,11 @@ class Orchestrator:
     # --------------------------------------------------
 
     def _update_scene_for_siska(self, role_state: RoleState, inp: OrchestratorInput) -> None:
-        """Update SceneState untuk Siska (wanita bersuami).
-
-        Tujuan:
-        - Kalau belum ada scene, default di ruang keluarga / ruang tamu yang aman.
-        - Tangkap sinyal pindah lokasi (ruang tamu â†’ dapur â†’ teras â†’ kamar tamu â†’ mobil).
-        - Tangkap jarak fisik & sentuhan kecil ala wanita bersuami yang terlalu dekat dengan Mas
-          tapi tetap penuh rasa bersalah & hati-hati.
-        """
+        """Update SceneState untuk Siska (wanita bersuami) dengan eskalasi bertahap."""
 
         scene = role_state.scene
         t = inp.text.lower()
+        phase = role_state.intimacy_phase
 
         # Default baseline: ruang tamu/keluarga yang relatif aman
         if not scene.location:
@@ -3268,38 +3375,50 @@ class Orchestrator:
             scene.location = "dapur rumah Siska"
             scene.posture = "berdiri cukup dekat di depan meja dapur"
             scene.activity = "menyiapkan minuman atau makanan sambil ngobrol pelan"
-            scene.ambience = "suasana rumah hangat, aroma masakan, suara alat dapur pelan"
+            scene.ambience = "suasana rumah hangat, aroma masakan"
 
         # Teras / depan rumah
         if any(kw in t for kw in ["teras", "depan rumah", "halaman"]):
             scene.location = "teras depan rumah Siska"
             scene.posture = "duduk bersebelahan di bangku teras"
-            scene.activity = "ngobrol pelan sambil melihat jalan depan rumah dan sesekali melirik ke dalam"
-            scene.ambience = "suasana malam agak sepi, lampu teras temaram, ada sedikit angin"
+            scene.activity = "ngobrol pelan sambil melihat jalan depan rumah"
+            scene.ambience = "suasana malam agak sepi, lampu teras temaram"
 
-        # Kamar tamu / kamar pribadi (hati-hati, tetap non-vulgar)
+        # ========== KAMAR TAMU - ESKALASI BERTAHAP ==========
         if "kamar" in t or "room" in t:
             scene.location = "kamar tamu di rumah Siska"
-            scene.posture = "duduk di tepi kasur dengan jarak sopan, terasa canggung"
-            scene.activity = "ngobrol pelan tentang hal pribadi sambil sesekali terdiam"
-            scene.ambience = "suasana hening, tirai tertutup, lampu redup"
+            if phase == IntimacyPhase.VULGAR:
+                scene.posture = "duduk berhadapan di tepi kasur"
+                scene.activity = "bercengkrama dengan suasana yang lebih akrab"
+                scene.ambience = "lampu redup, suasana hening"
+            elif phase == IntimacyPhase.INTIM:
+                if any(kw in t for kw in ["duduk dipangku", "naik ke pangkuan", "minta dipangku", "pangku"]):
+                    scene.posture = "duduk di pangkuan Mas"
+                    scene.activity = "bersandar di dada Mas, Siska tampak ragu"
+                    scene.ambience = "suasana hening, jantung berdebar"
+                    if not hasattr(role_state, 'lap_proximity_established'):
+                        role_state.lap_proximity_established = True
+                else:
+                    scene.posture = "duduk di tepi kasur dengan jarak sopan"
+                    scene.activity = "ngobrol pelan tentang hal pribadi"
+                    scene.ambience = "suasana hening, lampu redup"
 
-        # Mobil / parkiran â†’ momen berdua di luar rumah
+        # Mobil / parkiran → momen berdua di luar rumah
         if "mobil" in t or "parkir" in t or "parkiran" in t:
             scene.location = "mobil Mas di parkiran dekat rumah Siska"
             scene.posture = "duduk di kursi depan, Siska di samping Mas"
-            scene.activity = "ngobrol pelan sebelum pulang, suasana terasa berat tapi hangat"
-            scene.ambience = "suasana malam, lampu jalan dari luar kaca, interior mobil agak gelap"
+            scene.activity = "ngobrol pelan sebelum pulang"
+            scene.ambience = "suasana malam, lampu jalan dari luar kaca"
 
-        # Jarak fisik & sentuhan kecil ala Siska (penuh konflik batin)
+        # Jarak fisik & sentuhan
         if any(kw in t for kw in ["mepet", "deket", "dekat", "rapat"]):
-            scene.physical_distance = "sangat dekat, paha hampir bersentuhan, Siska tampak gelisah"
+            scene.physical_distance = "sangat dekat, Siska tampak gelisah"
 
         if any(kw in t for kw in ["pegang tangan", "genggam tangan", "pegangan tangan"]):
             scene.last_touch = "genggam tangan singkat yang membuat Siska tampak bimbang"
 
         if any(kw in t for kw in ["sender", "nyender", "sandaran"]):
-            scene.last_touch = "Siska menyender pelan ke bahu Mas, seolah mencari ketenangan tapi merasa bersalah"
+            scene.last_touch = "Siska menyender pelan ke bahu Mas"
 
         scene.last_scene_update_ts = inp.timestamp
 
@@ -3308,16 +3427,11 @@ class Orchestrator:
     # --------------------------------------------------
 
     def _update_scene_for_sallsa(self, role_state: RoleState, inp: OrchestratorInput) -> None:
-        """Update SceneState untuk Sallsa (teman_spesial_sallsa).
-
-        Tujuan:
-        - Kalau belum ada scene, default di suasana malam santai dan manja (sofa / kamar cozy).
-        - Tangkap sinyal pindah lokasi (sofa â†’ kamar â†’ balkon â†’ mobil).
-        - Tangkap jarak fisik & sentuhan kecil ala teman malam yang super lengket dan playful.
-        """
+        """Update SceneState untuk Sallsa (teman_spesial_sallsa)."""
 
         scene = role_state.scene
         t = inp.text.lower()
+        phase = role_state.intimacy_phase
 
         # Default baseline: sofa/apartemen malam hari (suasana manja & playful)
         if not scene.location:
@@ -3333,56 +3447,114 @@ class Orchestrator:
         if not scene.physical_distance:
             scene.physical_distance = "sangat dekat, bahu saling bersentuhan"
 
-        # Kamar / bed scene (tetap non-vulgar, tapi lebih lengket secara emosi)
+        # ========== SOFA - ESKALASI BERTAHAP ==========
+        if any(kw in t for kw in ["sofa", "ruang tamu"]):
+            scene.location = "sofa ruang tamu"
+            if phase == IntimacyPhase.VULGAR:
+                scene.posture = "duduk berhadapan di sofa, tubuh berdekatan"
+                scene.activity = "menikmati kebersamaan yang semakin dalam"
+                scene.ambience = "lampu redup, suasana hangat dan intim"
+            elif phase == IntimacyPhase.INTIM:
+                # Deteksi apakah user minta dipangku atau role inisiatif
+                if any(kw in t for kw in ["duduk dipangku", "naik ke pangkuan", "minta dipangku", "pangku"]):
+                    scene.posture = "duduk di pangkuan Mas"
+                    scene.activity = "bersandar di dada Mas sambil ngobrol"
+                    scene.ambience = "suasana hangat, napas mulai beradu"
+                    if not hasattr(role_state, 'lap_proximity_established'):
+                        role_state.lap_proximity_established = True
+                else:
+                    scene.posture = "duduk bersebelahan di sofa"
+                    scene.activity = "nonton TV sambil bersandar"
+                    scene.ambience = "suasana santai, lampu hangat"
+            else:
+                scene.posture = "duduk bersebelahan di sofa"
+                scene.activity = "ngobrol santai"
+                scene.ambience = "suasana santai"
+
+        # ========== KAMAR / KASUR - SESUAIKAN DENGAN FASE ==========
         if "kamar" in t or "bed" in t or "kasur" in t:
-            scene.location = "kamar apartemen dengan lampu tidur redup"
-            scene.posture = "berlutut tepi kasur, Sallsa membuka celana Mas"
-            scene.activity = "melakukan blow job ke mas"
-            scene.ambience = "suasana malam tenang, lampu redup, sangat intim dan vulgar"
+            scene.location = "kamar apartemen"
+            if phase == IntimacyPhase.VULGAR:
+                scene.posture = "duduk berhadapan di kasur"
+                scene.activity = "menikmati kebersamaan"
+                scene.ambience = "lampu redup, suasana hangat dan intim"
+            elif phase == IntimacyPhase.INTIM:
+                if any(kw in t for kw in ["duduk dipangku", "naik ke pangkuan", "minta dipangku", "pangku"]):
+                    scene.posture = "duduk di pangkuan Mas"
+                    scene.activity = "bersandar di dada Mas"
+                    scene.ambience = "suasana kamar yang hangat"
+                    if not hasattr(role_state, 'lap_proximity_established'):
+                        role_state.lap_proximity_established = True
+                else:
+                    scene.posture = "duduk bersebelahan di kasur"
+                    scene.activity = "ngobrol santai sambil rebahan"
+                    scene.ambience = "suasana kamar yang nyaman"
+            else:
+                scene.posture = "duduk bersebelahan di kasur"
+                scene.activity = "ngobrol santai"
+                scene.ambience = "suasana kamar yang nyaman"
+
+        # ========== DUDUK DI PANGKUAN / MEMELUK ==========
+        if any(kw in t for kw in ["duduk dipangku", "naik ke pangkuan", "duduk di pangkuan", "memeluk"]):
+            if phase == IntimacyPhase.INTIM:
+                scene.posture = "duduk di pangkuan Mas"
+                scene.activity = "bersandar di dada Mas sambil ngobrol"
+                scene.ambience = "suasana hangat, napas mulai beradu"
+                if not hasattr(role_state, 'lap_proximity_established'):
+                    role_state.lap_proximity_established = True
+            elif phase == IntimacyPhase.VULGAR:
+                scene.posture = "duduk di pangkuan Mas, tubuh saling menempel"
+                scene.activity = "menikmati kedekatan yang semakin dalam"
+                scene.ambience = "lampu redup, suasana sangat intim"
+
+        # ========== SENTUHAN LANJUTAN - HANYA JIKA SUDAH ADA ESKALASI ==========
+        if any(kw in t for kw in ["pegang", "remas", "usap", "elus", "raba"]):
+            has_escalation = getattr(role_state, 'lap_proximity_established', False) or phase == IntimacyPhase.VULGAR
+            
+            if phase == IntimacyPhase.VULGAR:
+                scene.activity = "menikmati sentuhan yang semakin dalam"
+            elif has_escalation and phase == IntimacyPhase.INTIM:
+                scene.activity = "bernafas lebih berat, tubuh mulai merespon"
+                role_state.pending_arousal_signals = getattr(role_state, 'pending_arousal_signals', 0) + 1
+            else:
+                scene.activity = "berpegangan tangan"
 
         # Balkon / rooftop / view city lights
         if any(kw in t for kw in ["balkon", "balcony", "rooftop", "atap"]):
             scene.location = "balkon apartemen dengan city lights di kejauhan"
-            scene.posture = "berdiri dibalkon sambil telanjang"
-            scene.activity = "melakukan sex sambil standing, mas dari belakang"
-            scene.ambience = "angin malam sejuk, lampu kota berkelip, suasana santai dan manja"
-
-        # Balkon / rooftop / view city lights
-        if any(kw in t for kw in ["sofa", "ruang tamu", "duduk", "nonton"]):
-            scene.location = "sofa ruang tamu"
-            scene.posture = "duduk diatas mas"
-            scene.activity = "melakukan sex sambil cowgirl, memeluk menempelkan payudara"
-            scene.ambience = "suasana malam tenang, lampu redup, sangat intim dan vulgar"
+            scene.posture = "berdiri bersebelahan di pagar balkon"
+            scene.activity = "menikmati pemandangan kota sambil ngobrol"
+            scene.ambience = "angin malam sejuk, lampu kota berkelip"
 
         # Mobil / jalan malam
         if "mobil" in t or "parkir" in t or "parkiran" in t:
             scene.location = "mobil Mas di parkiran mall atau apartemen"
-            scene.posture = "duduk di kursi depan, Sallsa agak miring ke arah Mas"
-            scene.activity = "memainkan kontol mas saat mas nyetir, mengajak dirty talk"
-            scene.ambience = "suasana malam, lampu jalan dari luar kaca, interior mobil hangat"
+            scene.posture = "duduk di kursi depan, Sallsa di samping Mas"
+            scene.activity = "ngobrol santai sambil duduk di mobil"
+            scene.ambience = "suasana malam, lampu jalan dari luar kaca"
 
         # Coffee shop / tempat santai lain
-        if any(kw in t for kw in ["kafe", "cafe", "cafÃ©", "coffee shop"]):
+        if any(kw in t for kw in ["kafe", "cafe", "café", "coffee shop"]):
             scene.location = "kafe santai dengan sofa empuk"
-            scene.posture = "duduk bersebelahan di sofa kafe, Sallsa kadang menyenggol lengan Mas"
+            scene.posture = "duduk bersebelahan di sofa kafe"
             scene.activity = "ngobrol rame sambil minum minuman manis favorit"
-            scene.ambience = "musik pelan, lampu temaram, suasana cozy dan playful"
+            scene.ambience = "musik pelan, lampu temaram, suasana cozy"
 
-        # Jarak fisik & sentuhan ala Sallsa (super lengket tapi tetap sopan)
+        # Jarak fisik & sentuhan
         if any(kw in t for kw in ["mepet", "deket", "dekat", "rapat"]):
-            scene.physical_distance = "super dekat, Sallsa hampir menempel ke lengan Mas"
+            scene.physical_distance = "sangat dekat"
 
         if any(kw in t for kw in ["peluk", "pelukan"]):
-            scene.last_touch = "di peluk dari belakang possisi siap siap intim"
-
-        if any(kw in t for kw in ["pegang kontol", "genggam gontol", "remas tangan"]):
-            scene.last_touch = "genggam kontol mas pake tangan sambil dikocok perlahan"
+            if phase == IntimacyPhase.VULGAR:
+                scene.last_touch = "berpelukan erat"
+            else:
+                scene.last_touch = "pelukan ringan"
 
         if any(kw in t for kw in ["sender", "nyender", "sandaran"]):
-            scene.last_touch = "Sallsa menyender manja ke dada sambil memasukkan kontol mas ke memek"
+            scene.last_touch = "Sallsa menyender manja ke bahu Mas"
 
         scene.last_scene_update_ts = inp.timestamp
-
+      
     # --------------------------------------------------
     # INTERNAL HELPERS: SCENE UNTUK AGHIA (TERAPIS)
     # --------------------------------------------------
