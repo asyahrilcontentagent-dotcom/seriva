@@ -8,14 +8,30 @@ import os
 from bot.app_factory import build_application, create_orchestrator
 
 
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    level=logging.INFO,
-)
+def _configure_logging() -> None:
+    logging.basicConfig(
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        level=logging.INFO,
+    )
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
+    logging.getLogger("telegram").setLevel(logging.WARNING)
+    logging.getLogger("telegram.ext").setLevel(logging.WARNING)
+
+
+def _alias_deepseek_to_llm() -> None:
+    llm_key = os.getenv("LLM_API_KEY")
+    deepseek_key = os.getenv("DEEPSEEK_API_KEY")
+    if not llm_key and deepseek_key:
+        os.environ["LLM_API_KEY"] = deepseek_key
+
+
+_configure_logging()
 logger = logging.getLogger(__name__)
 
 
 def main() -> None:
+    _alias_deepseek_to_llm()
     bot_token = os.getenv("TELEGRAM_BOT_TOKEN")
     admin_id = os.getenv("SERIVA_ADMIN_ID")
 
