@@ -323,19 +323,8 @@ def status_handler(orchestrator: Orchestrator, admin_id: str):
         s = role_state.scene
         intimacy = role_state.intimacy_detail
         
-        # Role display name
-        role_names = {
-            "nova": "Nova",
-            "ipar_tasha": "Tasha Dietha",
-            "teman_kantor_ipeh": "Ipeh",
-            "teman_lama_widya": "Widya",
-            "wanita_bersuami_siska": "Siska",
-            "teman_spesial_davina": "Davina",
-            "teman_spesial_sallsa": "Sallsa",
-            "terapis_aghia": "Aghnia",
-            "terapis_munira": "Munira",
-        }
-        role_display = role_names.get(role_id, role_id)
+        # Pakai display name yang sama dengan runtime prompt agar /status tidak beda sendiri.
+        role_display = getattr(role_state, "role_display_name", "") or role_id
         
         # ========== STATUS PAKAIAN ==========
         user_clothes = intimacy.user_clothing_removed
@@ -351,10 +340,41 @@ def status_handler(orchestrator: Orchestrator, admin_id: str):
         role_shirt_off = ("baju" in role_clothes or "bra" in role_clothes)
         role_pants_off = "celana" in role_clothes
         role_underwear_off = "celana dalam" in role_clothes
+        user_shirt_on = not user_shirt_off
+        user_pants_on = not user_pants_off
+        user_underwear_on = not user_underwear_off
+        role_shirt_on = not role_shirt_off
+        role_pants_on = not role_pants_off
+        role_underwear_on = not role_underwear_off
+        user_shirt_status = user_shirt_on
+        user_pants_status = user_pants_on
+        user_underwear_status = user_underwear_on
+        role_shirt_status = role_shirt_on
+        role_pants_status = role_pants_on
+        role_underwear_status = role_underwear_on
+        user_shirt_off = user_shirt_status
+        user_pants_off = user_pants_status
+        user_underwear_off = user_underwear_status
+        role_shirt_off = role_shirt_status
+        role_pants_off = role_pants_status
+        role_underwear_off = role_underwear_status
+
+        def safe_str(value, default="-"):
+            return str(value) if value is not None and str(value).strip() else default
         
         # ========== STATUS LOKASI ==========
-        current_location = getattr(role_state, 'current_location_name', s.location or "belum ditentukan")
+        current_location = getattr(role_state, 'current_location_name', "") or ""
+        communication_mode = getattr(role_state, 'communication_mode', None)
+        if communication_mode:
+            current_location = safe_str(getattr(s, 'location', None), current_location or "belum ditentukan")
+        elif current_location in {"", "belum ditentukan", "unknown"}:
+            current_location = safe_str(getattr(s, 'location', None), "belum ditentukan")
+
         location_private = getattr(role_state, 'current_location_is_private', False)
+        if current_location == safe_str(getattr(s, 'location', None), ""):
+            lowered_location = current_location.lower()
+            if any(token in lowered_location for token in ["kamar", "hotel", "apartemen", "tempat sendiri"]):
+                location_private = True
         location_icon = "🔒 PRIVAT" if location_private else "👀 PUBLIK"
         nova_home = "✅ Ada" if getattr(world_state, "nova_is_home", True) else "❌ Tidak ada"
         
@@ -401,9 +421,6 @@ def status_handler(orchestrator: Orchestrator, admin_id: str):
         }.get(intimacy.position.value if intimacy.position else "", "💑")
         
         # ========== AMBIL NILAI DENGAN AMAN (CEGAH None) ==========
-        def safe_str(value, default="-"):
-            return str(value) if value is not None and str(value).strip() else default
-        
         relationship_level = getattr(r, 'relationship_level', 0)
         love = getattr(e, 'love', 0)
         longing = getattr(e, 'longing', 0)
