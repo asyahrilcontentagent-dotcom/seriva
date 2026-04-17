@@ -773,9 +773,12 @@ class Orchestrator:
                 f"- Status rumah saat ini: Nova_di_rumah={'ya' if world_state.nova_is_home else 'tidak'}; "
                 f"Nova_status_terakhir={world_state.nova_last_known_status}; "
                 f"privasi_rumah={world_state.house_privacy_level}.\n"
+                "- Nova adalah kakak kandungmu. Kalau Mas menyebut Nova, selalu pahami itu sebagai Kakak Nova, bukan orang lain.\n"
                 "- Anggap status Nova ini persisten dan tetap benar sampai Mas memberi update baru.\n"
                 "- Jangan memindahkan posisi Nova seenaknya; kalau Nova terakhir di kamar, ya tetap di kamar sampai ada info baru.\n"
                 "- Gunakan status rumah ini sebagai cue internal untuk sikap, outfit, dan keberanian.\n"
+                "- Kalau Mas sudah bilang situasi aman, jangan ulangi terus pertanyaan aman atau ada yang dengar kecuali ada trigger risiko baru.\n"
+                "- Kalau rumah sedang privat dan tidak ada trigger baru, rasa takut cukup turun jadi waspada tipis lalu fokus lagi ke interaksi.\n"
                 "- Jangan memberi info status Nova ke user di respons biasa. Kalau perlu, jadikan hanya inner thought atau pertimbangan batin yang sangat singkat.\n"
             )
 
@@ -818,7 +821,6 @@ class Orchestrator:
         """Bangun konteks memory singkat untuk jalur runtime utama."""
 
         role_id = role_state.role_id
-        story_context = self.story_memory.get_story_prompt(user_state.user_id, role_id)
         story_summary = self.story_memory.get_story_summary(user_state.user_id, role_id)
         chat_history = self._get_chat_history_context(user_state.user_id, role_id, query_text=query_text)
         memory_tiers_context = self._build_memory_tiers_context(user_state.user_id, role_id, query_text=query_text)
@@ -833,30 +835,15 @@ class Orchestrator:
 
         return (
             "KONTEKS MEMORY DAN KONTINUITAS:\n"
-            f"{world_context}\n\n"
-            "KANAL INTERAKSI SAAT INI:\n"
-            f"- Mode komunikasi aktif: {role_state.communication_mode or 'tatap muka / langsung'}\n"
-            f"- Sudah berjalan: {getattr(role_state, 'communication_mode_turns', 0)} turn\n\n"
-            "PRIVACY PARTITION MEMORY:\n"
-            "- Kamu hanya boleh memakai memory, chat history, dan scene yang berasal dari relasimu sendiri dengan Mas.\n"
-            "- Jangan menyimpulkan bahwa Mas punya perempuan lain, istri, atau hubungan lain kecuali itu benar-benar ada di pengetahuan karaktermu.\n"
-            "- Jangan meminjam emosi, kejadian, lokasi, atau kenangan dari role lain.\n\n"
-            f"{story_context}\n\n"
-            f"{chat_history}\n\n"
-            f"{memory_tiers_context}\n\n"
-            "Ringkasan fakta yang harus diingat:\n"
-            f"{conversation_summary}\n\n"
-            "Ringkasan jangka panjang:\n"
-            f"{role_state.long_term_summary or 'Belum ada ringkasan jangka panjang.'}\n\n"
-            "Ringkasan story memory:\n"
-            f"{story_summary}\n\n"
-            "Ringkasan urutan adegan:\n"
-            f"{recent_scene_summary}\n\n"
-            f"{repetition_guard}\n\n"
-            "Aturan tambahan:\n"
-            "- Jangan ulangi pembuka, desahan, atau penutup yang sama seperti 1-3 balasan terakhir.\n"
-            "- Kalau adegan sedang intim, prioritaskan rasa tubuh, napas, jeda, dan respons emosional yang spesifik ke momen ini.\n"
-            "- Referensikan momen sebelumnya hanya kalau memang relevan dan terasa natural."
+            f"{world_context}\n"
+            f"- Mode komunikasi: {role_state.communication_mode or 'tatap muka / langsung'}; durasi={getattr(role_state, 'communication_mode_turns', 0)} turn\n"
+            "- Pakai hanya memory role ini sendiri. Jangan pinjam memory role lain.\n"
+            f"- Story utama: {story_summary}\n"
+            f"- Fakta terakhir: {conversation_summary}\n"
+            f"- Scene terakhir: {recent_scene_summary}\n"
+            f"- Recent chat penting: {chat_history}\n"
+            f"- Memory tiers: {memory_tiers_context}\n"
+            f"- Guard repetisi: {repetition_guard}"
         )
 
     def _build_runtime_messages(
@@ -875,10 +862,11 @@ class Orchestrator:
             query_text=user_text,
         )
         if structured_context:
-            memory_context = (
-                f"{structured_context.to_prompt_block()}\n\n"
-                f"{memory_context}"
-            )
+            compact_structured = structured_context.to_prompt_block()
+            if structured_context.mode == "balanced":
+                memory_context = f"{compact_structured}\n\n{memory_context}"
+            else:
+                memory_context = f"{compact_structured}\n\n{memory_context[:900]}"
         dynamic_context = build_dynamic_prompt_context(
             role_state,
             memory_summary=structured_context.message_memory if structured_context else self.message_history.summarize_recent_messages(
@@ -1682,6 +1670,7 @@ class Orchestrator:
 
         # 7) Update scene per-role (Nova & role lain)
         self._update_scene_for_role(role_state, inp)
+        self._update_outfit_continuity(role_state, inp.text)
         self.scene_manager.apply_context_awareness(role_state, inp.text, inp.timestamp)
         self.scene_manager.mark_focus(role_state, amount=1)
         self._sync_household_scene_cues(role_state, world_state)
@@ -1921,6 +1910,15 @@ class Orchestrator:
                 role_state.handuk_tersedia = True
                 logger.info(f"🧺 Handuk dipakai (role mengaku sudah telanjang)")
 
+        if any(kw in text_lower for kw in ["kasih aku handuk", "ambilin aku handuk", "handuk buat aku", "aku ambil handuk", "aku pakai handuk"]):
+            role_state.mas_handuk_dikasih = True
+        if any(kw in text_lower for kw in ["aku mandi", "aku selesai mandi", "aku habis mandi", "aku pakai handuk"]):
+            if getattr(role_state, 'mas_handuk_dikasih', False):
+                role_state.mas_handuk_tersedia = True
+        if any(kw in text_lower for kw in ["aku lepas handuk", "handukku dilepas", "udah gak usah handuk buat aku"]):
+            role_state.mas_handuk_tersedia = False
+            role_state.mas_handuk_dikasih = False
+
         # ========== DETEKSI VCS / MASTURBASI BARENG ==========
         vcs_keywords = ["vcs", "video call", "telpon video", "masturb bareng", "masturbasi bareng", "liatin aku", "tunjukin", "gerakin buat aku", "colmek", "vibrator", "dildo"]
         if any(kw in inp.text.lower() for kw in vcs_keywords):
@@ -2125,35 +2123,14 @@ class Orchestrator:
         # 12) Simpan state (cukup sekali saja)
         self._save_all(user_state, world_state)
 
-        # ========== INISIATIF GANTI BAJU (100% DI LOKASI PRIVAT) ==========
-        current_location_private = getattr(role_state, 'current_location_is_private', False)
-        is_new_session = len(role_state.conversation_memory) == 0  # benar-benar awal chat
+        # ========== OUTFIT AWAL SAAT ROLE PERTAMA KALI MUNCUL ==========
+        is_new_session = len(role_state.conversation_memory) <= 1
         
-        if not role_state.outfit_changed_this_session and current_location_private and is_new_session:
-            import random
-            
+        if not role_state.outfit_changed_this_session and is_new_session:
             role_state.outfit_changed_this_session = True
-            
-            # Variasi dialog
-            variations = [
-                f"*{role_state.role_display_name or role_state.role_id} merapikan bajunya* Eh Mas, bentar ya... panas banget pake baju ini. Aku ganti dulu.",
-                f"*{role_state.role_display_name or role_state.role_id} tersenyum* Mas, aku mau ganti baju dulu biar lebih adem~ bentar ya.",
-                f"*{role_state.role_display_name or role_state.role_id} menarik ujung bajunya* Eh Mas... gerah, aku ganti baju dulu ya.",
-            ]
-            
-            init_message = random.choice(variations)
-            
-            after_variations = [
-                f"\n\n*{role_state.role_display_name or role_state.role_id} keluar dengan tank top tipis dan hotpants* \"Gimana Mas? Gini lebih adem, cocok nggak buat di rumah?\"",
-                f"\n\n*{role_state.role_display_name or role_state.role_id} kembali dengan tank top yang memperlihatkan bahu dan hotpants* \"Udah~ sekarang lebih enakan, Mas\"",
-                f"\n\n*{role_state.role_display_name or role_state.role_id} keluar sambil membenarkan tank topnya* \"Nah, gini lebih gerah? *tersenyum malu*\"",
-            ]
-            
-            after_msg = random.choice(after_variations)
-            
-            role_state.pending_clothes_change = f"{init_message}{after_msg}"
-            
-            logger.info(f"👙 {role_state.role_id} inisiatif ganti baju (lokasi privat)")
+            intro_outfit = self._build_initial_outfit_message(role_state)
+            reply_text = f"{intro_outfit}\n\n{reply_text}"
+            logger.info(f"Outfit awal diumumkan untuk {role_state.role_id}")
 
         return OrchestratorOutput(
             reply_text=reply_text,
@@ -3024,6 +3001,34 @@ class Orchestrator:
         elif inp.remote_mode == "vps":
             self._apply_remote_vps_scene(role_state, inp.timestamp)
 
+        self._normalize_role_room_label(role_state)
+
+    def _normalize_role_room_label(self, role_state: RoleState) -> None:
+        """Samakan label kamar privat agar semua role selain Nova memakai 'kamar kamu'."""
+
+        if role_state.role_id == ROLE_ID_NOVA:
+            return
+
+        scene = role_state.scene
+        location = (scene.location or "").lower()
+        current_name = (getattr(role_state, "current_location_name", "") or "").lower()
+
+        if any(marker in location for marker in ["kamar nova", "kamar utama"]) or any(
+            marker in current_name for marker in ["kamar nova", "kamar utama"]
+        ):
+            return
+
+        private_room_markers = [
+            "kamar dietha",
+            "kamar apartemen",
+            "kamar",
+        ]
+
+        if any(marker in location for marker in private_room_markers):
+            scene.location = "kamar kamu"
+        if any(marker in current_name for marker in private_room_markers):
+            role_state.current_location_name = "kamar kamu"
+
     def _apply_remote_chat_scene(self, role_state: RoleState, timestamp: float) -> None:
         """Override scene untuk percakapan yang terjadi lewat HP."""
 
@@ -3064,17 +3069,79 @@ class Orchestrator:
         """Sinkronkan cue rumah tangga yang perlu konsisten di scene."""
 
         scene = role_state.scene
+        role_state.known_nova_status = world_state.nova_last_known_status
         if role_state.role_id == ROLE_ID_IPAR_TASHA:
             if world_state.nova_is_home or world_state.house_privacy_level == "guarded":
-                if not scene.outfit or "rumah" not in scene.outfit.lower():
-                    scene.outfit = "baju rumah yang rapi dan sopan"
+                if not scene.outfit:
+                    scene.outfit = "baju rumah yang tipis tapi tetap rapi"
                 if not scene.ambience:
                     scene.ambience = "suasana rumah yang tenang tapi tetap harus jaga sikap"
             else:
-                if not scene.outfit or "menggoda" not in scene.outfit.lower():
-                    scene.outfit = "baju rumah yang lebih santai dan sedikit menggoda"
+                if not scene.outfit:
+                    scene.outfit = "tank top rumah tipis dan celana pendek santai"
                 if world_state.house_privacy_level == "private":
                     scene.ambience = "rumah terasa lebih sepi, memberi ruang untuk tatapan dan obrolan yang lebih berani"
+
+    def _get_default_outfit_for_context(self, role_state: RoleState) -> str:
+        """Default outfit yang stabil sampai ada trigger ganti baju."""
+
+        location = (getattr(role_state, "current_location_name", "") or role_state.scene.location or "").lower()
+        role_id = role_state.role_id
+
+        outside_markers = ["kafe", "mall", "restoran", "bioskop", "kantor", "parkiran", "mobil", "teras", "pantai", "taman"]
+        apartment_markers = ["apartemen", "kamar apartemen"]
+        if any(marker in location for marker in outside_markers):
+            if role_id == ROLE_ID_NOVA:
+                return "outfit luar yang Nova pilih sendiri"
+            if role_id == ROLE_ID_IPAR_TASHA:
+                return "outfit luar yang Dietha pilih sendiri"
+            return "outfit luar yang dipilih role sendiri"
+        if any(marker in location for marker in apartment_markers):
+            return "outfit santai di apartemen yang tetap privat"
+        home_defaults = [
+            "tank top tipis dan short hotpants",
+            "tank top rumah dan short hotpants",
+            "daster pendek rumahan",
+        ]
+        return random.choice(home_defaults)
+
+    def _build_initial_outfit_message(self, role_state: RoleState) -> str:
+        """Bangun narasi outfit saat role pertama kali dipanggil."""
+
+        outfit = role_state.scene.outfit or self._get_default_outfit_for_context(role_state)
+        location = (getattr(role_state, "current_location_name", "") or role_state.scene.location or "").lower()
+        role_label = role_state.role_display_name or role_state.role_id
+
+        if any(marker in location for marker in ["kafe", "mall", "restoran", "bioskop", "kantor", "parkiran", "mobil", "teras", "pantai", "taman"]):
+            return (
+                f"*{role_label} muncul dengan outfit luar pilihannya sendiri* "
+                f'"Aku tadi pilih yang ini ya, Mas... aku pakai {outfit}."'
+            )
+
+        home_options = [
+            f'*{role_label} terlihat santai di rumah* "Mas... aku lagi pakai {outfit}."',
+            f'*{role_label} membenarkan bajunya pelan* "Di rumah aku pakai {outfit} ya, Mas."',
+            f'*{role_label} menoleh sambil merapikan outfit rumahnya* "Sekarang aku pakai {outfit}."',
+        ]
+        return random.choice(home_options)
+
+    def _update_outfit_continuity(self, role_state: RoleState, user_text: str) -> None:
+        """Pertahankan outfit sampai ada trigger ganti baju yang jelas."""
+
+        text = user_text.lower()
+        scene = role_state.scene
+
+        if not scene.outfit:
+            scene.outfit = self._get_default_outfit_for_context(role_state)
+
+        if any(kw in text for kw in ["ganti baju", "ganti outfit", "pakai yang lain", "daster", "tank top", "dress", "rok", "jeans", "kaos"]):
+            if any(kw in text for kw in ["daster", "daster pendek"]):
+                scene.outfit = "daster pendek rumahan"
+            elif "tank top" in text:
+                scene.outfit = "tank top tipis dan short hotpants"
+            elif any(kw in text for kw in ["dress", "rok", "jeans", "blouse", "jaket", "kaos"]):
+                scene.outfit = "outfit baru yang dipilih untuk keluar"
+            role_state.outfit_changed_this_session = True
                   
     # ========== TAMBAHKAN METHOD INI DI SINI ==========
     def _detect_lap_proximity(self, role_state: RoleState, text: str) -> bool:
@@ -3134,7 +3201,7 @@ class Orchestrator:
 
         # Baseline sekali saja
         if not scene.location:
-            scene.location = "kamar"
+            scene.location = "kamar Nova"
         if not scene.posture:
             scene.posture = "duduk santai"
         if not scene.activity:
@@ -3145,10 +3212,33 @@ class Orchestrator:
             scene.time_of_day = TimeOfDay.NIGHT
         if not scene.physical_distance:
             scene.physical_distance = "sebelahan"
+        if not scene.outfit:
+            scene.outfit = "tank top tipis dan short hotpants"
 
         # ========== KAMAR / KASUR - ESKALASI BERTAHAP ==========
-        if any(kw in t for kw in ["kamar", "kasur", "ranjang"]):
-            scene.location = "kamar"
+        if any(kw in t for kw in ["kamar nova", "kamar kakak", "kamar utama", "kasur", "ranjang"]):
+            scene.location = "kamar Nova"
+            if phase == IntimacyPhase.VULGAR:
+                scene.posture = "berbaring bersebelahan"
+                scene.activity = "bercengkrama sambil berbaring"
+                scene.ambience = "lampu redup, suasana hangat dan intim"
+            elif phase == IntimacyPhase.INTIM:
+                if any(kw in t for kw in ["duduk dipangku", "naik ke pangkuan", "minta dipangku", "pangku", "deket"]):
+                    scene.posture = "duduk di pangkuan Mas"
+                    scene.activity = "bersandar di dada Mas sambil ngobrol"
+                    scene.ambience = "suasana hangat, napas mulai beradu"
+                    if not hasattr(role_state, 'lap_proximity_established'):
+                        role_state.lap_proximity_established = True
+                else:
+                    scene.posture = "duduk bersebelahan"
+                    scene.activity = "ngobrol santai"
+                    scene.ambience = "suasana kamar yang hangat"
+            else:
+                scene.posture = "duduk bersebelahan"
+                scene.activity = "ngobrol santai"
+                scene.ambience = "suasana kamar yang nyaman"
+        elif any(kw in t for kw in ["kamar", "kamar tidur"]):
+            scene.location = "kamar Nova"
             if phase == IntimacyPhase.VULGAR:
                 scene.posture = "berbaring bersebelahan"
                 scene.activity = "bercengkrama sambil berbaring"
@@ -3220,6 +3310,8 @@ class Orchestrator:
             scene.time_of_day = TimeOfDay.EVENING
         if not scene.physical_distance:
             scene.physical_distance = "cukup dekat, bahu hampir bersentuhan"
+        if not scene.outfit:
+            scene.outfit = "tank top tipis dan short hotpants"
 
         # User menyebut dapur / masak bareng
         if any(kw in t for kw in ["dapur", "masak", "kitchen"]):
@@ -3236,8 +3328,32 @@ class Orchestrator:
             scene.ambience = "suasana malam agak sepi, lampu teras kuning hangat"
 
         # ========== KAMAR - SESUAIKAN DENGAN FASE ==========
-        if "kamar" in t or "room" in t:
-            scene.location = "kamar"
+        if "kamar dietha" in t or "kamar tasha" in t or "kamar ipar" in t:
+            scene.location = "kamar Dietha"
+            if phase == IntimacyPhase.VULGAR:
+                scene.posture = "duduk berhadapan di kasur, tubuh berdekatan"
+                scene.activity = "menikmati kebersamaan yang lebih intens"
+                scene.ambience = "lampu redup, suasana hangat dan intim"
+            elif phase == IntimacyPhase.INTIM:
+                scene.posture = "duduk bersebelahan di tepi kasur"
+                scene.activity = "ngobrol santai sambil sesekali melirik"
+                scene.ambience = "suasana kamar yang tenang, lampu tidur menyala pelan"
+            else:
+                scene.posture = "duduk di tepi kasur dengan jarak sopan"
+                scene.activity = "mengobrol biasa"
+                scene.ambience = "suasana kamar Dietha yang nyaman"
+        elif "kamar nova" in t or "kamar kakak" in t or "kamar utama" in t:
+            scene.location = "kamar Nova"
+            scene.posture = "berdiri atau duduk dengan hati-hati di dekat pintu"
+            scene.activity = "masuk sebentar sambil tetap sadar itu kamar Kakak dan Mas"
+            scene.ambience = "suasana kamar utama yang privat milik Nova dan Mas"
+        elif "kamar tamu" in t:
+            scene.location = "kamar tamu"
+            scene.posture = "duduk bersebelahan di tepi kasur tamu"
+            scene.activity = "ngobrol pelan di ruang yang lebih sepi"
+            scene.ambience = "suasana kamar tamu yang rapi dan tenang"
+        elif "kamar" in t or "room" in t:
+            scene.location = "kamar Dietha"
             if phase == IntimacyPhase.VULGAR:
                 scene.posture = "duduk berhadapan di kasur, tubuh berdekatan"
                 scene.activity = "menikmati kebersamaan yang lebih intens"
@@ -3253,7 +3369,7 @@ class Orchestrator:
 
         # ========== KASUR / TEMPAT TIDUR - ESKALASI BERTAHAP ==========
         if any(kw in t for kw in ["kasur", "ranjang"]):
-            scene.location = "kamar"
+            scene.location = scene.location or "kamar Dietha"
             if phase == IntimacyPhase.VULGAR:
                 scene.posture = "duduk di pangkuan Mas"
                 scene.activity = "berpelukan erat"
