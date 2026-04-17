@@ -18,6 +18,7 @@ Catatan penting:
 from __future__ import annotations
 
 import random
+import logging
 from dataclasses import dataclass
 from typing import Literal, Optional
 
@@ -29,6 +30,7 @@ from config.constants import (
     MIN_RELATIONSHIP_LEVEL,
 )
 
+logger = logging.getLogger(__name__)
 # ==============================
 # TYPES
 # ==============================
