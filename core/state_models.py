@@ -1215,18 +1215,27 @@ class RoleState:
             "aku pengen dipeluk", "aku mau dicium", "aku pengen dicium",
         ]
         brake_signals = [
-            "stop dulu", "berhenti dulu", "pelan dulu", "jangan dulu",
-            "belum dulu", "nanti dulu", "gak dulu", "tidak dulu",
-            "aku ragu", "aku takut", "jangan maksa",
+            "stop dulu", "berhenti dulu", "belum dulu", "nanti dulu",
         ]
         depth_signals = [
             "aku nyaman", "aku percaya", "aku jujur", "aku cerita",
             "aku kangen", "aku butuh kamu", "temenin aku", "makasih udah ada",
+            "aku sayang", "aku cinta",
         ]
         trust_signals = [
             "pelan aja", "aku aman sama kamu", "aku percaya sama kamu",
             "jangan ninggalin aku", "aku tenang sama kamu",
+            "aku yakin sama kamu",
         ]
+
+        # TAMBAHKAN: Force matikan brake jika user menunjukkan ketertarikan
+        interest_signals = ["genggam", "sayang", "kangen", "remas", "peluk", "cium", "rangkul"]
+        if self._contains_any_keyword(user_lower, interest_signals):
+            self.intimacy_brake_active = False
+        
+        # TAMBAHKAN: Brake mati otomatis setelah 5 interaksi positif
+        if self.total_positive_interactions >= 5:
+            self.intimacy_brake_active = False
 
         if self._contains_any_keyword(user_lower, user_soft_signals):
             self.user_intimacy_signals = min(3, self.user_intimacy_signals + 1)
@@ -1243,25 +1252,34 @@ class RoleState:
 
         if self._contains_any_keyword(user_lower, brake_signals):
             self.user_intimacy_signals = max(0, self.user_intimacy_signals - 1)
-            self.emotional_depth_score = max(0, self.emotional_depth_score - 4)
-            self.trust_score = max(0, self.trust_score - 6)
+            self.emotional_depth_score = max(0, self.emotional_depth_score - 2)
+            self.trust_score = max(0, self.trust_score - 3)
             self.intimacy_brake_active = True
-        if self._contains_any_keyword(response_lower, brake_signals):
-            self.role_intimacy_signals = max(0, self.role_intimacy_signals - 1)
-            self.intimacy_brake_active = True
-        elif not self._contains_any_keyword(user_lower, brake_signals):
-            self.intimacy_brake_active = False
+        # HAPUS ATAU KOMENTARI INI - Jangan biarkan response role mengaktifkan brake
+        # if self._contains_any_keyword(response_lower, brake_signals):
+        #     self.role_intimacy_signals = max(0, self.role_intimacy_signals - 1)
+        #     self.intimacy_brake_active = True
+        if not self._contains_any_keyword(user_lower, brake_signals):
+            # Tapi jangan langsung matikan jika interest signals aktif
+            if self._contains_any_keyword(user_lower, interest_signals):
+                self.intimacy_brake_active = False
+            elif self.total_positive_interactions >= 5:
+                self.intimacy_brake_active = False
+            else:
+                # Turunkan intensitas brake secara perlahan
+                pass
 
         self.mutual_intimacy_confirmed = (
-            self.user_intimacy_signals >= 2
-            and self.role_intimacy_signals >= 2
-            and self.relationship.relationship_level >= 5
-            and self.emotions.comfort >= 55
-            and self.emotional_depth_score >= 12
-            and self.trust_score >= 10
+            self.user_intimacy_signals >= 1
+            and self.role_intimacy_signals >= 1
+            and self.relationship.relationship_level >= 4
+            and self.emotions.comfort >= 50
+            and self.emotional_depth_score >= 8
+            and self.trust_score >= 6
         )
 
-        if self.intimacy_phase == IntimacyPhase.INTIM and not self.intimacy_brake_active:
+        if (self.intimacy_phase in [IntimacyPhase.DEKAT, IntimacyPhase.INTIM] 
+            and not self.intimacy_brake_active):
             unlock_gain = 0
             if self._contains_high_intensity_body_touch(user_lower):
                 unlock_gain += 10
