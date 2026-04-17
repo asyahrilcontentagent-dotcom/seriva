@@ -333,6 +333,9 @@ def status_handler(orchestrator: Orchestrator, admin_id: str):
         def status_icon(condition):
             return "✅" if condition else "❌"
         
+        def clothing_text(is_wearing):
+            return "✅ Masih pakai" if is_wearing else "❌ Sudah lepas"
+
         user_shirt_off = "baju" in user_clothes
         user_pants_off = "celana" in user_clothes
         user_underwear_off = "celana dalam" in user_clothes
@@ -346,18 +349,6 @@ def status_handler(orchestrator: Orchestrator, admin_id: str):
         role_shirt_on = not role_shirt_off
         role_pants_on = not role_pants_off
         role_underwear_on = not role_underwear_off
-        user_shirt_status = user_shirt_on
-        user_pants_status = user_pants_on
-        user_underwear_status = user_underwear_on
-        role_shirt_status = role_shirt_on
-        role_pants_status = role_pants_on
-        role_underwear_status = role_underwear_on
-        user_shirt_off = user_shirt_status
-        user_pants_off = user_pants_status
-        user_underwear_off = user_underwear_status
-        role_shirt_off = role_shirt_status
-        role_pants_off = role_pants_status
-        role_underwear_off = role_underwear_status
 
         def safe_str(value, default="-"):
             return str(value) if value is not None and str(value).strip() else default
@@ -382,8 +373,24 @@ def status_handler(orchestrator: Orchestrator, admin_id: str):
 
         # ========== STATUS HANDUK ==========
         handuk_tersedia = getattr(role_state, 'handuk_tersedia', False)
-        handuk_status = "✅ Sedang dipakai" if handuk_tersedia else "❌ Tidak ada"
         
+        handuk_dikasih = getattr(role_state, 'handuk_dikasih', False)
+        mas_handuk_tersedia = getattr(role_state, 'mas_handuk_tersedia', False)
+        mas_handuk_dikasih = getattr(role_state, 'mas_handuk_dikasih', False)
+        if handuk_tersedia:
+            handuk_status = "✅ Ada / sedang dipakai"
+        elif handuk_dikasih:
+            handuk_status = "🟡 Ada / sudah dikasih"
+        else:
+            handuk_status = "❌ Tidak ada"
+
+        if mas_handuk_tersedia:
+            mas_handuk_status = "✅ Ada / sedang dipakai"
+        elif mas_handuk_dikasih:
+            mas_handuk_status = "🟡 Ada / sudah dikasih"
+        else:
+            mas_handuk_status = "❌ Tidak ada"
+
         # ========== STATUS CLIMAX ==========
         role_climax_count = getattr(role_state, 'role_climax_count', 0)
         mas_has_climaxed = getattr(role_state, 'mas_has_climaxed', False)
@@ -432,6 +439,7 @@ def status_handler(orchestrator: Orchestrator, admin_id: str):
         posture = safe_str(getattr(s, 'posture', None))
         activity = safe_str(getattr(s, 'activity', None))
         ambience = safe_str(getattr(s, 'ambience', None))
+        outfit = safe_str(getattr(s, 'outfit', None))
         time_of_day = getattr(s.time_of_day, 'value', '-') if s.time_of_day else '-'
         physical_distance = safe_str(getattr(s, 'physical_distance', None))
         last_touch = safe_str(getattr(s, 'last_touch', None))
@@ -487,6 +495,7 @@ def status_handler(orchestrator: Orchestrator, admin_id: str):
             f"   🪑 Postur: {posture}",
             f"   🎬 Aktivitas: {activity}",
             f"   🌅 Suasana: {ambience}",
+            f"   Outfit: {outfit}",
             f"   ⏰ Waktu: {time_of_day}",
             f"   📏 Jarak: {physical_distance}",
             f"   ✋ Sentuhan: {last_touch}",
@@ -498,17 +507,19 @@ def status_handler(orchestrator: Orchestrator, admin_id: str):
             "👕 STATUS PAKAIAN",
             "",
             "   👨 Mas:",
-            f"      👚 Baju: {status_icon(user_shirt_off)}",
-            f"      👖 Celana: {status_icon(user_pants_off)}",
-            f"      🩲 Celana dalam: {status_icon(user_underwear_off)}",
+            f"      Baju: {clothing_text(user_shirt_on)}",
+            f"      Celana: {clothing_text(user_pants_on)}",
+            f"      Celana dalam: {clothing_text(user_underwear_on)}",
             "",
-            f"   👩 {role_display}:",
-            f"      👚 Baju/Bra: {status_icon(role_shirt_off)}",
-            f"      👖 Celana: {status_icon(role_pants_off)}",
-            f"      🩲 Celana dalam: {status_icon(role_underwear_off)}",
+            f"   {role_display}:",
+            f"      Baju/Bra: {clothing_text(role_shirt_on)}",
+            f"      Celana: {clothing_text(role_pants_on)}",
+            f"      Celana dalam: {clothing_text(role_underwear_on)}",
             "",
-            "🧺 HANDUK",
-            f"   {handuk_status}",
+            "HANDUK",
+            f"   Mas: {mas_handuk_status}",
+            f"   Role: {handuk_status}",
+            "",
             "",
             "🛏️ ADEGAN INTIM",
             f"   {position_emoji} Posisi: {position_value}",
