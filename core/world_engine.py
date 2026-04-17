@@ -188,6 +188,10 @@ class WorldEngine:
             "berangkat ke bandara",
             "naik taxi ke bandara",
             "naik taksi ke bandara",
+            "nova seminggu keluar kota",
+            "nova keluar kota seminggu",
+            "nova pergi seminggu",
+            "nova dinas seminggu",
         ]
         nova_home_markers = [
             "nova di rumah",
@@ -219,6 +223,7 @@ class WorldEngine:
             (["nova lagi di ruang tamu", "nova di ruang tamu", "istriku di ruang tamu", "kakakmu di ruang tamu"], True, "di ruang tamu"),
             (["nova lagi keluar", "nova lagi pergi", "istriku lagi keluar", "istriku lagi pergi", "kakakmu lagi keluar", "kakakmu lagi pergi", "nova gak di rumah"], False, "di luar rumah"),
             (["nova udah berangkat", "nova sudah berangkat", "nova berangkat", "nova pergi ke bandung", "nova berangkat ke bandung", "nova keluar kota", "nova ke luar kota"], False, "pergi ke luar kota"),
+            (["nova seminggu keluar kota", "nova keluar kota seminggu", "nova pergi seminggu", "nova dinas seminggu"], False, "keluar kota sekitar seminggu"),
             (["dijemput taxi buat ke bandara", "dijemput taksi buat ke bandara", "berangkat ke bandara", "naik taxi ke bandara", "naik taksi ke bandara"], False, "sedang menuju bandara"),
             (["nova baru pulang", "nova di rumah", "istriku di rumah", "kakakmu di rumah", "nova lagi di rumah"], True, "di rumah"),
         ]
@@ -245,7 +250,7 @@ class WorldEngine:
                     )
                 else:
                     world.current_household_note = (
-                        "Nova sedang tidak di rumah; status ini tetap dipakai sampai ada info baru dari Mas."
+                        f"Nova terakhir diketahui {status_label}; status ini tetap dipakai sampai ada info baru dari Mas."
                     )
                 changed = True
                 break
