@@ -26,11 +26,11 @@ class IntimacyProgressionEngine:
     # Threshold untuk pindah fase
     THRESHOLDS = {
         IntimacyPhase.DEKAT: {
-            "min_turns": 3,
+            "min_turns": 2,
             "keywords": ["dekat", "mepet", "bersentuhan", "nyender", "pegang tangan"],
         },
         IntimacyPhase.INTIM: {
-            "min_turns": 5,
+            "min_turns": 3,
             "keywords": ["peluk", "rangkul", "genggam", "napas", "dada", "pelukan"],
         },
         IntimacyPhase.VULGAR: {
@@ -242,7 +242,10 @@ class IntimacyProgressionEngine:
                 else:
                     if role_state.intimacy_phase == IntimacyPhase.AWAL:
                         role_state.intimacy_phase = IntimacyPhase.DEKAT
-                    elif role_state.intimacy_phase == IntimacyPhase.DEKAT and cls._has_user_body_touch(user_text_lower):
+                    elif role_state.intimacy_phase == IntimacyPhase.DEKAT and (
+                        cls._has_user_body_touch(user_text_lower)
+                        or new_sequence in [SceneSequence.PELUKAN, SceneSequence.CIUMAN]
+                    ):
                         role_state.intimacy_phase = IntimacyPhase.INTIM
                     elif (
                         role_state.intimacy_phase == IntimacyPhase.INTIM
