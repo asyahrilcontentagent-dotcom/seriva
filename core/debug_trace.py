@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from typing import Any
 
 
@@ -9,6 +10,12 @@ def build_debug_trace(
     structured_context=None,
     messages: list[dict[str, Any]] | None = None,
 ) -> str:
+    debug_trace_enabled = os.getenv("SERIVA_DEBUG_TRACE", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
     emotions = role_state.emotions
     active_rules: list[str] = [
         f"mood={emotions.mood.value}",
@@ -27,11 +34,6 @@ def build_debug_trace(
     if getattr(role_state, "last_output_evaluation", None):
         active_rules.append("feedback=" + ",".join(role_state.last_output_evaluation[:4]))
 
-    final_prompt = ""
-    if messages:
-        system_parts = [str(msg.get("content", "")) for msg in messages if msg.get("role") == "system"]
-        final_prompt = "\n\n".join(system_parts[:4])[:4000]
-
     lines = [
         "[DEBUG_TRACE]",
         (
@@ -41,11 +43,8 @@ def build_debug_trace(
         f"intimacy_foundation=depth:{getattr(role_state, 'emotional_depth_score', 0)}, trust:{getattr(role_state, 'trust_score', 0)}, brake:{getattr(role_state, 'intimacy_brake_active', False)}",
         f"relationship_profile=attachment:{getattr(role_state, 'attachment_style', '-')}, love_language:{getattr(role_state, 'dominant_love_language', '-')}, pacing:{getattr(role_state, 'intimacy_pacing', '-')}",
         f"intimate_expression=style:{getattr(role_state, 'intimate_expression_style', '-')}, restraint:{getattr(role_state, 'moan_restraint', 0)}, breathiness:{getattr(role_state, 'breathiness_level', 0)}",
-        f"memory_used={getattr(role_state, 'last_used_memory_summary', '-') or '-'}",
-        f"story_used={getattr(role_state, 'last_used_story_summary', '-') or '-'}",
         f"habits={', '.join(getattr(role_state, 'personality_habits', [])[:3]) or '-'}",
         f"topics={', '.join(getattr(role_state, 'favorite_topics', [])[:3]) or '-'}",
-        f"closure={getattr(role_state, 'session_closure_summary', '-') or '-'}",
         "active_rules=" + " | ".join(active_rules),
     ]
 
@@ -54,7 +53,21 @@ def build_debug_trace(
             "context_mode="
             f"{structured_context.mode}; reason={structured_context.priority_reason}; metadata={structured_context.metadata}"
         )
-    if final_prompt:
-        lines.append("final_prompt=" + final_prompt)
+    if debug_trace_enabled:
+        final_prompt = ""
+        if messages:
+            system_parts = [str(msg.get("content", "")) for msg in messages if msg.get("role") == "system"]
+            final_prompt = "\n\n".join(system_parts[:2])[:800]
+        lines.extend(
+            [
+                f"memory_used={getattr(role_state, 'last_used_memory_summary', '-') or '-'}",
+                f"story_used={getattr(role_state, 'last_used_story_summary', '-') or '-'}",
+                f"closure={getattr(role_state, 'session_closure_summary', '-') or '-'}",
+            ]
+        )
+        if final_prompt:
+            lines.append("final_prompt=" + final_prompt)
+    else:
+        lines.append("debug_payload=redacted; set SERIVA_DEBUG_TRACE=1 to inspect prompt/memory locally")
 
     return "\n".join(lines)
