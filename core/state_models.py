@@ -32,6 +32,8 @@ from config.constants import (
     ROLE_ID_BO_SALLSA, 
 )
 
+# TAMBAHKAN INI
+logger = logging.getLogger(__name__)
 
 # ==============================
 # ENUMS & SIMPLE TYPES
@@ -677,17 +679,17 @@ class RoleState:
         if intensity >= 11 and unlock >= 70:
             if self.intimacy_phase != IntimacyPhase.VULGAR:
                 self.intimacy_phase = IntimacyPhase.VULGAR
-                logger.info(f"📈 Fase naik ke VULGAR (intensity={intensity}, unlock={unlock})")
+                #logger.info(f"📈 Fase naik ke VULGAR (intensity={intensity}, unlock={unlock})")
                 return True
         elif intensity >= 10 and unlock >= 50:
             if self.intimacy_phase != IntimacyPhase.INTIM:
                 self.intimacy_phase = IntimacyPhase.INTIM
-                logger.info(f"📈 Fase naik ke INTIM (intensity={intensity}, unlock={unlock})")
+                #logger.info(f"📈 Fase naik ke INTIM (intensity={intensity}, unlock={unlock})")
                 return True
         elif intensity >= 6:
             if self.intimacy_phase != IntimacyPhase.DEKAT:
                 self.intimacy_phase = IntimacyPhase.DEKAT
-                logger.info(f"📈 Fase naik ke DEKAT (intensity={intensity})")
+                #logger.info(f"📈 Fase naik ke DEKAT (intensity={intensity})")
                 return True
         elif intensity >= 3:
             if self.intimacy_phase == IntimacyPhase.AWAL:
@@ -696,7 +698,7 @@ class RoleState:
         else:
             if self.intimacy_phase != IntimacyPhase.AWAL and self.intimacy_phase != IntimacyPhase.DEKAT:
                 self.intimacy_phase = IntimacyPhase.AWAL
-                logger.info(f"📉 Fase turun ke AWAL (intensity={intensity})")
+                #logger.info(f"📉 Fase turun ke AWAL (intensity={intensity})")
                 return True
     
         return old_phase != self.intimacy_phase
