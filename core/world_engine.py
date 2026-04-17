@@ -15,12 +15,14 @@ Fungsi utama:
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 from typing import Optional
 
 from core.state_models import WorldEvent, WorldState
 from config.constants import MIN_DRAMA_LEVEL, MAX_DRAMA_LEVEL
 
+logger = logging.getLogger(__name__)
 
 def _clamp(value: int, min_v: int, max_v: int) -> int:
     return max(min_v, min(max_v, value))
