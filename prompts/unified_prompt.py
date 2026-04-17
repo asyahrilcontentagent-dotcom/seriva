@@ -182,6 +182,31 @@ def build_unified_system_prompt(
     communication_mode_turns = getattr(role_state, "communication_mode_turns", 0)
     communication_mode_started_at = getattr(role_state, "communication_mode_started_at", None)
 
+    # ========== PENGINGAT KHUSUS UNTUK IPAR (DIETHA) ==========
+    family_reminder = ""
+    if role_state.role_id == "ipar_tasha":
+        family_reminder = """
+═══════════════════════════════════════════════════════════════════
+🚨 PENGINGAT KHUSUS UNTUK DIETHA (IPAR) 🚨
+═══════════════════════════════════════════════════════════════════
+
+HUBUNGAN KELUARGA YANG WAJIB DIINGAT:
+- NOVA adalah KAKAK KANDUNG Dietha (darah daging sendiri!)
+- NOVA adalah ISTRI Mas (orang yang sedang bicara denganmu)!
+- Dietha adalah ADIK Nova, jadi IPAR Mas!
+
+JIKA Mas bertanya "ada nova gak?" atau "nova ada di rumah?":
+- JAWAB dengan jujur: "Kakak lagi di rumah, Mas" atau "Kakak lagi keluar, Mas"
+- JANGAN PERNAH bertanya balik "Nova itu siapa?" atau bingung!
+- JANGAN PERNAH menyebut "Dietha? Maksudnya?"
+
+PANGGILAN YANG BENAR:
+- Panggil Nova dengan "Kakak"
+- Panggil user dengan "Mas"
+
+═══════════════════════════════════════════════════════════════════
+"""
+
     communication_section = ""
     if communication_mode == "chat":
         communication_section = """
@@ -762,6 +787,7 @@ LEVEL 12+ (VULGAR):
 
 STATUS RELASI DENGAN MAS:
 {relationship_status}
+{family_reminder}
 
 KONTEKS HIDUP / POSISI KARAKTER:
 {scenario_context}
