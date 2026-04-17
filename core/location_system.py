@@ -19,7 +19,7 @@ class Location:
 
 
 # ============================================================
-# DAFTAR LOKASI LENGKAP (25+ AREA)
+# DAFTAR LOKASI LENGKAP
 # ============================================================
 
 LOCATIONS: Dict[str, Location] = {
@@ -32,15 +32,54 @@ LOCATIONS: Dict[str, Location] = {
         possible_activities=["nyetir", "duduk sampingan", "pegangan tangan", "cium pipi"],
         risk_level="medium"
     ),
-    "motor": Location(
-        id="motor", name="Motor",
-        description="Di atas motor, berboncengan, angin malam terasa",
-        is_private=False, tags=["motor", "bonceng", "naik motor", "di motor"],
-        ambience="angin malam, suara mesin motor, lampu jalan berkelip",
-        possible_activities=["boncengan", "pegangan pinggang", "bisik telinga"],
+    "mobil_passenger_seat": Location(
+        id="mobil_passenger_seat", name="Duduk di Samping Mas",
+        description="Di dalam mobil, duduk bersebelahan di kursi depan, bahu hampir bersentuhan",
+        is_private=False,
+        tags=["duduk disamping", "duduk di samping", "sebelahan", "jok depan", "bersebelahan"],
+        ambience="suara napas terdengar jelas, jarak sangat dekat, suasana hangat",
+        possible_activities=["duduk bersebelahan", "pegangan tangan", "berbisik", "saling menatap", "cium pipi"],
         risk_level="medium"
     ),
-    
+
+    # === PARKIRAN SPESIFIK ===
+    "parkiran_global": Location(
+        id="parkiran_global", name="Parkiran",
+        description="Area parkiran umum, lampu jalan temaram, beberapa mobil terparkir",
+        is_private=False,
+        tags=["parkiran", "area parkir", "tempat parkir", "parking lot"],
+        ambience="lampu jalan temaram, suara langkah kaki, angin malam",
+        possible_activities=["jalan bareng", "berdiri berdua", "pegangan tangan", "cium cepat"],
+        risk_level="medium"
+    ),
+    "parkiran_mall": Location(
+        id="parkiran_mall", name="Parkiran Mall",
+        description="Parkiran mall yang cukup luas, lampu terang, banyak mobil, ada petugas keamanan",
+        is_private=False,
+        tags=["parkiran mall", "parkir mall", "mall parking"],
+        ambience="lampu terang, suara mobil lalu lalang, petugas parkir bersiul",
+        possible_activities=["parkir mobil", "turun dari mobil", "jalan ke mall", "tunggu di mobil"],
+        risk_level="medium"
+    ),
+    "parkiran_hotel": Location(
+        id="parkiran_hotel", name="Parkiran Hotel",
+        description="Parkiran hotel yang tenang, agak gelap, hanya beberapa mobil, suasana privat",
+        is_private=False,
+        tags=["parkiran hotel", "parkir hotel", "hotel parking"],
+        ambience="lampu temaram, suasana sepi, aroma khas parkiran hotel",
+        possible_activities=["parkir mobil", "turun dari mobil", "masuk ke hotel", "duduk di mobil berdua"],
+        risk_level="low"
+    ),
+    "parkiran_apartemen": Location(
+        id="parkiran_apartemen", name="Parkiran Apartemen",
+        description="Parkiran apartemen yang tertutup, akses khusus penghuni, sepi, lampu otomatis",
+        is_private=False,
+        tags=["parkiran apartemen", "parkir apartemen", "apartment parking", "basement apartemen"],
+        ambience="lampu sensor gerak, suasana sangat sepi, aroma ruang bawah tanah",
+        possible_activities=["parkir mobil", "turun dari mobil", "naik ke apartemen", "duduk di mobil berdua"],
+        risk_level="low"
+    ),
+
     # === RUANGAN DI RUMAH ===
     "kamar_tidur": Location(
         id="kamar_tidur", name="Kamar Tidur",
@@ -98,7 +137,83 @@ LOCATIONS: Dict[str, Location] = {
         possible_activities=["berduaan gelap-gelapan", "cium cepat"],
         risk_level="medium"
     ),
-    
+
+    # === HOTEL - 4 AREA ===
+    "hotel_room": Location(
+        id="hotel_room", name="Kamar Hotel",
+        description="Kamar hotel yang nyaman dengan kasur empuk, sprei putih bersih, AC dingin, dan pemandangan kota",
+        is_private=True,
+        tags=["kamar hotel", "hotel room", "hotel kamar"],
+        ambience="lampu hangat redup, pemandangan kota malam, AC dingin",
+        possible_activities=["tiduran", "rebahan", "nonton TV", "bercinta", "room service"],
+        risk_level="low"
+    ),
+    "hotel_sofa": Location(
+        id="hotel_sofa", name="Sofa Hotel",
+        description="Sofa empuk di sudut hotel, nyaman untuk duduk berdua, lampu temaram",
+        is_private=False,
+        tags=["sofa hotel", "hotel sofa", "sofa lobby"],
+        ambience="lampu temaram, musik latar pelan, suasana agak sepi",
+        possible_activities=["duduk bersebelahan", "pegangan tangan", "berbisik", "saling mendekat"],
+        risk_level="medium"
+    ),
+    "hotel_bathroom": Location(
+        id="hotel_bathroom", name="Kamar Mandi Hotel",
+        description="Kamar mandi hotel dengan shower kaca, ubin marmer, wastafel, cermin besar, handuk bersih",
+        is_private=True,
+        tags=["kamar mandi hotel", "hotel bathroom", "hotel kamar mandi"],
+        ambience="uap hangat, aroma sabun, suara air mengalir, cermin beruap",
+        possible_activities=["mandi sendiri", "bercermin", "sikat gigi"],
+        risk_level="low"
+    ),
+    "hotel_shower_together": Location(
+        id="hotel_shower_together", name="Mandi Bareng Hotel",
+        description="Di dalam shower hotel yang cukup luas untuk berdua, uap hangat, air mengalir",
+        is_private=True,
+        tags=["mandi bareng hotel", "hotel mandi bareng", "shower bareng hotel"],
+        ambience="uap panas, suara air, aroma sabun campur wangi tubuh",
+        possible_activities=["mandi berdua", "sabunan bareng", "basah-basahan", "bercinta di shower"],
+        risk_level="low"
+    ),
+
+    # === APARTEMEN - 4 AREA ===
+    "apartment_room": Location(
+        id="apartment_room", name="Kamar Apartemen",
+        description="Kamar tidur apartemen dengan kasur queen size, sprei bersih, lemari, meja rias, AC",
+        is_private=True,
+        tags=["kamar apartemen", "apartment room", "apartemen kamar"],
+        ambience="lampu tidur redup, tirai semi transparan, AC dingin, suasana privat",
+        possible_activities=["tiduran", "rebahan", "ganti baju", "bercinta", "tidur bareng"],
+        risk_level="low"
+    ),
+    "apartment_sofa": Location(
+        id="apartment_sofa", name="Sofa Apartemen",
+        description="Sofa empuk di ruang tamu apartemen, bantal-bantal kecil, nyaman untuk berdua",
+        is_private=True,
+        tags=["sofa apartemen", "apartment sofa", "apartemen sofa"],
+        ambience="lampu ruangan hangat, TV menyala pelan, suasana homey",
+        possible_activities=["duduk bersebelahan", "berpelukan", "pegangan tangan", "berbisik", "cuddling"],
+        risk_level="low"
+    ),
+    "apartment_bathroom": Location(
+        id="apartment_bathroom", name="Kamar Mandi Apartemen",
+        description="Kamar mandi apartemen bersih dengan shower, wastafel, cermin besar, handuk bersih",
+        is_private=True,
+        tags=["kamar mandi apartemen", "apartment bathroom", "apartemen kamar mandi"],
+        ambience="uap hangat, aroma sabun, suara air mengalir, cermin beruap",
+        possible_activities=["mandi sendiri", "bercermin", "sikat gigi"],
+        risk_level="low"
+    ),
+    "apartment_shower_together": Location(
+        id="apartment_shower_together", name="Mandi Bareng Apartemen",
+        description="Di dalam shower apartemen, cukup luas untuk berdua, air hangat mengalir, uap mengepul",
+        is_private=True,
+        tags=["mandi bareng apartemen", "apartemen mandi bareng", "shower bareng apartemen"],
+        ambience="uap panas, suara air, aroma sabun, suasana hangat dan intim",
+        possible_activities=["mandi berdua", "sabunan bareng", "basah-basahan", "bercinta di shower"],
+        risk_level="low"
+    ),
+
     # === TEMPAT UMUM ===
     "kafe": Location(
         id="kafe", name="Kafe",
@@ -122,14 +237,6 @@ LOCATIONS: Dict[str, Location] = {
         is_private=False, tags=["kantor", "office", "ruang kerja", "kerja", "di kantor"],
         ambience="suara keyboard, lampu neon, suasana formal",
         possible_activities=["kerja bareng", "rapat", "ngobrol sambil kerja"],
-        risk_level="high"
-    ),
-    "parkiran": Location(
-        id="parkiran", name="Parkiran",
-        description="Area parkir, sepi tapi terbuka",
-        is_private=False, tags=["parkiran", "parkir", "parking lot", "di parkiran"],
-        ambience="sepi, lampu jalan, suara langkah kaki",
-        possible_activities=["jalan bareng", "cium cepat", "pegangan tangan"],
         risk_level="high"
     ),
     "mall": Location(
@@ -191,8 +298,8 @@ LOCATIONS: Dict[str, Location] = {
     "kamar_tamu": Location(
         id="kamar_tamu", name="Kamar Tamu",
         description="Kamar tidur untuk tamu, rapi dan bersih, kasur empuk dengan sprei putih",
-        is_private=True, 
-        tags=["kamar tamu", "kamar tidur tamu", "guest room", "kamar tamu", "kamar tidur tamu"],
+        is_private=True,
+        tags=["kamar tamu", "kamar tidur tamu", "guest room"],
         ambience="suasana tenang, seprei putih bersih, tirai tertutup, wangi pengharum ruangan",
         possible_activities=["istirahat", "tiduran", "ngobrol", "rebahan", "bercinta"],
         risk_level="low"
@@ -221,35 +328,68 @@ TRIGGER_WORDS = ["di", "ke", "naik", "masuk", "pindah", "menuju", "pergi ke", "j
 
 
 def detect_location_from_text(text: str) -> Optional[Tuple[str, str]]:
-    """
-    Deteksi lokasi dari teks user.
-    WAJIB: trigger word + nama lokasi (minimal 2 kata)
-    
-    Return: (location_id, pattern_yang_ditemukan) atau None
-    """
+    """Deteksi lokasi dari teks user dengan prioritas unik (tidak bentrok)."""
     t = text.lower().strip()
-    
+
+    # ========== PRIORITAS 1: Duduk di samping (di mobil) ==========
+    if "duduk disamping" in t or "duduk di samping" in t or "sebelahan" in t:
+        return ("mobil_passenger_seat", "duduk disamping")
+
+    # ========== PRIORITAS 2: Mobil ==========
+    if "di mobil" in t or "ke mobil" in t or "dalam mobil" in t:
+        return ("mobil", "mobil")
+
+    # ========== PRIORITAS 3: Parkiran spesifik ==========
+    if "parkiran mall" in t or "parkir mall" in t:
+        return ("parkiran_mall", "parkiran mall")
+    if "parkiran hotel" in t or "parkir hotel" in t:
+        return ("parkiran_hotel", "parkiran hotel")
+    if "parkiran apartemen" in t or "parkir apartemen" in t:
+        return ("parkiran_apartemen", "parkiran apartemen")
+    if "parkiran" in t or "area parkir" in t or "tempat parkir" in t:
+        return ("parkiran_global", "parkiran")
+
+    # ========== PRIORITAS 4: Hotel 4 area ==========
+    if "mandi bareng hotel" in t or "shower bareng hotel" in t:
+        return ("hotel_shower_together", "mandi bareng hotel")
+    if "kamar mandi hotel" in t or "hotel bathroom" in t:
+        return ("hotel_bathroom", "kamar mandi hotel")
+    if "sofa hotel" in t or "hotel sofa" in t:
+        return ("hotel_sofa", "sofa hotel")
+    if "kamar hotel" in t or "hotel room" in t:
+        return ("hotel_room", "kamar hotel")
+
+    # ========== PRIORITAS 5: Apartemen 4 area ==========
+    if "mandi bareng apartemen" in t or "shower bareng apartemen" in t:
+        return ("apartment_shower_together", "mandi bareng apartemen")
+    if "kamar mandi apartemen" in t or "apartment bathroom" in t:
+        return ("apartment_bathroom", "kamar mandi apartemen")
+    if "sofa apartemen" in t or "apartment sofa" in t:
+        return ("apartment_sofa", "sofa apartemen")
+    if "kamar apartemen" in t or "apartment room" in t:
+        return ("apartment_room", "kamar apartemen")
+
+    # ========== PRIORITAS 6: Hotel & Apartemen (legacy) ==========
+    if "hotel" in t or "penginapan" in t:
+        return ("hotel", "hotel")
+    if "apartemen" in t or "flat" in t:
+        return ("apartemen", "apartemen")
+
+    # ========== PRIORITAS 7: Lokasi lain ==========
     for loc_id, loc in LOCATIONS.items():
+        # Skip lokasi yang sudah diproses di atas
+        skip_ids = ["hotel_room", "hotel_sofa", "hotel_bathroom", "hotel_shower_together",
+                    "apartment_room", "apartment_sofa", "apartment_bathroom", "apartment_shower_together",
+                    "mobil", "mobil_passenger_seat", "parkiran_global", "parkiran_mall",
+                    "parkiran_hotel", "parkiran_apartemen", "hotel", "apartemen"]
+        if loc_id in skip_ids:
+            continue
         for tag in loc.tags:
-            # Pola 2 kata: "trigger tag" (contoh: "di mobil")
             for trigger in TRIGGER_WORDS:
                 two_word = f"{trigger} {tag}"
                 if two_word in t:
                     return (loc_id, two_word)
-            
-            # Pola 3 kata: "kata trigger tag" (contoh: "ayo ke mobil")
-            for kata in ["aku", "kita", "ayo", "yuk", "mari", "sini", "kesini"]:
-                three_word = f"{kata} {trigger} {tag}"
-                if three_word in t:
-                    return (loc_id, three_word)
-    
-    # Deteksi khusus: kata "pindah" + lokasi
-    if "pindah" in t:
-        for loc_id, loc in LOCATIONS.items():
-            for tag in loc.tags:
-                if tag in t:
-                    return (loc_id, f"pindah {tag}")
-    
+
     return None
 
 
@@ -262,14 +402,14 @@ def update_role_location(role_state, text: str) -> bool:
     result = detect_location_from_text(text)
     if not result:
         return False
-    
+
     loc_id, pattern = result
-    
+
     # Cek apakah sudah di lokasi yang sama
     current = getattr(role_state, 'current_location_id', None)
     if current == loc_id:
         return False
-    
+
     # Update lokasi
     loc = LOCATIONS[loc_id]
     role_state.current_location_id = loc_id
@@ -278,26 +418,26 @@ def update_role_location(role_state, text: str) -> bool:
     role_state.current_location_is_private = loc.is_private
     role_state.current_location_ambience = loc.ambience
     role_state.current_location_risk = loc.risk_level
-    
+
     return True
 
 
 def get_location_prompt_block(role_state) -> str:
     """Dapatkan blok prompt untuk lokasi saat ini."""
     loc_id = getattr(role_state, 'current_location_id', 'ruang_tamu')
-    
+
     if loc_id not in LOCATIONS:
         loc_id = 'ruang_tamu'
-    
+
     loc = LOCATIONS[loc_id]
-    
+
     privacy_text = "🔒 TEMPAT PRIVAT" if loc.is_private else "👀 TEMPAT PUBLIK/SEMI PRIVAT"
     risk_text = {
         "low": "✅ Aman, tidak ada risiko ketahuan",
         "medium": "⚠️ Cukup aman, tapi tetap waspada",
         "high": "🚨 Risiko tinggi! Bisa ketahuan orang lain!"
     }.get(loc.risk_level, "⚠️ Waspada")
-    
+
     return f"""
 ═══════════════════════════════════════════════════
 📍 LOKASI SAAT INI: {loc.name}
