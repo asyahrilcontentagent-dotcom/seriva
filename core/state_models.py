@@ -662,6 +662,43 @@ class RoleState:
     vulgar_invitation_rejected: bool = False
     vulgar_entry_timestamp: Optional[float] = None
 
+    def update_phase_by_intensity(self) -> bool:
+        """Update fase berdasarkan intimacy_intensity secara otomatis.
+    
+        Returns:
+            True jika fase berubah, False jika tidak.
+        """
+        old_phase = self.intimacy_phase
+        intensity = self.emotions.intimacy_intensity
+        unlock = self.high_intensity_unlock_score
+    
+        if intensity >= 11 and unlock >= 70:
+            if self.intimacy_phase != IntimacyPhase.VULGAR:
+                self.intimacy_phase = IntimacyPhase.VULGAR
+                logger.info(f"📈 Fase naik ke VULGAR (intensity={intensity}, unlock={unlock})")
+                return True
+        elif intensity >= 10 and unlock >= 50:
+            if self.intimacy_phase != IntimacyPhase.INTIM:
+                self.intimacy_phase = IntimacyPhase.INTIM
+                logger.info(f"📈 Fase naik ke INTIM (intensity={intensity}, unlock={unlock})")
+                return True
+        elif intensity >= 6:
+            if self.intimacy_phase != IntimacyPhase.DEKAT:
+                self.intimacy_phase = IntimacyPhase.DEKAT
+                logger.info(f"📈 Fase naik ke DEKAT (intensity={intensity})")
+                return True
+        elif intensity >= 3:
+            if self.intimacy_phase == IntimacyPhase.AWAL:
+                # Sudah di AWAL, tidak perlu naik
+                pass
+        else:
+            if self.intimacy_phase != IntimacyPhase.AWAL and self.intimacy_phase != IntimacyPhase.DEKAT:
+                self.intimacy_phase = IntimacyPhase.AWAL
+                logger.info(f"📉 Fase turun ke AWAL (intensity={intensity})")
+                return True
+    
+        return old_phase != self.intimacy_phase
+
     # ========== RESET METHODS ==========
     
     def reset_intimacy_state(self) -> None:
