@@ -5,6 +5,7 @@ Mapping role_id -> instance Role (Nova + semua role lain).
 
 from __future__ import annotations
 
+import logging
 from typing import Dict
 
 from config.constants import (
@@ -29,6 +30,7 @@ from roles.terapis_munira import TerapisMuniraRole
 from roles.teman_spesial_davina import TemanSpesialDavinaRole
 from roles.teman_spesial_sallsa import TemanSpesialSallsaRole
 
+logger = logging.getLogger(__name__)
 
 # Inisialisasi instance role (singleton sederhana)
 _nova_role = NovaRole()
