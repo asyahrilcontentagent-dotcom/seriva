@@ -7,6 +7,7 @@ import os
 
 from bot.app_factory import build_application, create_orchestrator
 
+logger = logging.getLogger(__name__)
 
 def _configure_logging() -> None:
     logging.basicConfig(
