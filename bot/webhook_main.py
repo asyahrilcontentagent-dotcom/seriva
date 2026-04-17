@@ -8,6 +8,18 @@ import os
 from bot.app_factory import build_application, create_orchestrator
 
 
+def _configure_logging() -> None:
+    logging.basicConfig(
+        format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        level=logging.INFO,
+    )
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
+    logging.getLogger("telegram").setLevel(logging.WARNING)
+    logging.getLogger("telegram.ext").setLevel(logging.WARNING)
+
+
+_configure_logging()
 logger = logging.getLogger(__name__)
 
 
