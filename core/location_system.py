@@ -89,6 +89,24 @@ LOCATIONS: Dict[str, Location] = {
         possible_activities=["tiduran", "rebahan", "pelukan", "bercinta", "ganti baju", "mandi bersama"],
         risk_level="low"
     ),
+    "kamar_nova": Location(
+        id="kamar_nova", name="Kamar Nova",
+        description="Kamar utama Nova dan Mas, rapi, hangat, dan menjadi ruang tidur suami istri",
+        is_private=True,
+        tags=["kamar nova", "kamar kakak", "kamar utama", "kamar istri", "kamar kami", "kamar suami istri"],
+        ambience="lampu kamar lembut, kasur rapi, suasana privat milik Nova dan Mas",
+        possible_activities=["istirahat", "tidur bareng", "ngobrol berdua", "ganti baju"],
+        risk_level="low"
+    ),
+    "kamar_dietha": Location(
+        id="kamar_dietha", name="Kamar Dietha",
+        description="Kamar pribadi Dietha yang mungil, rapi, dan penuh barang-barang pribadinya",
+        is_private=True,
+        tags=["kamar dietha", "kamar tasha", "kamar ipar", "kamar adik"],
+        ambience="suasana kamar pribadi yang tenang, ada sentuhan barang-barang khas Dietha",
+        possible_activities=["istirahat", "ngobrol", "rebahan", "ganti baju"],
+        risk_level="low"
+    ),
     "kamar_mandi": Location(
         id="kamar_mandi", name="Kamar Mandi",
         description="Kamar mandi dengan uap air hangat, keramik bersih",
@@ -184,6 +202,15 @@ LOCATIONS: Dict[str, Location] = {
         tags=["kamar apartemen", "apartment room", "apartemen kamar"],
         ambience="lampu tidur redup, tirai semi transparan, AC dingin, suasana privat",
         possible_activities=["tiduran", "rebahan", "ganti baju", "bercinta", "tidur bareng"],
+        risk_level="low"
+    ),
+    "apartment_private_room": Location(
+        id="apartment_private_room", name="Kamar Apartemen Mas",
+        description="Kamar apartemen pribadi Mas yang benar-benar privat dan tidak diketahui role lain kecuali Mas menyebutkannya",
+        is_private=True,
+        tags=["kamar apartemen mas", "kamarku di apartemen", "kamar aku di apartemen", "private room apartemen"],
+        ambience="suasana apartemen pribadi yang tenang, tertutup, dan sepenuhnya privat",
+        possible_activities=["istirahat", "rebahan", "ganti baju", "tidur"],
         risk_level="low"
     ),
     "apartment_sofa": Location(
@@ -330,6 +357,14 @@ TRIGGER_WORDS = ["di", "ke", "naik", "masuk", "pindah", "menuju", "pergi ke", "j
 def detect_location_from_text(text: str) -> Optional[Tuple[str, str]]:
     """Deteksi lokasi dari teks user dengan prioritas unik (tidak bentrok)."""
     t = text.lower().strip()
+
+    # ========== PRIORITAS 0: Kamar keluarga & kamar privat ==========
+    if "kamar nova" in t or "kamar kakak" in t or "kamar utama" in t:
+        return ("kamar_nova", "kamar nova")
+    if "kamar dietha" in t or "kamar tasha" in t or "kamar ipar" in t:
+        return ("kamar_dietha", "kamar dietha")
+    if "kamarku di apartemen" in t or "kamar aku di apartemen" in t or "kamar apartemen mas" in t:
+        return ("apartment_private_room", "kamar apartemen mas")
 
     # ========== PRIORITAS 1: Duduk di samping (di mobil) ==========
     if "duduk disamping" in t or "duduk di samping" in t or "sebelahan" in t:
