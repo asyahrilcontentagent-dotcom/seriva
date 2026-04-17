@@ -603,6 +603,17 @@ class RoleState:
     communication_mode: Optional[str] = None
     communication_mode_turns: int = 0
     communication_mode_started_at: Optional[float] = None
+    pre_remote_scene_location: str = ""
+    pre_remote_scene_posture: str = ""
+    pre_remote_scene_activity: str = ""
+    pre_remote_scene_ambience: str = ""
+    pre_remote_scene_physical_distance: str = ""
+    pre_remote_scene_last_touch: str = ""
+    pre_remote_location_name: str = ""
+    pre_remote_location_desc: str = ""
+    pre_remote_location_ambience: str = ""
+    pre_remote_location_risk: str = ""
+    pre_remote_location_is_private: Optional[bool] = None
 
     # ========== MULTIPLE CLIMAX ==========
     multiple_climax_enabled: bool = True
