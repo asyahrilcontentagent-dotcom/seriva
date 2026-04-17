@@ -128,7 +128,7 @@ class ResponseBuilder:
         fail_safe_block = self._build_fail_safe_block(role_state)
         merged_system = self._merge_system_blocks(
             [runtime_capsule, qc_block, fail_safe_block, *system_blocks],
-            max_chars=7200,
+            max_chars=5600,
         )
         final_user = user_blocks[-1] if user_blocks else ""
         role_state.last_prompt_snapshot = merged_system[:4000]
@@ -178,15 +178,15 @@ class ResponseBuilder:
 
         if max_chars is None:
             if text.startswith("DYNAMIC BEHAVIOR RULES:"):
-                max_chars = 900
+                max_chars = 650
             elif text.startswith("KONTEKS MEMORY DAN KONTINUITAS:"):
-                max_chars = 2200
+                max_chars = 1200
             elif text.startswith("PROMPT PREFLIGHT"):
-                max_chars = 1500
+                max_chars = 1000
             elif text.startswith("QC PROMPT"):
-                max_chars = 900
+                max_chars = 650
             else:
-                max_chars = 3800
+                max_chars = 2800
 
         if len(text) <= max_chars:
             return text
@@ -209,9 +209,9 @@ class ResponseBuilder:
         communication_turns = getattr(role_state, "communication_mode_turns", 0)
         secondary_mood = getattr(emotions, "secondary_mood", emotions.mood).value
         hidden_mood = getattr(emotions, "hidden_mood", emotions.mood).value
-        memory_summary = (getattr(role_state, "last_used_memory_summary", "") or "-").strip()[:280]
-        story_summary = (getattr(role_state, "last_used_story_summary", "") or "-").strip()[:280]
-        closure_summary = (getattr(role_state, "session_closure_summary", "") or "-").strip()[:220]
+        memory_summary = (getattr(role_state, "last_used_memory_summary", "") or "-").strip()[:160]
+        story_summary = (getattr(role_state, "last_used_story_summary", "") or "-").strip()[:160]
+        closure_summary = (getattr(role_state, "session_closure_summary", "") or "-").strip()[:120]
 
         return (
             "PROMPT PREFLIGHT - STATE OTORITATIF:\n"
