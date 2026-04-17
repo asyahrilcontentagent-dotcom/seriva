@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 
 from bot.handlers import (
@@ -29,6 +31,39 @@ from memory.message_history import MessageHistoryStore
 from memory.milestones import MilestoneStore
 from memory.story_memory import StoryMemoryStore
 from storage.inmemory_store import InMemoryUserStateStore, InMemoryWorldStateStore
+
+logger = logging.getLogger(__name__)
+
+
+def _friendly_llm_error_message(exc: BaseException) -> str | None:
+    message = str(exc).lower()
+    if "status=402" in message or "insufficient balance" in message:
+        return (
+            "Layanan lagi belum bisa balas karena saldo model sedang habis. "
+            "Coba lagi sebentar lagi ya."
+        )
+    if "llm api error" in message or "gagal memanggil llm" in message:
+        return "Layanan lagi gangguan sebentar. Coba kirim lagi beberapa saat lagi ya."
+    return None
+
+
+async def _telegram_error_handler(update, context) -> None:
+    exc = context.error
+    friendly_message = _friendly_llm_error_message(exc) if exc is not None else None
+    if friendly_message is None:
+        logger.exception("Unhandled Telegram update error", exc_info=exc)
+        return
+
+    logger.warning("Handled Telegram update error gracefully: %s", exc)
+
+    chat = getattr(update, "effective_chat", None)
+    if chat is None:
+        return
+
+    try:
+        await chat.send_message(friendly_message)
+    except Exception:  # noqa: BLE001
+        logger.exception("Gagal mengirim fallback error message ke Telegram")
 
 
 def create_orchestrator(
@@ -118,5 +153,6 @@ def build_application(
             message_handler(orchestrator, admin_id),
         )
     )
+    app.add_error_handler(_telegram_error_handler)
 
     return app
