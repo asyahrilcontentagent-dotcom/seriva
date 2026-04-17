@@ -2002,10 +2002,18 @@ class Orchestrator:
                     role_state.aftercare_clothing_state = "bra_saja"
                     logger.info(f"👙 {role_state.role_id} setelah aftercare: pake BRA saja")
         
-        # ========== UPDATE FASE INTIMACY ==========
+                # ========== UPDATE FASE INTIMACY ==========
         phase_changed = IntimacyProgressionEngine.update_phase_and_scene(role_state, inp.text, reply_text)
         if phase_changed:
             logger.info(f"User {inp.user_id} role {role_state.role_id} moved to {role_state.intimacy_phase}")
+        
+        # ========== TAMBAHKAN INI ==========
+        # Force update fase berdasarkan intimacy_intensity (otomatis)
+        phase_changed_by_intensity = role_state.update_phase_by_intensity()
+        if phase_changed_by_intensity:
+            logger.info(f"🔥 FASE BERUBAH via intensity: {role_state.role_id} -> {role_state.intimacy_phase}")
+        # ========== AKHIR TAMBAHAN ==========
+        
         if self._should_force_after_due_to_stamina(role_state):
             self._enter_after_phase(role_state, inp.timestamp, reason="fatigue")
 
