@@ -1086,9 +1086,36 @@ class Orchestrator:
     def _clear_communication_mode(self, role_state: RoleState) -> None:
         """Reset semua state komunikasi remote untuk role aktif."""
 
+        if role_state.pre_remote_scene_location:
+            role_state.scene.location = role_state.pre_remote_scene_location
+            role_state.scene.posture = role_state.pre_remote_scene_posture
+            role_state.scene.activity = role_state.pre_remote_scene_activity
+            role_state.scene.ambience = role_state.pre_remote_scene_ambience
+            role_state.scene.physical_distance = role_state.pre_remote_scene_physical_distance
+            role_state.scene.last_touch = role_state.pre_remote_scene_last_touch
+            role_state.current_location_name = role_state.pre_remote_location_name or role_state.current_location_name
+            role_state.current_location_desc = role_state.pre_remote_location_desc or role_state.current_location_desc
+            role_state.current_location_ambience = (
+                role_state.pre_remote_location_ambience or role_state.current_location_ambience
+            )
+            role_state.current_location_risk = role_state.pre_remote_location_risk or role_state.current_location_risk
+            if role_state.pre_remote_location_is_private is not None:
+                role_state.current_location_is_private = role_state.pre_remote_location_is_private
+
         role_state.communication_mode = None
         role_state.communication_mode_turns = 0
         role_state.communication_mode_started_at = None
+        role_state.pre_remote_scene_location = ""
+        role_state.pre_remote_scene_posture = ""
+        role_state.pre_remote_scene_activity = ""
+        role_state.pre_remote_scene_ambience = ""
+        role_state.pre_remote_scene_physical_distance = ""
+        role_state.pre_remote_scene_last_touch = ""
+        role_state.pre_remote_location_name = ""
+        role_state.pre_remote_location_desc = ""
+        role_state.pre_remote_location_ambience = ""
+        role_state.pre_remote_location_risk = ""
+        role_state.pre_remote_location_is_private = None
 
     def _activate_communication_mode(
         self,
@@ -1103,6 +1130,18 @@ class Orchestrator:
             return
 
         if role_state.communication_mode != normalized_mode:
+            if role_state.communication_mode is None:
+                role_state.pre_remote_scene_location = role_state.scene.location or ""
+                role_state.pre_remote_scene_posture = role_state.scene.posture or ""
+                role_state.pre_remote_scene_activity = role_state.scene.activity or ""
+                role_state.pre_remote_scene_ambience = role_state.scene.ambience or ""
+                role_state.pre_remote_scene_physical_distance = role_state.scene.physical_distance or ""
+                role_state.pre_remote_scene_last_touch = role_state.scene.last_touch or ""
+                role_state.pre_remote_location_name = role_state.current_location_name or ""
+                role_state.pre_remote_location_desc = role_state.current_location_desc or ""
+                role_state.pre_remote_location_ambience = role_state.current_location_ambience or ""
+                role_state.pre_remote_location_risk = role_state.current_location_risk or ""
+                role_state.pre_remote_location_is_private = role_state.current_location_is_private
             role_state.communication_mode = normalized_mode
             role_state.communication_mode_turns = 0
             role_state.communication_mode_started_at = timestamp
@@ -2117,6 +2156,82 @@ class Orchestrator:
 
     async def generate_response(self, user_id: str, role_id: str, user_message: str) -> str:
         """Generate response dengan semua enhancement (untuk polling mode)"""
+
+        user_state = self._load_or_init_user_state(user_id)
+        user_state.active_role_id = role_id
+        role_state = self.role_selector.get_active_role_state(user_state)
+        now_ts = time.time()
+        self.scene_manager.prepare_for_turn(role_state, now_ts)
+        self.scene_manager.apply_context_awareness(role_state, user_message, now_ts)
+
+        self.message_history.add_message(
+            user_id=user_id,
+            role_id=role_id,
+            from_who="user",
+            timestamp=time.time(),
+            content=user_message,
+        )
+
+        structured_context = self.memory_orchestrator.build_context(
+            user_id=user_id,
+            role_id=role_state.role_id,
+            user_message=user_message,
+            role_state=role_state,
+        )
+        role_state.last_used_memory_summary = structured_context.message_memory
+        role_state.last_used_story_summary = structured_context.story_memory
+
+        world_state = self._load_or_init_world_state()
+        messages = self._build_runtime_messages(
+            user_state,
+            world_state,
+            role_state,
+            user_message,
+            structured_context=structured_context,
+        )
+        self._log_debug_runtime(role_state, structured_context, messages)
+
+        response = self._generate_guarded_reply(
+            messages,
+            role_state,
+            user_message,
+            memory_context=structured_context.message_memory,
+            story_context=structured_context.story_memory,
+        )
+
+        if role_state.vcs_mode:
+            vcs_increase = role_state.update_vcs_intensity_from_text(response, is_response=True)
+            if vcs_increase > 0:
+                logger.info(f"ðŸ“± VCS intensity +{vcs_increase} dari response role")
+
+        if "pindah ke" in user_message.lower():
+            match = re.search(r"pindah ke (\w+)", user_message.lower())
+            if match:
+                self.story_memory.update_location(user_id, role_id, match.group(1))
+
+        self.message_history.add_message(
+            user_id=user_id,
+            role_id=role_id,
+            from_who="assistant",
+            timestamp=time.time(),
+            content=response,
+        )
+
+        self.story_memory.update_scene_summary(
+            user_id,
+            role_id,
+            f"User: {user_message[:150]}\n{role_id}: {response[:150]}",
+        )
+
+        self._detect_and_record_story_beat(user_id, role_id, user_message, response)
+
+        ctx = self._parse_interaction_context(user_message)
+        self.emotion_engine.register_user_interaction(user_state, role_id, ctx, now_ts=time.time())
+        self._update_long_term_summary(user_state, role_state)
+
+        self._save_all(user_state, self._load_or_init_world_state())
+
+        return self.response_builder.maybe_append_command_hint(response, role_state, user_message)
         
         # Get states
         user_state = self._load_or_init_user_state(user_id)
@@ -2173,10 +2288,7 @@ class Orchestrator:
         temperature = self._get_llm_temperature(role_state)
         
         response = self.llm.generate_text(
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_message}
-            ],
+            messages=messages,
             temperature=temperature,
             top_p=LLM_TOP_P,
             frequency_penalty=LLM_FREQUENCY_PENALTY,
