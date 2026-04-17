@@ -578,6 +578,8 @@ class RoleState:
     # ========== HANDUK ==========
     handuk_tersedia: bool = False
     handuk_dikasih: bool = False
+    mas_handuk_tersedia: bool = False
+    mas_handuk_dikasih: bool = False
 
     # ========== CLIMAX & EJAKULASI ==========
     role_climax_count: int = 0
@@ -712,6 +714,8 @@ class RoleState:
         saved_aftercare_clothing = self.aftercare_clothing_state
         saved_handuk_tersedia = self.handuk_tersedia
         saved_handuk_dikasih = self.handuk_dikasih
+        saved_mas_handuk_tersedia = self.mas_handuk_tersedia
+        saved_mas_handuk_dikasih = self.mas_handuk_dikasih
         
         self.intimacy_phase = IntimacyPhase.AWAL
         self.current_sequence = None
@@ -783,6 +787,8 @@ class RoleState:
         
         self.handuk_tersedia = saved_handuk_tersedia
         self.handuk_dikasih = saved_handuk_dikasih
+        self.mas_handuk_tersedia = saved_mas_handuk_tersedia
+        self.mas_handuk_dikasih = saved_mas_handuk_dikasih
         
         if self.current_location:
             self.scene.location = self.current_location.name
@@ -896,6 +902,8 @@ class RoleState:
 
         self.handuk_tersedia = False
         self.handuk_dikasih = False
+        self.mas_handuk_tersedia = False
+        self.mas_handuk_dikasih = False
         self.outfit_changed_this_session = False
         self.pending_clothes_change = None
         self.vcs_mode = False
@@ -1278,6 +1286,10 @@ class RoleState:
             self.user_intimacy_signals = min(3, self.user_intimacy_signals + 1)
         if self._contains_any_keyword(response_lower, role_soft_signals):
             self.role_intimacy_signals = min(3, self.role_intimacy_signals + 1)
+        if self.total_positive_interactions >= 2:
+            self.user_intimacy_signals = max(self.user_intimacy_signals, 1)
+        if self.total_positive_interactions >= 3:
+            self.role_intimacy_signals = max(self.role_intimacy_signals, 1)
         if self._contains_any_keyword(user_lower, depth_signals):
             self.emotional_depth_score = min(100, self.emotional_depth_score + 8)
         if self._contains_any_keyword(response_lower, depth_signals):
@@ -1286,6 +1298,10 @@ class RoleState:
             self.trust_score = min(100, self.trust_score + 8)
         if self._contains_any_keyword(response_lower, trust_signals):
             self.trust_score = min(100, self.trust_score + 5)
+        if self.total_positive_interactions >= 2:
+            self.emotional_depth_score = min(100, max(self.emotional_depth_score, 4))
+        if self.total_positive_interactions >= 3:
+            self.trust_score = min(100, max(self.trust_score, 3))
 
         if self._contains_any_keyword(user_lower, brake_signals):
             self.user_intimacy_signals = max(0, self.user_intimacy_signals - 1)
@@ -1309,10 +1325,10 @@ class RoleState:
         self.mutual_intimacy_confirmed = (
             self.user_intimacy_signals >= 1
             and self.role_intimacy_signals >= 1
-            and self.relationship.relationship_level >= 4
-            and self.emotions.comfort >= 50
-            and self.emotional_depth_score >= 8
-            and self.trust_score >= 6
+            and self.relationship.relationship_level >= 3
+            and self.emotions.comfort >= 45
+            and self.emotional_depth_score >= 4
+            and self.trust_score >= 3
         )
 
         if (self.intimacy_phase in [IntimacyPhase.DEKAT, IntimacyPhase.INTIM] 
@@ -1342,12 +1358,12 @@ class RoleState:
 
     def is_ready_for_intimate_scene(self) -> bool:
         return (
-            self.relationship.relationship_level >= 5
-            and self.emotions.comfort >= 52
+            self.relationship.relationship_level >= 3
+            and self.emotions.comfort >= 45
             and self.user_intimacy_signals >= 1
             and self.role_intimacy_signals >= 1
-            and self.emotional_depth_score >= 10
-            and self.trust_score >= 8
+            and self.emotional_depth_score >= 4
+            and self.trust_score >= 3
             and not self.intimacy_brake_active
         )
 
@@ -1760,9 +1776,21 @@ class RoleState:
             match = re.search(r'kerja sebagai\s+([^.]+)', text)
             if match:
                 self.user_context.job = match.group(1).strip()
+
+        city_patterns = [
+            r'(?:tinggal|domisili|di kota|kota)\s+([a-zA-Z][a-zA-Z\s]+)',
+            r'di\s+([a-zA-Z][a-zA-Z\s]+)$',
+        ]
+        for pattern in city_patterns:
+            match = re.search(pattern, text)
+            if match:
+                self.user_context.city = match.group(1).strip()
+                break
         
         if "apartemen" in text or "apartemenku" in text:
             self.user_context.has_apartment = True
+            if "private" in text or "rahasia" in text or "gak ada yang tau" in text or "tidak ada yang tau" in text:
+                self.user_context.apartment_note = "apartemen Mas bersifat privat dan tidak diketahui orang lain"
             if "lantai" in text:
                 match = re.search(r'lantai\s+(\d+)', text)
                 if match:
