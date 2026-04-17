@@ -62,27 +62,31 @@ def get_runtime_mode() -> str:
 def check_env() -> bool:
     """Cek env minimal yang dibutuhkan."""
     mode = get_runtime_mode()
+    effective_llm_key = os.getenv("LLM_API_KEY") or os.getenv("DEEPSEEK_API_KEY")
     required = [
         "TELEGRAM_BOT_TOKEN",
         "SERIVA_ADMIN_ID",
-        "DEEPSEEK_API_KEY",
     ]
 
     if mode == "webhook":
         required.append("WEBHOOK_URL")
 
     missing = [key for key in required if not os.getenv(key)]
+    if not effective_llm_key:
+        missing.append("LLM_API_KEY or DEEPSEEK_API_KEY")
     if missing:
         log("ERROR", f"Missing required env vars: {missing}")
         return False
 
     log("INFO", f"Runtime mode: {mode}")
     log("INFO", "All required env vars are set.")
-    log("INFO", f"TELEGRAM_BOT_TOKEN: {os.getenv('TELEGRAM_BOT_TOKEN')[:10]}...")
+    log("INFO", "TELEGRAM_BOT_TOKEN is set.")
     log("INFO", f"SERIVA_ADMIN_ID: {os.getenv('SERIVA_ADMIN_ID')}")
     if os.getenv("WEBHOOK_URL"):
         log("INFO", f"WEBHOOK_URL: {os.getenv('WEBHOOK_URL')}")
-    if os.getenv("DEEPSEEK_API_KEY"):
+    if os.getenv("LLM_API_KEY"):
+        log("INFO", "LLM_API_KEY is set.")
+    elif os.getenv("DEEPSEEK_API_KEY"):
         log("INFO", "DEEPSEEK_API_KEY is set (used as LLM_API_KEY if LLM_API_KEY was empty).")
     return True
 
