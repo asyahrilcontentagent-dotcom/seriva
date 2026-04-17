@@ -1685,6 +1685,7 @@ class Orchestrator:
         self.scene_manager.apply_context_awareness(role_state, inp.text, inp.timestamp)
         self.scene_manager.mark_focus(role_state, amount=1)
         self._sync_household_scene_cues(role_state, world_state)
+        self._detect_lap_proximity(role_state, inp.text)
         self._update_pre_reply_climax_state(role_state, inp.text, inp.timestamp)
         self._apply_aftercare_decay(role_state, inp.text, inp.timestamp)
         if self._should_force_after_due_to_stamina(role_state):
@@ -3066,6 +3067,51 @@ class Orchestrator:
                     scene.outfit = "baju rumah yang lebih santai dan sedikit menggoda"
                 if world_state.house_privacy_level == "private":
                     scene.ambience = "rumah terasa lebih sepi, memberi ruang untuk tatapan dan obrolan yang lebih berani"
+                  
+    # ========== TAMBAHKAN METHOD INI DI SINI ==========
+    def _detect_lap_proximity(self, role_state: RoleState, text: str) -> bool:
+        """Deteksi apakah user meminta role duduk di pangkuan."""
+        from core.state_models import IntimacyPhase, SceneSequence, SexPosition, IntimacyIntensity
+        
+        t = text.lower()
+        
+        lap_keywords = [
+            "duduk dipangku", "duduk di pangkuan", "naik ke pangkuan",
+            "duduk di pangku", "pangku", "duduk di atas pangkuan",
+            "duduk di pangku aku", "naik ke pangku aku"
+        ]
+        
+        if any(kw in t for kw in lap_keywords):
+            # Update scene untuk semua role
+            role_state.scene.posture = "duduk di pangkuan Mas"
+            role_state.scene.physical_distance = "sangat dekat, tubuh menempel"
+            role_state.scene.activity = "bersandar di dada Mas sambil ngobrol"
+            role_state.scene.last_touch = "pelukan dari depan"
+            
+            # Update intimacy detail
+            role_state.intimacy_detail.position = SexPosition.SITTING
+            if role_state.intimacy_detail.intensity == IntimacyIntensity.FOREPLAY:
+                role_state.intimacy_detail.intensity = IntimacyIntensity.PETTING
+            
+            # Catat bahwa sudah pernah duduk dipangku
+            role_state.lap_proximity_established = True
+            
+            # Jika intimacy sudah cukup, naikkan fase
+            if role_state.is_ready_for_intimate_scene():
+                if role_state.intimacy_phase == IntimacyPhase.DEKAT:
+                    role_state.intimacy_phase = IntimacyPhase.INTIM
+                    role_state.current_sequence = SceneSequence.PELUKAN
+                    logger.info(f"🔥 {role_state.role_id} fase naik ke INTIM karena duduk dipangku")
+            
+            # Naikkan unlock score
+            if role_state.high_intensity_unlock_score < 70:
+                role_state.high_intensity_unlock_score = min(100, role_state.high_intensity_unlock_score + 15)
+                logger.info(f"📈 {role_state.role_id} unlock_score +15 karena duduk dipangku")
+            
+            return True
+        
+        return False
+    # ========== AKHIR TAMBAHAN ==========
 
     # --------------------------------------------------
     # INTERNAL HELPERS: SCENE UNTUK NOVA
@@ -3237,7 +3283,7 @@ class Orchestrator:
                 scene.ambience = "lampu redup, suasana sangat intim"
 
         # ========== PETTING / SENTUHAN LANJUTAN - HANYA JIKA SUDAH ADA ESKALASI ==========
-        if any(kw in t for kw in ["petting", "gesek", "remas", "usap paha dalam", "usap selangkangan"]):
+        if any(kw in t for kw in ["petting", "gesek", "gesek memek ke batang kontol"]):
             # Cek apakah sudah ada eskalasi (duduk dipangkuan) atau sudah VULGAR
             has_escalation = getattr(role_state, 'lap_proximity_established', False) or phase == IntimacyPhase.VULGAR
             
