@@ -111,6 +111,7 @@ from prompts.role_specs import get_role_prompt_spec
 # ========== BARU: Memory & Intimacy Updates ==========
 from core.state_models import ConversationTurn, SceneTurn, SceneSequence
 
+logger = logging.getLogger(__name__)
 
 # ==============================
 # STORAGE ABSTRACTION
