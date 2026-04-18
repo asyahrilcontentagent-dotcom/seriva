@@ -236,20 +236,20 @@ class Orchestrator:
     # ========== METHOD UNTUK STORY MEMORY & RESPONSE VARIATION ==========
 
     def _get_llm_temperature(self, role_state: RoleState) -> float:
-        """Dapatkan temperature sesuai fase"""
-        phase = role_state.intimacy_phase
-        phase_keys = (
-            getattr(phase, "name", None),
-            getattr(phase, "value", None),
-        )
-
-        for key in phase_keys:
-            if isinstance(key, str):
-                normalized_key = key.upper()
-                if normalized_key in LLM_TEMPERATURE_BY_PHASE:
-                    return LLM_TEMPERATURE_BY_PHASE[normalized_key]
-
-        return DEFAULT_LLM_TEMPERATURE
+      """Dapatkan temperature sesuai fase - VERSI TINGGI"""
+      phase = role_state.intimacy_phase
+    
+      # Temperature tinggi untuk semua fase (0.9 - 1.0)
+      # Biar role ga ngulang-ngulang respons yang sama
+      temp_map = {
+          IntimacyPhase.AWAL: 0.92,
+          IntimacyPhase.DEKAT: 0.94,
+          IntimacyPhase.INTIM: 0.96,
+          IntimacyPhase.VULGAR: 0.98,
+          IntimacyPhase.AFTER: 0.90,
+      }
+    
+      return temp_map.get(phase, 0.95)
     
     def _vary_response(self, response: str, role_state: RoleState) -> str:
         """Variasi respon - DINONAKTIFKAN, biar response natural apa adanya"""
@@ -880,10 +880,10 @@ class Orchestrator:
         reply_text = self.llm.generate_text(
             messages,
             temperature=temperature,
-            top_p=LLM_TOP_P,
-            frequency_penalty=LLM_FREQUENCY_PENALTY,
-            presence_penalty=LLM_PRESENCE_PENALTY,
-            max_tokens=LLM_MAX_TOKENS,
+            top_p=0.95,
+            frequency_penalty=0.9,   # ← naikkan (dulu 0.5)
+            presence_penalty=0.9,     # ← naikkan (dulu 0.5)
+            max_tokens=180,           # ← naikkan dikit (dulu 150)
         )
         reply_text = self._vary_response(reply_text, role_state)
         guard_result = self.response_builder.guard_reply(
