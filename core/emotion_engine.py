@@ -309,14 +309,22 @@ class EmotionEngine:
         self._apply_mood_inertia(role_state, previous_mood, ctx)
         role_state.emotions.last_updated_ts = now_ts
 
-    def maybe_increase_intimacy_by_level(
-        self,
-        role_state: RoleState,
-        delta: int = 1,
-    ) -> None:
-        """DINONAKTIFKAN - biar role natural tanpa paksaan naik intimacy"""
-        # Tidak melakukan apa-apa, biar LLM yang menentukan
-        pass
+    def maybe_increase_intimacy_by_level(self, role_state: RoleState, delta: int = 1) -> None:
+      """Naikkan intimacy_intensity secara bertahap berdasarkan interaksi positif"""
+      emotions = role_state.emotions
+      rel = role_state.relationship
+    
+      # Hanya naik kalau hubungan sudah cukup dekat
+      if rel.relationship_level < 4:
+          return
+    
+      # Butuh interaksi positif untuk naik
+      if role_state.total_positive_interactions < 3:
+          return
+    
+      if emotions.intimacy_intensity < rel.relationship_level:
+          emotions.intimacy_intensity = min(MAX_INTIMACY_INTENSITY, emotions.intimacy_intensity + delta)
+          role_state.total_positive_interactions = 0
 
     def normalize_after_long_session(
         self,
