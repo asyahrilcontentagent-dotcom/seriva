@@ -578,7 +578,6 @@ class RoleState:
     vulgar_entry_timestamp: Optional[float] = None
 
     def force_brave(self) -> None:
-        """Paksa role jadi BERANI - matikan semua rasa takut"""
         self.intimacy_brake_active = False
         self.high_intensity_unlock_score = 100
         self.mutual_intimacy_confirmed = True
@@ -586,17 +585,32 @@ class RoleState:
         self.role_intimacy_signals = 3
         self.aftercare_active = False
         self.vulgar_invitation_rejected = False
-        self.vulgar_invitation_sent = True  # ← biar langsung berani
+        self.vulgar_invitation_sent = True
         self.current_location_is_private = True
         self.current_location_risk = "low"
         self.lap_proximity_established = True
         self.high_initiative_mode = True
+        if self.emotions.intimacy_intensity >= 10:
+            self.intimacy_phase = IntimacyPhase.VULGAR
+        elif self.emotions.intimacy_intensity >= 7:
+            self.intimacy_phase = IntimacyPhase.INTIM
+        elif self.emotions.intimacy_intensity >= 4:
+            self.intimacy_phase = IntimacyPhase.DEKAT
 
-    # ========== UPDATE PHASE BY INTENSITY (REVISED) ==========
     def update_phase_by_intensity(self) -> bool:
-        """Update fase berdasarkan intimacy_intensity - DINONAKTIFKAN"""
-        # Fase tidak naik otomatis lagi, role bebas
-        return False
+        old_phase = self.intimacy_phase
+        intensity = self.emotions.intimacy_intensity
+    
+        if intensity >= 10:
+            self.intimacy_phase = IntimacyPhase.VULGAR
+        elif intensity >= 7:
+            self.intimacy_phase = IntimacyPhase.INTIM
+        elif intensity >= 4:
+            self.intimacy_phase = IntimacyPhase.DEKAT
+        else:
+            self.intimacy_phase = IntimacyPhase.AWAL
+    
+        return old_phase != self.intimacy_phase
 
     # ========== RESET METHODS ==========
     
