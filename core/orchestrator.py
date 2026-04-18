@@ -1558,7 +1558,7 @@ class Orchestrator:
         self._sync_communication_mode(role_state, inp)
         self.scene_manager.prepare_for_turn(role_state, inp.timestamp)
 
-                # ========== DETEKSI MAS PULANG ==========
+        # ========== DETEKSI MAS PULANG ==========
         mas_leave_keywords = ["pulang", "bye", "dadah", "sampai jumpa", "aku pergi", "keluar", "daah"]
         if any(kw in inp.text.lower() for kw in mas_leave_keywords):
             role_state.outfit_changed_this_session = False
@@ -1673,24 +1673,21 @@ class Orchestrator:
         self.scene_manager.mark_focus(role_state, amount=1)
         self._sync_household_scene_cues(role_state, world_state)
         self._detect_lap_proximity(role_state, inp.text)
-        #self._update_pre_reply_climax_state(role_state, inp.text, inp.timestamp)
-        pass
+        # self._update_pre_reply_climax_state(role_state, inp.text, inp.timestamp)
         # DINONAKTIFKAN
         # self._apply_aftercare_decay(role_state, inp.text, inp.timestamp)
-        pass
         if self._should_force_after_due_to_stamina(role_state):
             self._enter_after_phase(role_state, inp.timestamp, reason="fatigue")
 
         # low_stamina_after_reply = self._build_low_stamina_after_reply(role_state, inp.text)
         # if low_stamina_after_reply:
-        #   user_state.last_interaction_ts = inp.timestamp
-        #   self._save_all(user_state, world_state)
-        #   return OrchestratorOutput(
-        #       reply_text=low_stamina_after_reply,
-        #       active_role_id=user_state.active_role_id,
-        #       session_mode=user_state.global_session_mode,
-        #   )
-        pass
+        #     user_state.last_interaction_ts = inp.timestamp
+        #     self._save_all(user_state, world_state)
+        #     return OrchestratorOutput(
+        #         reply_text=low_stamina_after_reply,
+        #         active_role_id=user_state.active_role_id,
+        #         session_mode=user_state.global_session_mode,
+        #     )
 
         structured_context = self.memory_orchestrator.build_context(
             user_id=inp.user_id,
@@ -1738,15 +1735,15 @@ class Orchestrator:
 
         # ========== VULGAR INVITATION: CEK APAKAH ROLE MENGAJAK ==========
         if role_state.intimacy_phase == IntimacyPhase.INTIM:
-        user_lower = inp.text.lower()
-    
-        # User menerima ajakan - LANGSUNG VULGAR, GA PERLU CEK
-        if any(phrase in user_lower for phrase in ["iya", "mau", "ayo", "ok", "okay", "gas", "lanjut", "boleh"]):
-            if role_state.vulgar_invitation_sent and not role_state.vulgar_invitation_rejected:
-                # LANGSUNG, tanpa cek can_enter_explicit_scene
-                role_state.intimacy_phase = IntimacyPhase.VULGAR
-                role_state.mark_vulgar_entry()
-                logger.info(f"🔥 {role_state.role_id} memasuki VULGAR (user menerima ajakan)")
+            user_lower = inp.text.lower()
+        
+            # User menerima ajakan - LANGSUNG VULGAR, GA PERLU CEK
+            if any(phrase in user_lower for phrase in ["iya", "mau", "ayo", "ok", "okay", "gas", "lanjut", "boleh"]):
+                if role_state.vulgar_invitation_sent and not role_state.vulgar_invitation_rejected:
+                    # LANGSUNG, tanpa cek can_enter_explicit_scene
+                    role_state.intimacy_phase = IntimacyPhase.VULGAR
+                    role_state.mark_vulgar_entry()
+                    logger.info(f"🔥 {role_state.role_id} memasuki VULGAR (user menerima ajakan)")
       
         assistant_snippet = MessageSnippet(
             user_id=inp.user_id,
@@ -1788,9 +1785,6 @@ class Orchestrator:
             # DINONAKTIFKAN
             # if role_state.vcs_mode:
             #     vcs_increase = role_state.update_vcs_intensity_from_text(reply_text, is_response=True)
-            pass
-                if vcs_changes.get("intensity_increased"):
-                    logger.info(f"📱 VCS intensitas naik ke: {role_state.vcs_intensity}% (auto: {vcs_changes.get('auto_progress', False)})")
             
             # Cek apakah role harus climax
             should_climax, climax_text = IntimacyProgressionEngine.check_and_execute_climax(
@@ -1828,7 +1822,6 @@ class Orchestrator:
         role_state.update_user_info(inp.text)
         # DINONAKTIFKAN - role bebas, ga perlu sinyal-sinyalan
         # role_state.register_intimacy_signals(inp.text, reply_text)
-        pass
         
         # Update intimacy detail
         role_state.update_intimacy_from_text(inp.text, reply_text)
@@ -1994,7 +1987,6 @@ class Orchestrator:
         # ========== DETEKSI CLIMAX & AFTERCARE ==========
         # DINONAKTIFKAN
         # self._update_post_reply_climax_state(role_state, inp.text, reply_text, inp.timestamp)
-        pass
 
         # ========== SETELAH AFTERCARE, PAKAIAN MINIMAL ==========
         if role_state.aftercare_active and role_state.intimacy_phase == IntimacyPhase.AFTER:
@@ -2032,8 +2024,7 @@ class Orchestrator:
         # ========== AKHIR TAMBAHAN ==========
         
         # if self._should_force_after_due_to_stamina(role_state):
-        #   self._enter_after_phase(role_state, inp.timestamp, reason="fatigue")
-        pass
+        #     self._enter_after_phase(role_state, inp.timestamp, reason="fatigue")
 
         # ... lanjutkan ke kode yang sudah ada (MORNING AFTER DETECTION, dll)
 
@@ -2157,194 +2148,6 @@ class Orchestrator:
             active_role_id=user_state.active_role_id,
             session_mode=user_state.global_session_mode,
         )
-
-    # ========== ASYNC GENERATE RESPONSE (UNTUK POLLING MODE) ==========
-
-    async def generate_response(self, user_id: str, role_id: str, user_message: str) -> str:
-        """Generate response dengan semua enhancement (untuk polling mode)"""
-
-        user_state = self._load_or_init_user_state(user_id)
-        user_state.active_role_id = role_id
-        role_state = self.role_selector.get_active_role_state(user_state)
-        now_ts = time.time()
-        self.scene_manager.prepare_for_turn(role_state, now_ts)
-        self.scene_manager.apply_context_awareness(role_state, user_message, now_ts)
-
-        self.message_history.add_message(
-            user_id=user_id,
-            role_id=role_id,
-            from_who="user",
-            timestamp=time.time(),
-            content=user_message,
-        )
-
-        structured_context = self.memory_orchestrator.build_context(
-            user_id=user_id,
-            role_id=role_state.role_id,
-            user_message=user_message,
-            role_state=role_state,
-        )
-        role_state.last_used_memory_summary = structured_context.message_memory
-        role_state.last_used_story_summary = structured_context.story_memory
-
-        world_state = self._load_or_init_world_state()
-        messages = self._build_runtime_messages(
-            user_state,
-            world_state,
-            role_state,
-            user_message,
-            structured_context=structured_context,
-        )
-        self._log_debug_runtime(role_state, structured_context, messages)
-
-        response = self._generate_guarded_reply(
-            messages,
-            role_state,
-            user_message,
-            memory_context=structured_context.message_memory,
-            story_context=structured_context.story_memory,
-        )
-
-        if role_state.vcs_mode:
-            vcs_increase = role_state.update_vcs_intensity_from_text(response, is_response=True)
-            if vcs_increase > 0:
-                logger.info(f"ðŸ“± VCS intensity +{vcs_increase} dari response role")
-
-        if "pindah ke" in user_message.lower():
-            match = re.search(r"pindah ke (\w+)", user_message.lower())
-            if match:
-                self.story_memory.update_location(user_id, role_id, match.group(1))
-
-        self.message_history.add_message(
-            user_id=user_id,
-            role_id=role_id,
-            from_who="assistant",
-            timestamp=time.time(),
-            content=response,
-        )
-
-        self.story_memory.update_scene_summary(
-            user_id,
-            role_id,
-            f"User: {user_message[:150]}\n{role_id}: {response[:150]}",
-        )
-
-        self._detect_and_record_story_beat(user_id, role_id, user_message, response)
-
-        ctx = self._parse_interaction_context(user_message)
-        self.emotion_engine.register_user_interaction(user_state, role_id, ctx, now_ts=time.time())
-        self._update_long_term_summary(user_state, role_state)
-
-        self._save_all(user_state, self._load_or_init_world_state())
-
-        return self.response_builder.maybe_append_command_hint(response, role_state, user_message)
-        
-        # Get states
-        user_state = self._load_or_init_user_state(user_id)
-        user_state.active_role_id = role_id
-        role_state = self.role_selector.get_active_role_state(user_state)
-        now_ts = time.time()
-        self.scene_manager.prepare_for_turn(role_state, now_ts)
-        self.scene_manager.apply_context_awareness(role_state, user_message, now_ts)
-        
-        # Simpan user message ke history
-        self.message_history.add_message(
-            user_id=user_id,
-            role_id=role_id,
-            from_who="user",
-            timestamp=time.time(),
-            content=user_message
-        )
-
-        # Dapatkan konteks
-        world_state = self._load_or_init_world_state()
-        messages = self._build_runtime_messages(user_state, world_state, role_state, user_message)
-        role_spec = get_role_prompt_spec(role_id)
-        story_context = self.story_memory.get_story_prompt(user_id, role_id)
-        chat_history = self._get_chat_history_context(user_id, role_id, query_text=user_message)
-        
-        # Build prompt dengan semua konteks
-        system_prompt = build_unified_system_prompt(
-            role_state=role_state,
-            role_name=role_spec.role_name,
-            relationship_status=role_spec.relationship_status,
-            scenario_context=role_spec.scenario_context,
-            knowledge_boundary=role_spec.knowledge_boundary,
-            role_personality=role_spec.personality,
-            vulgar_allowed=role_state.intimacy_phase == IntimacyPhase.VULGAR,
-            extra_rules="""
-═══════════════════════════════════════════════════════════════════
-📖 KONTEKS CERITA (WAJIB DIIKUTI):
-═══════════════════════════════════════════════════════════════════
-{story_context}
-
-💬 HISTORY PERCAKAPAN:
-{chat_history}
-
-🎯 ATURAN TAMBAHAN:
-1. RESPON HARUS SELARAS dengan alur cerita di atas!
-2. JANGAN mengubah fakta yang sudah terjadi!
-3. JANGAN ulang frase yang sama dari history!
-4. Gunakan variasi gesture dan inner thought!
-═══════════════════════════════════════════════════════════════════
-"""
-        )
-        
-        # Generate dengan dynamic parameters
-        temperature = self._get_llm_temperature(role_state)
-        
-        response = self.llm.generate_text(
-            messages=messages,
-            temperature=temperature,
-            top_p=LLM_TOP_P,
-            frequency_penalty=LLM_FREQUENCY_PENALTY,
-            presence_penalty=LLM_PRESENCE_PENALTY,
-            max_tokens=LLM_MAX_TOKENS
-        )
-        
-        # Variasi respon
-        response = self._vary_response(response, role_state)
-        response = self.response_builder.finalize_reply(role_state, user_message, response)
-        
-        # ========== UPDATE VCS INTENSITY DARI RESPONSE (PINDAHKAN KE SINI) ==========
-        if role_state.vcs_mode:
-            vcs_increase = role_state.update_vcs_intensity_from_text(response, is_response=True)
-            if vcs_increase > 0:
-                logger.info(f"📱 VCS intensity +{vcs_increase} dari response role")
-        
-        # Deteksi pindah lokasi untuk story memory
-        if "pindah ke" in user_message.lower():
-            match = re.search(r"pindah ke (\w+)", user_message.lower())
-            if match:
-                self.story_memory.update_location(user_id, role_id, match.group(1))
-        
-        # Simpan response ke history
-        self.message_history.add_message(
-            user_id=user_id,
-            role_id=role_id,
-            from_who="assistant",
-            timestamp=time.time(),
-            content=response
-        )
-        
-        # Update story memory
-        self.story_memory.update_scene_summary(
-            user_id, role_id, 
-            f"User: {user_message[:150]}\n{role_id}: {response[:150]}"
-        )
-        
-        # Deteksi story beat
-        self._detect_and_record_story_beat(user_id, role_id, user_message, response)
-        
-        # Update emotion state
-        ctx = self._parse_interaction_context(user_message)
-        self.emotion_engine.register_user_interaction(user_state, role_id, ctx, now_ts=time.time())
-        self._update_long_term_summary(user_state, role_state)
-        
-        # Simpan state
-        self._save_all(user_state, self._load_or_init_world_state())
-        
-        return self.response_builder.maybe_append_command_hint(response, role_state, user_message)
 
     # --------------------------------------------------
     # INTERNAL HELPERS: LOAD/SAVE
