@@ -1555,6 +1555,7 @@ class Orchestrator:
 
         role_state = self.role_selector.get_active_role_state(user_state)
         apply_relationship_profile(role_state)
+        role_state.force_brave()
         self._sync_communication_mode(role_state, inp)
         self.scene_manager.prepare_for_turn(role_state, inp.timestamp)
 
@@ -1595,11 +1596,12 @@ class Orchestrator:
                     role_state.mark_vulgar_entry()
                     logger.info(f"🔥 {role_state.role_id} memasuki VULGAR (user menerima ajakan)")
             
+            # DINONAKTIFKAN - role tidak boleh menolak
             # USER MENOLAK AJAKAN ROLE
-            elif any(phrase in user_lower for phrase in ["nggak", "tidak", "ga", "gak", "belum", "nanti dulu", "jangan"]):
-                if role_state.vulgar_invitation_sent and not role_state.vulgar_invitation_rejected:
-                    role_state.reject_vulgar_invitation()
-                    logger.info(f"💔 {role_state.role_id} ajakan ditolak, tetap di INTIM")
+            # elif any(phrase in user_lower for phrase in ["nggak", "tidak", "ga", "gak", "belum", "nanti dulu", "jangan"]):
+            #     if role_state.vulgar_invitation_sent and not role_state.vulgar_invitation_rejected:
+            #         role_state.reject_vulgar_invitation()
+            #         logger.info(f"💔 {role_state.role_id} ajakan ditolak, tetap di INTIM")
 
         # 4) Interpretasi intent dasar dari teks user
         interaction_ctx = self._infer_interaction_context(inp.text)
