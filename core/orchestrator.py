@@ -867,51 +867,126 @@ class Orchestrator:
             dynamic_context=dynamic_context,
         )
 
+    def _calculate_similarity(self, text1: str, text2: str) -> float:
+        """Hitung persentase kemiripan dua string."""
+        if not text1 or not text2:
+            return 0.0
+    
+        s1 = text1.lower().strip()
+        s2 = text2.lower().strip()
+    
+        # Hitung common words
+        words1 = set(s1.split())
+        words2 = set(s2.split())
+    
+        if not words1 or not words2:
+            return 0.0
+    
+        intersection = len(words1 & words2)
+        union = len(words1 | words2)
+    
+        return intersection / union if union > 0 else 0.0
+
     def _generate_guarded_reply(
-        self,
-        messages: list[dict],
-        role_state: RoleState,
-        user_text: str,
-        *,
-        memory_context: str = "",
-        story_context: str = "",
-    ) -> str:
-        temperature = self._get_llm_temperature(role_state)
-        reply_text = self.llm.generate_text(
-            messages,
-            temperature=temperature,
-            top_p=0.95,
-            frequency_penalty=0.9,   # ← naikkan (dulu 0.5)
-            presence_penalty=0.9,     # ← naikkan (dulu 0.5)
-            max_tokens=180,           # ← naikkan dikit (dulu 150)
-        )
-        reply_text = self._vary_response(reply_text, role_state)
-        guard_result = self.response_builder.guard_reply(
-            role_state,
-            user_text,
-            reply_text,
-            memory_context=memory_context,
-            story_context=story_context,
-        )
-        if guard_result.should_retry and guard_result.repair_instructions:
-            retry_messages = list(messages)
-            retry_messages.append({"role": "system", "content": guard_result.repair_instructions})
-            reply_text = self.llm.generate_text(
-                retry_messages,
-                temperature=max(0.2, temperature - 0.1),
-                top_p=LLM_TOP_P,
-                frequency_penalty=LLM_FREQUENCY_PENALTY,
-                presence_penalty=LLM_PRESENCE_PENALTY,
-                max_tokens=LLM_MAX_TOKENS,
-            )
-            reply_text = self._vary_response(reply_text, role_state)
-        return self.response_builder.finalize_reply(
-            role_state,
-            user_text,
-            reply_text,
-            memory_context=memory_context,
-            story_context=story_context,
-        )
+      self,
+      messages: list[dict],
+      role_state: RoleState,
+      user_text: str,
+      *,
+      memory_context: str = "",
+      story_context: str = "",
+  ) -> str:
+      # CEGAH RESPONSE LOOP - AMBIL RESPONSE SEBELUMNYA
+      last_responses = getattr(role_state, '_last_responses', [])
+    
+      temperature = self._get_llm_temperature(role_state)
+    
+      # Tambahkan anti-repetition instruction ke system message jika perlu
+      enhanced_messages = list(messages)
+      if last_responses:
+          anti_repeat_instruction = {
+              "role": "system",
+              "content": f"JANGAN ulang kalimat ini persis: \"{last_responses[-1][:100]}\". Gunakan kata dan struktur kalimat yang berbeda untuk menyampaikan perasaan yang sama."
+          }
+          enhanced_messages.append(anti_repeat_instruction)
+    
+      reply_text = self.llm.generate_text(
+          enhanced_messages,
+          temperature=temperature,
+          top_p=0.95,
+          frequency_penalty=0.9,
+          presence_penalty=0.9,
+          max_tokens=180,
+      )
+      reply_text = self._vary_response(reply_text, role_state)
+    
+      # CEK APAKAH RESPONSE SAMA DENGAN SEBELUMNYA (LOOP DETECTION)
+      is_looping = False
+      if last_responses:
+          # Cek persis sama
+          if reply_text.strip() == last_responses[-1].strip():
+              is_looping = True
+              logger.warning(f"⚠️ Response loop detected! Same as previous response.")
+          # Cek 80% similarity untuk response panjang
+          elif len(reply_text) > 50 and len(last_responses[-1]) > 50:
+              similarity = self._calculate_similarity(reply_text, last_responses[-1])
+              if similarity > 0.8:
+                  is_looping = True
+                  logger.warning(f"⚠️ Response loop detected! {similarity:.0%} similarity with previous.")
+    
+      # Jika looping, regenerate dengan parameter lebih ekstrim
+      if is_looping:
+          logger.info(f"🔄 Regenerating response with higher temperature to break loop...")
+          force_fresh_messages = list(messages)
+          force_fresh_messages.append({
+              "role": "system",
+              "content": "RESPONSE SEBELUMNYA TERULANG! Sekarang buat response yang SANGAT BERBEDA. Jangan pakai kata-kata yang sama. Ganti struktur kalimat, ganti gesture, ganti ekspresi. Buat fresh!"
+          })
+          reply_text = self.llm.generate_text(
+              force_fresh_messages,
+              temperature=min(1.2, temperature + 0.3),  # Naikkan temperature
+              top_p=0.95,
+              frequency_penalty=1.2,  # Naikkan penalty
+              presence_penalty=1.2,
+              max_tokens=180,
+          )
+          reply_text = self._vary_response(reply_text, role_state)
+    
+      # Guard reply (existing)
+      guard_result = self.response_builder.guard_reply(
+          role_state,
+          user_text,
+          reply_text,
+          memory_context=memory_context,
+          story_context=story_context,
+      )
+      if guard_result.should_retry and guard_result.repair_instructions:
+          retry_messages = list(messages)
+          retry_messages.append({"role": "system", "content": guard_result.repair_instructions})
+          reply_text = self.llm.generate_text(
+              retry_messages,
+              temperature=max(0.2, temperature - 0.1),
+              top_p=LLM_TOP_P,
+              frequency_penalty=LLM_FREQUENCY_PENALTY,
+              presence_penalty=LLM_PRESENCE_PENALTY,
+              max_tokens=LLM_MAX_TOKENS,
+          )
+          reply_text = self._vary_response(reply_text, role_state)
+    
+      # SIMPAN RESPONSE KE HISTORY
+      if not hasattr(role_state, '_last_responses'):
+          role_state._last_responses = []
+      role_state._last_responses.append(reply_text.strip())
+      if len(role_state._last_responses) > 3:
+          role_state._last_responses.pop(0)
+    
+      return self.response_builder.finalize_reply(
+          role_state,
+          user_text,
+          reply_text,
+          memory_context=memory_context,
+          story_context=story_context,
+      )
 
     def _log_debug_runtime(
         self,
@@ -1559,7 +1634,7 @@ class Orchestrator:
         self._sync_communication_mode(role_state, inp)
         self.scene_manager.prepare_for_turn(role_state, inp.timestamp)
 
-                # ========== DETEKSI MAS PULANG ==========
+        # ========== DETEKSI MAS PULANG ==========
         mas_leave_keywords = ["pulang", "bye", "dadah", "sampai jumpa", "aku pergi", "keluar", "daah"]
         # Jangan trigger "pulang" kalau lagi adegan intim
         is_intimate = role_state.intimacy_phase in [IntimacyPhase.INTIM, IntimacyPhase.VULGAR]
