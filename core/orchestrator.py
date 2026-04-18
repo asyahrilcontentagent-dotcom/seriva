@@ -1559,9 +1559,11 @@ class Orchestrator:
         self._sync_communication_mode(role_state, inp)
         self.scene_manager.prepare_for_turn(role_state, inp.timestamp)
 
-        # ========== DETEKSI MAS PULANG ==========
+                # ========== DETEKSI MAS PULANG ==========
         mas_leave_keywords = ["pulang", "bye", "dadah", "sampai jumpa", "aku pergi", "keluar", "daah"]
-        if any(kw in inp.text.lower() for kw in mas_leave_keywords):
+        # Jangan trigger "pulang" kalau lagi adegan intim
+        is_intimate = role_state.intimacy_phase in [IntimacyPhase.INTIM, IntimacyPhase.VULGAR]
+        if not is_intimate and any(kw in inp.text.lower() for kw in mas_leave_keywords):
             role_state.outfit_changed_this_session = False
             role_state.aftercare_clothing_state = ""
             role_state.last_session_ended_at = inp.timestamp
@@ -2013,15 +2015,11 @@ class Orchestrator:
       
         # ========== TAMBAHKAN INI ==========
         # Force update fase berdasarkan intimacy_intensity (otomatis)
+        # ========== UPDATE FASE BERDASARKAN INTIMACY INTENSITY ==========
         old_phase = role_state.intimacy_phase
-        # DINONAKTIFKAN - fase tidak naik otomatis
-        # phase_changed_by_intensity = role_state.update_phase_by_intensity()
-        phase_changed_by_intensity = False
+        phase_changed_by_intensity = role_state.update_phase_by_intensity()
         if phase_changed_by_intensity:
             logger.info(f"🔥 FASE BERUBAH via intensity: {old_phase} -> {role_state.intimacy_phase}")
-        else:
-            if old_phase != role_state.intimacy_phase:
-                logger.warning(f"⚠️ FASE BERUBAH TAPI BUKAN VIA INTENSITY! {old_phase} -> {role_state.intimacy_phase}")
               
         # ========== AKHIR TAMBAHAN ==========
         
@@ -2602,6 +2600,33 @@ class Orchestrator:
 
         return OrchestratorOutput(
             reply_text="Command provider belum dikenali.",
+            active_role_id=user_state.active_role_id,
+            session_mode=user_state.global_session_mode,
+        )
+
+    def _handle_flashback(self, user_state: UserState, world_state: WorldState, inp: OrchestratorInput) -> OrchestratorOutput:
+        """Handle /flashback command untuk menampilkan kenangan."""
+        role_state = user_state.get_or_create_role_state(user_state.active_role_id)
+    
+        milestones = self.milestones.get_recent_milestones(
+            user_id=inp.user_id,
+            role_id=role_state.role_id,
+            limit=10,
+        )
+    
+        if not milestones:
+            return OrchestratorOutput(
+                reply_text="Belum ada kenangan penting yang tercatat, Mas. Kita buat kenangan baru aja yuk.",
+                active_role_id=user_state.active_role_id,
+                session_mode=user_state.global_session_mode,
+            )
+    
+        # Pilih milestone random
+        milestone = random.choice(milestones)
+        reply_text = f"*📖 Flashback: {milestone.label}*\n\n{milestone.description}"
+    
+        return OrchestratorOutput(
+            reply_text=reply_text,
             active_role_id=user_state.active_role_id,
             session_mode=user_state.global_session_mode,
         )
