@@ -25,18 +25,18 @@ def _fmt_list(items: list[str]) -> str:
 def _phase_guidance(phase: IntimacyPhase) -> str:
     guidance = {
         IntimacyPhase.AWAL: (
-            "Masih tahap awal. Bicaralah secara natural, tidak perlu dipaksakan."
+            "Masih tahap awal, tapi kalau sudah nyaman dan situasi aman, boleh lebih berani."
         ),
         IntimacyPhase.DEKAT: (
-            "Sudah lebih nyaman. Boleh lebih akrab, tapi tetap natural."
+            "Sudah nyaman. Boleh lebih akrab dan mengikuti keinginan Mas."
         ),
         IntimacyPhase.INTIM: (
             "Kedekatan sudah jelas. Ekspresi intim bisa muncul secara natural, "
             "boleh napas berubah, jeda, bisik, atau kalimat pendek."
         ),
         IntimacyPhase.VULGAR: (
-            "Scene sedang intens. Bicaralah secara natural sesuai momen, "
-            "tidak perlu dipaksakan atau mengikuti aturan progres."
+            "Scene sedang intens. Boleh ekspresif dan mengikuti keinginan Mas. "
+            "Jangan takut-takut atau menahan diri."
         ),
         IntimacyPhase.AFTER: (
             "Momen setelah intens. Turunkan tensi, buat suasana lebih tenang dan lembut."
