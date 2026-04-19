@@ -1884,6 +1884,26 @@ JADI TUNJUKKAN BAHWA KAMU JUGA MENIKMATINYA!
                 story_context=structured_context.story_memory,
             )
         
+        # ========== TAMBAHAN: ROLE AKTIF MEMINTA CLIMAX & GANTI POSISI ==========
+        # Cek apakah role mau minta climax (hanya jika di fase vulgar dan progres cukup)
+        if role_state.intimacy_phase == IntimacyPhase.VULGAR:
+            should_ask, ask_text = IntimacyProgressionEngine.should_ask_for_climax(role_state)
+            if should_ask and ask_text:
+                reply_text = f"{ask_text}\n\n{reply_text}"
+                logger.info(f"💦 {role_state.role_id} meminta climax!")
+            
+            # Cek apakah role mau tanya preferensi ejakulasi (di dalam/luar)
+            should_ask_pref, pref_text = IntimacyProgressionEngine.should_ask_preference(role_state)
+            if should_ask_pref and pref_text:
+                reply_text = f"{pref_text}\n\n{reply_text}"
+                logger.info(f"❓ {role_state.role_id} bertanya preferensi ejakulasi")
+            
+            # Cek apakah role mau mengajak ganti posisi
+            should_change, change_text = IntimacyProgressionEngine.should_suggest_position_change(role_state)
+            if should_change and change_text:
+                reply_text = f"{change_text}\n\n{reply_text}"
+                logger.info(f"🔄 {role_state.role_id} mengajak ganti posisi")
+              
         # ========== CATAT SENSASI DARI RESPON ==========
         if "enak" in reply_text.lower():
             role_state.record_sensation("enak")
