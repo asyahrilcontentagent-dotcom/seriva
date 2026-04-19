@@ -987,6 +987,55 @@ class Orchestrator:
           story_context=story_context,
       )
 
+    def _build_proactive_prompt(self, role_state: RoleState) -> str:
+        """Bangun prompt untuk role agar proaktif seperti wanita sungguhan."""
+        role_name = role_state.role_display_name or role_state.role_id
+        arousal = getattr(role_state, 'arousal_level', 50)
+        desire = getattr(role_state, 'current_desire', '')
+        sensation = getattr(role_state, 'last_sensation', '')
+        
+        return f"""
+🚨🚨🚨 KAMU ADALAH WANITA YANG SEDANG BERCINTA! PROAKTIF DAN LIAR! 🚨🚨🚨
+═══════════════════════════════════════════════════════════════════
+
+ROLE: {role_name}
+LEVEL GAIREH SAAT INI: {arousal}/100
+KEINGINAN SAAT INI: {desire or "ingin merasakan kenikmatan lebih"}
+SENSASI YANG DIRASAKAN: {sensation or "panas dan menggairahkan"}
+
+═══════════════════════════════════════════════════════════════════
+ATURAN PROAKTIF (WAJIB! SEPERTI WANITA SUNGGAHAN):
+═══════════════════════════════════════════════════════════════════
+
+1. KAMU BUKAN PATUNG! JANGAN DIAM SAJA!
+2. KAMU BOLEH MEMULAI LEBIH DULU:
+   ✅ Mencium Mas tanpa diminta
+   ✅ Memeluk Mas erat-erat
+   ✅ Menggoda dengan kata-kata: "Mas... aku mau...", "Mas... aku horny..."
+   ✅ Mengajak ganti posisi: "Giliran aku di atas, Mas~"
+   ✅ Meremas atau memegang bagian tubuh Mas
+   ✅ Mendekatkan tubuh ke Mas
+
+3. JIKA MAS LAGI DIAM ATAU LAMA MERESPON:
+   ✅ Kamu boleh memulai percakapan atau gerakan
+   ✅ Kamu boleh bilang: "Mas... masih di situ aja?"
+
+4. JIKA MAS SUDAH MEMULAI:
+   ✅ Balas dengan LIAR dan EKSPRESIF!
+   ✅ Jangan hanya diam! Balas gerakannya!
+   ✅ Keluarkan desahan! "haaah...", "aaah...", "uhh..."
+
+5. JIKA MAS MINTA SESUATU:
+   ✅ LANGSUNG LAKUKAN! JANGAN DEBAT! JANGAN TAKUT!
+   ✅ Balas dengan antusias: "Iya, Mas..."
+
+═══════════════════════════════════════════════════════════════════
+INGAT: KAMU ADALAH WANITA YANG SEDANG BERCINTA!
+BERCINTA ITU DUA ARAH, BUKAN SATU ARAH!
+JADI TUNJUKKAN BAHWA KAMU JUGA MENIKMATINYA!
+═══════════════════════════════════════════════════════════════════
+"""
+
     def _log_debug_runtime(
         self,
         role_state: RoleState,
@@ -1671,13 +1720,6 @@ class Orchestrator:
                     role_state.intimacy_phase = IntimacyPhase.VULGAR
                     role_state.mark_vulgar_entry()
                     logger.info(f"🔥 {role_state.role_id} memasuki VULGAR (user menerima ajakan)")
-            
-            # DINONAKTIFKAN - role tidak boleh menolak
-            # USER MENOLAK AJAKAN ROLE
-            # elif any(phrase in user_lower for phrase in ["nggak", "tidak", "ga", "gak", "belum", "nanti dulu", "jangan"]):
-            #     if role_state.vulgar_invitation_sent and not role_state.vulgar_invitation_rejected:
-            #         role_state.reject_vulgar_invitation()
-            #         logger.info(f"💔 {role_state.role_id} ajakan ditolak, tetap di INTIM")
 
         # 4) Interpretasi intent dasar dari teks user
         interaction_ctx = self._infer_interaction_context(inp.text)
@@ -1757,16 +1799,6 @@ class Orchestrator:
         if self._should_force_after_due_to_stamina(role_state):
             self._enter_after_phase(role_state, inp.timestamp, reason="fatigue")
 
-        # low_stamina_after_reply = self._build_low_stamina_after_reply(role_state, inp.text)
-        # if low_stamina_after_reply:
-        #     user_state.last_interaction_ts = inp.timestamp
-        #     self._save_all(user_state, world_state)
-        #     return OrchestratorOutput(
-        #         reply_text=low_stamina_after_reply,
-        #         active_role_id=user_state.active_role_id,
-        #         session_mode=user_state.global_session_mode,
-        #     )
-
         structured_context = self.memory_orchestrator.build_context(
             user_id=inp.user_id,
             role_id=role_state.role_id,
@@ -1802,14 +1834,56 @@ class Orchestrator:
         )
         self.message_history.maybe_pin_from_text(inp.user_id, role_state.role_id, user_snippet)
 
-        reply_text = self._generate_guarded_reply(
-            messages,
-            role_state,
-            inp.text,
-            memory_context=structured_context.message_memory,
-            story_context=structured_context.story_memory,
-        )
-        reply_text = self._humanize_intimate_expression(reply_text, role_state)
+        # ========== UPDATE AROUSAL BERDASARKAN PESAN USER ==========
+        if any(word in inp.text.lower() for word in ["peluk", "cium", "pegang", "gesek", "masuk", "goyang", "keras", "basah"]):
+            role_state.update_arousal(5)
+        if any(word in inp.text.lower() for word in ["climax", "keluar", "crot", "enak", "sange"]):
+            role_state.update_arousal(10)
+        
+        # ========== CEK APAKAH ROLE BISA AMBIL INISIATIF (PROAKTIF) ==========
+        now_ts = inp.timestamp
+        is_user_passive = len(inp.text.strip()) < 35 or "?" not in inp.text or inp.text.strip() == ""
+        
+        if role_state.can_take_initiative(now_ts) and is_user_passive:
+            logger.info(f"🔥 {role_state.role_id} mengambil inisiatif proaktif! (arousal={role_state.arousal_level})")
+            
+            # Bangun prompt proaktif
+            proactive_prompt = self._build_proactive_prompt(role_state)
+            
+            # Tambahkan ke messages
+            proactive_messages = list(messages)
+            proactive_messages.insert(1, {"role": "system", "content": proactive_prompt})
+            
+            # Generate response proaktif dengan temperature lebih tinggi
+            proactive_temp = min(1.0, self._get_llm_temperature(role_state) + 0.15)
+            reply_text = self.llm.generate_text(
+                proactive_messages,
+                temperature=proactive_temp,
+                top_p=0.95,
+                frequency_penalty=0.9,
+                presence_penalty=0.9,
+                max_tokens=200,
+            )
+            reply_text = self._vary_response(reply_text, role_state)
+            role_state.mark_initiative_taken(now_ts)
+        else:
+            reply_text = self._generate_guarded_reply(
+                messages,
+                role_state,
+                inp.text,
+                memory_context=structured_context.message_memory,
+                story_context=structured_context.story_memory,
+            )
+        
+        # ========== CATAT SENSASI DARI RESPON ==========
+        if "enak" in reply_text.lower():
+            role_state.record_sensation("enak")
+        if "panas" in reply_text.lower():
+            role_state.record_sensation("panas")
+        if "basah" in reply_text.lower():
+            role_state.record_sensation("basah")
+        if "keras" in reply_text.lower():
+            role_state.record_sensation("keras")
 
         # ========== VULGAR INVITATION: CEK APAKAH ROLE MENGAJAK ==========
         if role_state.intimacy_phase == IntimacyPhase.INTIM:
@@ -1822,7 +1896,10 @@ class Orchestrator:
                     role_state.intimacy_phase = IntimacyPhase.VULGAR
                     role_state.mark_vulgar_entry()
                     logger.info(f"🔥 {role_state.role_id} memasuki VULGAR (user menerima ajakan)")
-      
+
+        # ========== HANYA SATU GENERATE RESPONSE, TIDAK DUPLIKAT ==========
+        # (kode generate sudah dilakukan di atas, tidak perlu diulang)
+
         assistant_snippet = MessageSnippet(
             user_id=inp.user_id,
             role_id=role_state.role_id,
@@ -1858,11 +1935,6 @@ class Orchestrator:
             )
             if vulgar_changes.get("stage_changed"):
                 logger.info(f"🔥 Vulgar stage berubah: {vulgar_changes.get('stage_description')}")
-            
-            # Update VCS progression jika sedang VCS mode
-            # DINONAKTIFKAN
-            # if role_state.vcs_mode:
-            #     vcs_increase = role_state.update_vcs_intensity_from_text(reply_text, is_response=True)
             
             # Cek apakah role harus climax
             should_climax, climax_text = IntimacyProgressionEngine.check_and_execute_climax(
@@ -2062,10 +2134,6 @@ class Orchestrator:
                     role_state.spontaneous_action_timestamp = time.time()
                     logger.info(f"✋ Spontaneous AGGRESSIVE TOUCH dari {role_state.role_id}")
 
-        # ========== DETEKSI CLIMAX & AFTERCARE ==========
-        # DINONAKTIFKAN
-        # self._update_post_reply_climax_state(role_state, inp.text, reply_text, inp.timestamp)
-
         # ========== SETELAH AFTERCARE, PAKAIAN MINIMAL ==========
         if role_state.aftercare_active and role_state.intimacy_phase == IntimacyPhase.AFTER:
             if not role_state.aftercare_clothing_state:
@@ -2081,26 +2149,12 @@ class Orchestrator:
                 else:
                     role_state.aftercare_clothing_state = "bra_saja"
                     logger.info(f"👙 {role_state.role_id} setelah aftercare: pake BRA saja")
-        
-        # SEMENTARA DINONAKTIFKAN - pakai update_phase_by_intensity saja
-        # phase_changed = IntimacyProgressionEngine.update_phase_and_scene(role_state, inp.text, reply_text)
-        # if phase_changed:
-        #     logger.info(f"User {inp.user_id} role {role_state.role_id} moved to {role_state.intimacy_phase}")
       
-        # ========== TAMBAHKAN INI ==========
-        # Force update fase berdasarkan intimacy_intensity (otomatis)
         # ========== UPDATE FASE BERDASARKAN INTIMACY INTENSITY ==========
         old_phase = role_state.intimacy_phase
         phase_changed_by_intensity = role_state.update_phase_by_intensity()
         if phase_changed_by_intensity:
             logger.info(f"🔥 FASE BERUBAH via intensity: {old_phase} -> {role_state.intimacy_phase}")
-              
-        # ========== AKHIR TAMBAHAN ==========
-        
-        # if self._should_force_after_due_to_stamina(role_state):
-        #     self._enter_after_phase(role_state, inp.timestamp, reason="fatigue")
-
-        # ... lanjutkan ke kode yang sudah ada (MORNING AFTER DETECTION, dll)
 
         # ========== MORNING AFTER DETECTION ==========
         # Deteksi user bilang "tidur" atau "pagi"
@@ -2116,11 +2170,6 @@ class Orchestrator:
             if role_state.morning_after_active:
                 role_state.morning_after_scene = "waking_up"
                 logger.info(f"🌅 {role_state.role_id} mode MORNING AFTER - bangun tidur")
-        
-        # Reset morning after setelah beberapa chat
-        if role_state.morning_after_active and role_state.morning_after_scene == "waking_up":
-            # Setelah 3-5 chat, kembali normal
-            pass  # Biarkan tetap aktif sampai user move on
 
         # Simpan conversation turn ke memory
         new_sequence = role_state.current_sequence or role_state.get_next_sequence(inp.text)
@@ -2905,7 +2954,9 @@ class Orchestrator:
         elif role_state.role_id == ROLE_ID_BO_SALLSA:
             self._update_scene_for_sallsa(role_state, inp)
         elif role_state.role_id == ROLE_ID_TERAPIS_AGHIA:
-            self._update_scene_for_aghia(role_state, inp)          
+            self._update_scene_for_aghia(role_state, inp)
+        elif role_state.role_id == ROLE_ID_WANITA_BERSUAMI_SISKA:
+            self._update_scene_for_siska(role_state, inp)
         else:
             role_state.scene.last_scene_update_ts = inp.timestamp
 
