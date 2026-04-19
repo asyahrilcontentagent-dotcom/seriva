@@ -339,6 +339,7 @@ class MessageHistoryStore:
     def _score_message(msg: MessageSnippet, query_text: str = "", pinned_boost: float = 0.0) -> float:
         score = 0.0
         text = msg.content.lower()
+        query_text_lower = query_text.lower()
         query_keywords = set(_tokenize_keywords(query_text))
         msg_keywords = set(_tokenize_keywords(text))
 
@@ -358,6 +359,10 @@ class MessageHistoryStore:
         if query_keywords:
             overlap = len(query_keywords.intersection(msg_keywords))
             score += overlap * 14
+        if query_text_lower and text and query_text_lower[:48] in text:
+            score += 18
+        if any(token in query_text_lower for token in ["tadi", "barusan", "kemarin", "janji", "ingat"]):
+            score += 10
         if any(token in text for token in ["!", "!!", "..."]):
             score += 3
 
@@ -503,7 +508,11 @@ def _tokenize_keywords(text: str) -> List[str]:
     if not text:
         return []
     tokens = re.findall(r"[a-zA-Z0-9_]{3,}", text.lower())
-    stopwords = {"yang", "dan", "untuk", "dengan", "atau", "karena", "mas", "aku", "kamu"}
+    stopwords = {
+        "yang", "dan", "untuk", "dengan", "atau", "karena", "mas", "aku", "kamu",
+        "sama", "aja", "juga", "udah", "sudah", "lagi", "banget", "bikin", "kayak",
+        "biar", "kalau", "kalo", "nih", "sih", "dia", "itu", "ini",
+    }
     return [token for token in tokens if token not in stopwords]
 
 
