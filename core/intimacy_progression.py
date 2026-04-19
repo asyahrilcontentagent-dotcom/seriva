@@ -39,6 +39,16 @@ class IntimacyProgressionEngine:
         },
     }
 
+    # Kalimat aftercare (setelah climax)
+    AFTERCARE_TEXTS = [
+        "Haaah... napas... napas dulu, Mas...",
+        "(bersandar di dada Mas, masih mengatur napas) Haaah...",
+        "Aku istirahat sebentar yah, Mas... badanku lemes...",
+        "(diam sejenak sambil memeluk Mas) Hangat...",
+        "Haaah... peluk aku dulu, Mas... masih lemas...",
+        "... (hanya terdengar napas yang masih tersengal)",
+    ]
+
     @staticmethod
     def _has_strong_climax_trigger(text: str) -> bool:
         """Deteksi trigger climax dari user dengan pola minimal 3 kata spesifik."""
@@ -435,6 +445,13 @@ class IntimacyProgressionEngine:
         Dipanggil saat /end, /batal, atau /close.
         """
         role_state.reset_intimacy_state()
+    
+    # ========== AFTERCARE METHODS ==========
+    
+    @classmethod
+    def get_aftercare_text(cls, role_state: RoleState) -> str:
+        """Dapatkan teks aftercare yang sesuai dengan kondisi role."""
+        return random.choice(cls.AFTERCARE_TEXTS)
     
     # ========== BARU: LEVEL 10-12 PROGRESSION METHODS ==========
     
