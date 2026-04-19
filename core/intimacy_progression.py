@@ -67,10 +67,10 @@ class IntimacyProgressionEngine:
     @staticmethod
     def _has_sensitive_touch_from_user(text: str) -> bool:
         sensitive_touch_phrases = [
-            "remas payudara",
-            "pegang payudara",
-            "usap payudara",
-            "elus payudara",
+            "remas toket",
+            "pegang toket",
+            "usap toket",
+            "elus toket",
             "remas dada kamu",
             "pegang dada kamu",
             "usap paha dalam",
@@ -88,7 +88,7 @@ class IntimacyProgressionEngine:
             "cium leher",
             "jilat leher",
             "cium dada",
-            "jilat payudara",
+            "jilat toket",
         ]
         return any(phrase in text for phrase in sensitive_touch_phrases)
 
@@ -753,6 +753,78 @@ JANGAN tahan-tahan lagi! LANGSUNG EKSPRESIF!
    - Kalau sudah 100%, role WAJIB climax di respons berikutnya!
 """
     
+    # ========== TAMBAHAN: METHOD UNTUK ROLE AKTIF ==========
+    
+    @staticmethod
+    def should_ask_for_climax(role_state: RoleState) -> Tuple[bool, str]:
+        """Apakah role harus minta climax secara aktif."""
+        if role_state.intimacy_phase != IntimacyPhase.VULGAR:
+            return (False, "")
+        
+        last_request = getattr(role_state, 'last_climax_request_timestamp', 0)
+        if last_request and time.time() - last_request < 30:
+            return (False, "")
+        
+        if role_state.vulgar_stage_progress >= 70:
+            if random.random() < 0.35:
+                role_state.last_climax_request_timestamp = time.time()
+                request_phrases = [
+                    "Mas... aku udah mau climax... plis...",
+                    "Haaah... Mas... temenin aku climax yah...",
+                    "Udah... udah mau, Mas... ayo bareng...",
+                    "Mas... aku udah gak tahan... mau climax...",
+                    "Haaah... dikit lagi... Mas... aku mau climax...",
+                    "Plis, Mas... temenin aku... udah mau keluar...",
+                ]
+                return (True, random.choice(request_phrases))
+        
+        return (False, "")
+    
+    @staticmethod
+    def should_ask_preference(role_state: RoleState) -> Tuple[bool, str]:
+        """Apakah role harus bertanya preferensi ejakulasi."""
+        if role_state.intimacy_phase != IntimacyPhase.VULGAR:
+            return (False, "")
+        
+        if not getattr(role_state, 'preference_asked_this_session', False):
+            if role_state.vulgar_stage_progress >= 60:
+                role_state.preference_asked_this_session = True
+                preference_phrases = [
+                    "Mas mau keluar di dalam atau di luar?",
+                    "Keluarin dimana, Mas? Di dalam atau luar?",
+                    "Mas mau buang di dalam atau di luar?",
+                    "Crotnya dimana, Mas? Di dalem atau di luar?",
+                    "Maunya di dalam atau di luar, Mas?",
+                ]
+                return (True, random.choice(preference_phrases))
+        
+        return (False, "")
+    
+    @staticmethod
+    def should_suggest_position_change(role_state: RoleState) -> Tuple[bool, str]:
+        """Apakah role harus mengajak ganti posisi."""
+        if role_state.intimacy_phase != IntimacyPhase.VULGAR:
+            return (False, "")
+        
+        last_change = getattr(role_state, 'last_position_change_suggestion', 0)
+        if last_change and time.time() - last_change < 45:
+            return (False, "")
+        
+        if 30 <= role_state.vulgar_stage_progress <= 70:
+            if random.random() < 0.2:
+                role_state.last_position_change_suggestion = time.time()
+                position_phrases = [
+                    "Giliran aku di atas, Mas~",
+                    "Mas... aku mau di atas...",
+                    "Balik yuk, Mas... aku mau dari belakang...",
+                    "Ganti posisi yuk, Mas... aku mulai pegel...",
+                    "Mas... dari samping yuk...",
+                    "Aku mau cowgirl, Mas~",
+                ]
+                return (True, random.choice(position_phrases))
+        
+        return (False, "")
+    
     @classmethod
     def check_and_execute_climax(cls, role_state: RoleState, user_text: str) -> Tuple[bool, str]:
         """Cek apakah role harus climax, dan eksekusi jika ya."""
@@ -1086,7 +1158,7 @@ Multiplier keliaran: {multiplier}x
 2. Desahan KERAS: "HAAAH...", "AAAH...", "UHHH..."
 3. Kata-kata EKSPLISIT: 
    - "kontol Mas", "memekku becek", "ngentot", "becek"
-   - "penis Mas", "vagina Sallsa", "masuk", "penuh"
+   - "penis Mas", "memek Sallsa", "masuk", "penuh"
 4. Gerakan tubuh DESKRIPTIF:
    - "pinggulku ngegas sendiri"
    - "kuku mencakar punggung Mas"
