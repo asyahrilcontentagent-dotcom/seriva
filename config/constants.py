@@ -244,7 +244,7 @@ LLM_TEMPERATURE_BY_PHASE = {
     "AWAL": 0.75,
     "DEKAT": 0.78,
     "INTIM": 0.80,
-    "VULGAR": 0.85,
+    "VULGAR": 1.00,
     "AFTER": 0.70,
 }
 
