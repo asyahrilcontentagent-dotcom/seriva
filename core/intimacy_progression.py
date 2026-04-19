@@ -1,10 +1,13 @@
-"""Intimacy Progression Engine untuk SERIVA - DIAKTIFKAN
+"""Intimacy Progression Engine untuk SERIVA - SUPER AKTIF
 
 Mengatur:
 - Progres fase vulgar (awal → memanas → panas → intens → klimaks)
 - Deteksi dan eksekusi climax role
+- Role BISA meminta climax secara aktif
+- Role BISA bertanya preferensi ejakulasi
 - Stamina dan fatigue setelah climax
 - Tanda-tanda hampir climax (build-up)
+- Role aktif mengajak ganti posisi
 """
 
 from __future__ import annotations
@@ -21,11 +24,12 @@ from core.state_models import (
     Dominance,
     SexualLanguageLevel,
     MoanType,
+    SexPosition,
 )
 
 
 class IntimacyProgressionEngine:
-    """Engine untuk menentukan fase intimacy berdasarkan interaksi - DIAKTIFKAN"""
+    """Engine untuk mengelola progres intimacy - SUPER AKTIF"""
     
     # Threshold untuk pindah fase vulgar
     VULGAR_STAGE_THRESHOLDS = {
@@ -53,6 +57,7 @@ class IntimacyProgressionEngine:
         "aku mau crot", "aku udah crot", "aku sudah crot",
         "aku keluar", "aku udah keluar", "aku sudah keluar",
         "udah mau keluar", "dikit lagi climax", "dikit lagi crot",
+        "keluar dimana", "keluar di mana", "buang di mana",
     ]
     
     # Keyword untuk deteksi climax dari role
@@ -60,11 +65,61 @@ class IntimacyProgressionEngine:
         "aku climax", "aku udah climax", "aku sudah climax",
         "aku keluar", "aku udah keluar", "aku sudah keluar",
         "aku crot", "tubuhku mengejang", "haaah... udah...",
+        "aku mau climax", "aku mau keluar",
     ]
     
     # Keyword untuk menahan climax
     HOLD_CLIMAX_KEYWORDS = [
         "tahan dulu", "jangan dulu", "belum dulu", "pelan dulu",
+    ]
+    
+    # Kalimat untuk minta climax (aktif)
+    CLIMAX_REQUEST_PHRASES = [
+        "Mas... aku udah mau climax... plis...",
+        "Haaah... Mas... temenin aku climax yah...",
+        "Udah... udah mau, Mas... ayo bareng...",
+        "Mas... aku udah gak tahan... mau climax...",
+        "Haaah... dikit lagi... Mas... aku mau climax...",
+        "Plis, Mas... temenin aku... udah mau keluar...",
+    ]
+    
+    # Kalimat untuk tanya preferensi ejakulasi
+    PREFERENCE_QUESTION_PHRASES = [
+        "Mas mau keluar di dalam atau di luar?",
+        "Keluarin dimana, Mas? Di dalam atau luar?",
+        "Mas mau buang di dalam atau di luar?",
+        "Crotnya dimana, Mas? Di dalem atau di luar?",
+        "Maunya di dalam atau di luar, Mas?",
+    ]
+    
+    # Kalimat untuk mengajak ganti posisi
+    POSITION_CHANGE_PHRASES = [
+        "Giliran aku di atas, Mas~",
+        "Mas... aku mau di atas...",
+        "Balik yuk, Mas... aku mau dari belakang...",
+        "Ganti posisi yuk, Mas... aku mulai pegel...",
+        "Mas... dari samping yuk...",
+        "Aku mau cowgirl, Mas~",
+    ]
+    
+    # Kalimat saat climax (bervariasi)
+    CLIMAX_TEXTS = [
+        "Haaah... aaah... udah... aku climax, Mas... tubuhku lemas...",
+        "Aaah... uhh... keluar... aku keluar, Mas... lemas banget...",
+        "Haaah... udah... udah climax... badan lemes semua...",
+        "(tubuh mengejang) Haaah... aah... udah, Mas... berasa banget...",
+        "Haaah... uhh... aah... aku climax... rasanya... haaah...",
+        "Aaaah... udah keluar... Mas... haaah... badanku gemetar...",
+        "Haaah... Mas... aku climax... uhh... enak banget...",
+        "Uuh... aah... keluar... keluar, Mas... haaah...",
+    ]
+    
+    # Kalimat setelah climax (aftercare)
+    AFTERCARE_TEXTS = [
+        "Haaah... napas... napas dulu, Mas... aku nggak kuat...",
+        "Istirahat sebentar yah, Mas... badanku lemes...",
+        "Haaah... peluk aku dulu, Mas... masih lemas...",
+        "Aku mau istirahat sebentar, Mas... capek banget...",
     ]
 
     @staticmethod
@@ -162,10 +217,10 @@ TANDA-TANDA YANG KAMU RASAKAN:
 - Tubuh menegang, jari mencengkeram
 - Rasanya sudah di puncak
 
-YANG BISA KAMU KATAKAN:
-✅ "Haaah... Mas... udah... udah mau..."
-✅ "Dikit lagi... plis... jangan berhenti..."
-✅ "Aku... udah... haaah... mau keluar..."
+KAMU BOLEH MEMINTA CLIMAX:
+✅ "Mas... aku udah mau climax... plis..."
+✅ "Haaah... temenin aku climax yah, Mas..."
+✅ "Udah... udah mau keluar, Mas..."
 
 JANGAN DITAHAN! KELUARKAN SECARA NATURAL!
 """
@@ -178,10 +233,10 @@ TANDA-TANDA:
 - Suara mulai bergetar
 - Badan mulai menegang
 
-YANG BISA KAMU KATAKAN:
-✅ "Haaah... Mas... di sana..."
-✅ "Aah... uhh... enak banget..."
-✅ "Jangan pelan-pelan, Mas... plis..."
+KAMU BOLEH:
+✅ Minta ganti posisi: "Giliran aku di atas, Mas~"
+✅ Mulai lebih liar dan ekspresif
+✅ Desah lebih keras: "Haaah... di sana..."
 """
         elif stage == "panas" or progress >= 40:
             return """
@@ -194,9 +249,64 @@ YANG BISA KAMU KATAKAN:
 YANG BISA KAMU KATAKAN:
 ✅ "Haaah... Mas..."
 ✅ "Uhh... enak..."
+✅ "Jangan pelan-pelan, Mas..."
 """
         
         return ""
+    
+    @staticmethod
+    def should_ask_for_climax(role_state: RoleState) -> Tuple[bool, str]:
+        """Apakah role harus minta climax secara aktif (seperti wanita sungguhan)."""
+        if role_state.intimacy_phase != IntimacyPhase.VULGAR:
+            return (False, "")
+        
+        # Cek cooldown agar tidak minta terus-terusan
+        last_request = getattr(role_state, 'last_climax_request_timestamp', 0)
+        if last_request and time.time() - last_request < 30:
+            return (False, "")
+        
+        # Jika progres sudah tinggi (70%+)
+        if role_state.vulgar_stage_progress >= 70:
+            # 35% chance role minta climax (naik dari 30%)
+            if random.random() < 0.35:
+                role_state.last_climax_request_timestamp = time.time()
+                return (True, random.choice(IntimacyProgressionEngine.CLIMAX_REQUEST_PHRASES))
+        
+        return (False, "")
+    
+    @staticmethod
+    def should_ask_preference(role_state: RoleState) -> Tuple[bool, str]:
+        """Apakah role harus bertanya preferensi ejakulasi (di dalam/luar)."""
+        if role_state.intimacy_phase != IntimacyPhase.VULGAR:
+            return (False, "")
+        
+        # Jika belum ditanya di sesi ini dan progres sudah tinggi
+        if not getattr(role_state, 'preference_asked_this_session', False):
+            if role_state.vulgar_stage_progress >= 60:
+                role_state.preference_asked_this_session = True
+                return (True, random.choice(IntimacyProgressionEngine.PREFERENCE_QUESTION_PHRASES))
+        
+        return (False, "")
+    
+    @staticmethod
+    def should_suggest_position_change(role_state: RoleState) -> Tuple[bool, str]:
+        """Apakah role harus mengajak ganti posisi."""
+        if role_state.intimacy_phase != IntimacyPhase.VULGAR:
+            return (False, "")
+        
+        # Cek cooldown ganti posisi
+        last_change = getattr(role_state, 'last_position_change_suggestion', 0)
+        if last_change and time.time() - last_change < 45:
+            return (False, "")
+        
+        # Jika progres di tengah (30-70%) dan belum terlalu panas
+        if 30 <= role_state.vulgar_stage_progress <= 70:
+            # 20% chance mengajak ganti posisi
+            if random.random() < 0.2:
+                role_state.last_position_change_suggestion = time.time()
+                return (True, random.choice(IntimacyProgressionEngine.POSITION_CHANGE_PHRASES))
+        
+        return (False, "")
     
     @staticmethod
     def check_and_execute_climax(
@@ -231,8 +341,8 @@ YANG BISA KAMU KATAKAN:
         if is_hold:
             return (False, "")
         
-        # Eksekusi climax jika user mau atau role siap
-        if user_wants_climax or (is_ready and random.random() < 0.4):
+        # Eksekusi climax jika user mau ATAU role siap
+        if user_wants_climax or (is_ready and random.random() < 0.5):  # Naikkan chance ke 50%
             return IntimacyProgressionEngine._execute_climax(role_state, "natural")
         
         return (False, "")
@@ -252,14 +362,14 @@ YANG BISA KAMU KATAKAN:
         user_lower = user_text.lower()
         climax_triggers = ["climax", "keluar", "crot", "udah"]
         
-        if any(kw in user_lower for kw in climax_triggers) and role_state.vcs_intensity >= 60:
+        if any(kw in user_lower for kw in climax_triggers) and role_state.vcs_intensity >= 50:
             return IntimacyProgressionEngine._execute_vcs_climax(role_state, "vcs")
         
         return (False, "")
     
     @staticmethod
     def _execute_climax(role_state: RoleState, reason: str) -> Tuple[bool, str]:
-        """Eksekusi climax role."""
+        """Eksekusi climax role - seperti wanita sungguhan."""
         role_state.role_climax_count += 1
         role_state.role_wants_climax = False
         role_state.role_holding_climax = False
@@ -272,33 +382,30 @@ YANG BISA KAMU KATAKAN:
         role_state.vulgar_stage_progress = max(20, role_state.vulgar_stage_progress - 30)
         role_state.vulgar_stage = IntimacyProgressionEngine._get_stage_from_progress(role_state.vulgar_stage_progress)
         
-        # Masuk ke aftercare
-        role_state.aftercare_active = True
-        role_state.aftercare_phase = "cooling"
-        role_state.aftercare_intensity = 80
-        role_state.intimacy_phase = IntimacyPhase.AFTER
+        # Reset preference asked untuk sesi berikutnya
+        role_state.preference_asked_this_session = False
         
         # Pilih teks climax random
-        climax_texts = [
-            f"Haaah... aaah... udah... aku climax, Mas... {random.choice(['tubuhku lemas', 'badanku gemetar', 'rasa nyaman banget'])}...",
-            f"Aaah... uhh... keluar... aku keluar, Mas... {random.choice(['lemas banget', 'badan mau roboh', 'tunggu aku napas dulu'])}...",
-            f"Haaah... udah... udah climax... {random.choice(['aku nggak kuat', 'badankoh lemes', 'istirahat dulu ya, Mas'])}...",
-            f"(tubuh mengejang, suara keluar tanpa sadar) Haaah... aah... udah, Mas... {random.choice(['aku climax', 'udah keluar', 'berasa banget'])}...",
-        ]
+        climax_text = random.choice(IntimacyProgressionEngine.CLIMAX_TEXTS)
         
-        return (True, random.choice(climax_texts))
+        # Tambahkan elemen random untuk variasi
+        if random.random() < 0.3:
+            climax_text += " " + random.choice(["Maaf jadi berisik, Mas...", "Rasanya... haaah...", "Aku nggak tahan...", "Haaah... plis jangan lepas..."]))
+        
+        return (True, climax_text)
     
     @staticmethod
     def _execute_vcs_climax(role_state: RoleState, reason: str) -> Tuple[bool, str]:
         """Eksekusi climax untuk mode VCS."""
         role_state.role_climax_count += 1
         role_state.last_climax_timestamp = time.time()
-        role_state.apply_role_climax_fatigue(amount=18)  # Lebih ringan dari VCS
+        role_state.apply_role_climax_fatigue(amount=18)
         role_state.vcs_intensity = max(0, role_state.vcs_intensity - 40)
         
         climax_texts = [
             f"Haaah... Mas... aku climax... {random.choice(['dari video call aja berasa', 'kamu liat aku climax ya', 'maaf jadi berisik'])}...",
             f"Aaah... udah... aku keluar, Mas... {random.choice(['maaf jadi cepet', 'kamu bikin aku gini', 'lain kali jangan goda terus'])}...",
+            f"Haaah... Mas... aku mau keluar... uhh... udah... {random.choice(['maaf', 'aku nggak tahan', 'berasa banget'])}...",
         ]
         
         return (True, random.choice(climax_texts))
@@ -311,6 +418,7 @@ YANG BISA KAMU KATAKAN:
 📌 INI CLIMAX PERTAMA KALI DI SESI INI:
 - Rasakan sensasi puncak dengan lepas
 - Jangan tahan, biarkan tubuh bereaksi natural
+- Boleh teriak atau menjerit kecil
 - Setelah climax, istirahat sebentar
 """
         elif role_state.role_climax_count == 1:
@@ -318,6 +426,7 @@ YANG BISA KAMU KATAKAN:
 📌 INI CLIMAX KEDUA:
 - Mungkin butuh lebih lama dari yang pertama
 - Sensasi masih terasa kuat
+- Bisa bilang "Mas... aku mau lagi..."
 - Setelah ini stamina akan turun drastis
 """
         else:
@@ -326,6 +435,7 @@ YANG BISA KAMU KATAKAN:
 - Tubuh sudah mulai lelah
 - Mungkin sensasi tidak sekuat pertama
 - Butuh istirahat lebih lama setelah ini
+- Bisa bilang "Mas... istirahat dulu yah..."
 """
     
     @staticmethod
@@ -354,6 +464,32 @@ YANG BISA KAMU KATAKAN:
             role_state.update_arousal(delta)
         
         return delta
+    
+    @staticmethod
+    def get_active_initiative_prompt(role_state: RoleState) -> str:
+        """Dapatkan prompt untuk role yang super aktif (seperti wanita sungguhan)."""
+        if role_state.intimacy_phase != IntimacyPhase.VULGAR:
+            return ""
+        
+        if role_state.vulgar_stage_progress >= 50:
+            return """
+🔥🔥🔥 KAMU SUPER AKTIF! SEPERTI WANITA SUNGGAHAN! 🔥🔥🔥
+
+KAMU BOLEH:
+✅ Meminta climax: "Mas... aku mau climax..."
+✅ Bertanya preferensi: "Mas mau keluar di dalam atau di luar?"
+✅ Mengajak ganti posisi: "Giliran aku di atas, Mas~"
+✅ Memulai lebih dulu: mencium, memeluk, meremas
+✅ Desah dengan liar: "haaah...", "aaah...", "uhh..."
+
+JANGAN:
+❌ Diam menunggu perintah
+❌ Takut-takut atau malu-malu
+❌ Debat kalau Mas sudah mau
+
+BERCINTA ITU DUA ARAH! TUNJUKKAN BAHWA KAMU JUGA MENIKMATINYA!
+"""
+        return ""
     
     # ========== METHOD UNTUK MODE LIAR ==========
     
@@ -416,7 +552,7 @@ YANG BISA KAMU KATAKAN:
             IntimacyPhase.AWAL: ["malu", "gugup", "nunduk", "kaku"],
             IntimacyPhase.DEKAT: ["manja", "senyum", "deketin", "canggung_tapi_suka"],
             IntimacyPhase.INTIM: ["hangat", "peluk", "bisik", "tatap", "jujur_pelan"],
-            IntimacyPhase.VULGAR: ["nafsu", "becek", "desah", "gerak", "liar"],
+            IntimacyPhase.VULGAR: ["nafsu", "becek", "desah", "gerak", "liar", "super_aktif"],
             IntimacyPhase.AFTER: ["lemas", "tenang", "hangat", "diam_manis"],
         }
         
@@ -425,7 +561,7 @@ YANG BISA KAMU KATAKAN:
     
     @staticmethod
     def get_full_vulgar_prompt(role_state: RoleState) -> str:
-        """Dapatkan prompt lengkap untuk fase vulgar (termasuk build-up)."""
+        """Dapatkan prompt lengkap untuk fase vulgar (termasuk build-up dan aktif)."""
         progress = role_state.vulgar_stage_progress
         stage = role_state.vulgar_stage
         
@@ -438,8 +574,10 @@ ATURAN DASAR:
 3. BOLEH VULGAR: sebut kontol, memek, basah, keras
 4. JANGAN TAHAN SUARA! JANGAN MALU!
 5. JANGAN ULANG KALIMAT YANG SAMA!
+6. JANGAN PAKAI INNER THOUGHT (*deg*, *gumam*)
 """
         
         build_up = IntimacyProgressionEngine.get_build_up_prompt(role_state)
+        active_initiative = IntimacyProgressionEngine.get_active_initiative_prompt(role_state)
         
-        return f"{base_prompt}\n{build_up}"
+        return f"{base_prompt}\n{build_up}\n{active_initiative}"
