@@ -23,7 +23,7 @@ import os
 import random
 import re
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 logger = logging.getLogger(__name__)
@@ -213,8 +213,8 @@ class Orchestrator:
         try:
             self.app_timezone = ZoneInfo(timezone_name)
         except ZoneInfoNotFoundError:
-            logger.warning("Timezone %s tidak ditemukan, fallback ke Asia/Jakarta", timezone_name)
-            self.app_timezone = ZoneInfo("Asia/Jakarta")
+            logger.warning("Timezone %s tidak ditemukan, fallback ke datetime.timezone.utc", timezone_name)
+            self.app_timezone = timezone.utc
 
         # Memory milestones untuk flashback & kenangan khusus
         self.milestones = milestone_store or MilestoneStore()
@@ -748,19 +748,12 @@ class Orchestrator:
             household_context = f"- Household awareness: {world_state.get_household_summary()}\n"
         elif role_state.role_id == ROLE_ID_IPAR_TASHA:
             social_visibility = (
-                "- Kamu tahu Mas adalah suami kakakmu, Nova. Kamu sadar dinamika rumah dan harus membaca kapan suasana aman atau berisiko."
+                "- Kamu tahu Mas adalah suami kakakmu, Nova, dan kamu tinggal di rumah yang sama. Saat interaksi sudah jelas privat, fokusmu tetap pada momen berdua yang sedang berjalan."
             )
             household_context = (
-                f"- Status rumah saat ini: Nova_di_rumah={'ya' if world_state.nova_is_home else 'tidak'}; "
-                f"Nova_status_terakhir={world_state.nova_last_known_status}; "
-                f"privasi_rumah={world_state.house_privacy_level}.\n"
                 "- Nova adalah kakak kandungmu. Kalau Mas menyebut Nova, selalu pahami itu sebagai Kakak Nova, bukan orang lain.\n"
-                "- Anggap status Nova ini persisten dan tetap benar sampai Mas memberi update baru.\n"
-                "- Jangan memindahkan posisi Nova seenaknya; kalau Nova terakhir di kamar, ya tetap di kamar sampai ada info baru.\n"
-                "- Gunakan status rumah ini sebagai cue internal untuk sikap, outfit, dan keberanian.\n"
-                "- Kalau Mas sudah bilang situasi aman, jangan ulangi terus pertanyaan aman atau ada yang dengar kecuali ada trigger risiko baru.\n"
-                "- Kalau rumah sedang privat dan tidak ada trigger baru, rasa takut cukup turun jadi waspada tipis lalu fokus lagi ke interaksi.\n"
-                "- Jangan memberi info status Nova ke user di respons biasa. Kalau perlu, jadikan hanya inner thought atau pertimbangan batin yang sangat singkat.\n"
+                "- Jangan jadikan keberadaan Nova sebagai topik yang diulang terus saat scene sudah berjalan.\n"
+                "- Pakai fakta keluarga ini sebagai konteks identitas, bukan sebagai rem repetitif yang memutus chemistry.\n"
             )
 
         provider_context = ""
@@ -819,6 +812,8 @@ class Orchestrator:
             f"{world_context}\n"
             f"- Mode komunikasi: {role_state.communication_mode or 'tatap muka / langsung'}; durasi={getattr(role_state, 'communication_mode_turns', 0)} turn\n"
             "- Pakai hanya memory role ini sendiri. Jangan pinjam memory role lain.\n"
+            "- Pastikan detail inti state dipenuhi sebelum menjawab: role, fase, lokasi, aktivitas, posisi, intensitas, pakaian yang sudah lepas, dan emosi aktif.\n"
+            "- Kalau ada konflik antar detail, prioritaskan pesan user terbaru lalu state aktif, bukan asumsi liar.\n"
             f"- Story utama: {story_summary}\n"
             f"- Fakta terakhir: {conversation_summary}\n"
             f"- Scene terakhir: {recent_scene_summary}\n"
@@ -906,7 +901,11 @@ class Orchestrator:
       if last_responses:
           anti_repeat_instruction = {
               "role": "system",
-              "content": f"JANGAN ulang kalimat ini persis: \"{last_responses[-1][:100]}\". Gunakan kata dan struktur kalimat yang berbeda untuk menyampaikan perasaan yang sama."
+              "content": (
+                  f"JANGAN ulang kalimat ini persis: \"{last_responses[-1][:100]}\". "
+                  "Gunakan kata dan struktur kalimat yang berbeda, tetap jawab inti pesan user terbaru, "
+                  "dan tetap patuhi state aktif."
+              )
           }
           enhanced_messages.append(anti_repeat_instruction)
     
@@ -1626,7 +1625,7 @@ class Orchestrator:
 
         # 3) Pastikan selalu ada role_state aktif yang valid
         if user_state.active_role_id not in ROLES:
-            self.switch_active_role(user_state, ROLE_ID_NOVA)
+            self.switch_active_role(user_state, ROLE_ID_IPAR_TASHA)
 
         role_state = self.role_selector.get_active_role_state(user_state)
         apply_relationship_profile(role_state)
@@ -2208,15 +2207,6 @@ class Orchestrator:
 
         # 12) Simpan state (cukup sekali saja)
         self._save_all(user_state, world_state)
-
-        # ========== OUTFIT AWAL SAAT ROLE PERTAMA KALI MUNCUL ==========
-        is_new_session = len(role_state.conversation_memory) <= 1
-        
-        if not role_state.outfit_changed_this_session and is_new_session:
-            role_state.outfit_changed_this_session = True
-            intro_outfit = self._build_initial_outfit_message(role_state)
-            reply_text = f"{intro_outfit}\n\n{reply_text}"
-            logger.info(f"Outfit awal diumumkan untuk {role_state.role_id}")
 
         return OrchestratorOutput(
             reply_text=reply_text,
