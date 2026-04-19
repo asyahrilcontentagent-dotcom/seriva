@@ -6,24 +6,21 @@ import logging
 
 from telegram.ext import Application, CommandHandler, MessageHandler, filters
 
+from bot.companion_handlers import (
+    companion_help_handler,
+    companion_start_handler,
+    companion_status_handler,
+)
 from bot.handlers import (
     cooldown_handler,
-    deal_handler,
     end_session_handler,
     flashback_handler,
-    help_handler,
     message_handler,
-    mulai_handler,
-    nego_handler,
     offline_handler, 
     pause_handler,
     resume_handler,
     role_list_handler,
-    set_nova_handler,
     set_role_handler,
-    start_handler,
-    status_handler,
-    venue_handler,
 )
 from core.llm_client import LLMClient, LLMConfig
 from core.orchestrator import Orchestrator
@@ -113,8 +110,8 @@ def build_application(
         .build()
     )
 
-    app.add_handler(CommandHandler("start", start_handler(orchestrator, admin_id)))
-    app.add_handler(CommandHandler("help", help_handler(orchestrator, admin_id)))
+    app.add_handler(CommandHandler("start", companion_start_handler(orchestrator, admin_id)))
+    app.add_handler(CommandHandler("help", companion_help_handler(orchestrator, admin_id)))
 
     app.add_handler(
         CommandHandler(
@@ -131,21 +128,15 @@ def build_application(
         )
     )
 
-    app.add_handler(CommandHandler("nova", set_nova_handler(orchestrator, admin_id)))
     app.add_handler(CommandHandler("batal", end_session_handler(orchestrator, admin_id)))
     app.add_handler(CommandHandler("end", end_session_handler(orchestrator, admin_id)))
     app.add_handler(CommandHandler("close", end_session_handler(orchestrator, admin_id)))
-    app.add_handler(CommandHandler("status", status_handler(orchestrator, admin_id)))
+    app.add_handler(CommandHandler("status", companion_status_handler(orchestrator, admin_id)))
     app.add_handler(CommandHandler("pause", pause_handler(orchestrator, admin_id)))
     app.add_handler(CommandHandler("resume", resume_handler(orchestrator, admin_id)))
     app.add_handler(CommandHandler("cooldown", cooldown_handler(orchestrator, admin_id)))
     app.add_handler(CommandHandler("flashback", flashback_handler(orchestrator, admin_id)))
     app.add_handler(CommandHandler("offline", offline_handler(orchestrator, admin_id)))
-
-    app.add_handler(CommandHandler("nego", nego_handler(orchestrator, admin_id)))
-    app.add_handler(CommandHandler("deal", deal_handler(orchestrator, admin_id)))
-    app.add_handler(CommandHandler("venue", venue_handler(orchestrator, admin_id)))
-    app.add_handler(CommandHandler("mulai", mulai_handler(orchestrator, admin_id)))
 
     app.add_handler(
         MessageHandler(
