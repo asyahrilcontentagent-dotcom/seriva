@@ -8,10 +8,10 @@ from memory.story_memory import StoryMemoryStore
 
 @dataclass(frozen=True)
 class ContextBudget:
-    message_memory_chars: int = 420
-    story_memory_chars: int = 280
-    scene_chars: int = 120
-    emotion_chars: int = 180
+    message_memory_chars: int = 520
+    story_memory_chars: int = 360
+    scene_chars: int = 220
+    emotion_chars: int = 220
 
 
 @dataclass
@@ -27,12 +27,14 @@ class StructuredContext:
 
     def to_prompt_block(self) -> str:
         return (
-            "STRUCTURED CONTEXT:\n"
+            "STRUCTURED CONTEXT OTORITATIF:\n"
             f"- mode={self.mode}\n"
+            f"- reason={self.priority_reason}\n"
             f"- recent={self.message_memory or '-'}\n"
             f"- story={self.story_memory or '-'}\n"
             f"- scene={self.scene_context or '-'}\n"
-            f"- emotion={self.emotion_context or '-'}"
+            f"- emotion={self.emotion_context or '-'}\n"
+            "- Gunakan blok ini sebagai jangkar utama sebelum berimprovisasi."
         )
 
 
@@ -106,7 +108,7 @@ class MemoryOrchestrator:
         story_pressure = 0
         message_pressure = 0
 
-        if any(token in lowered for token in ["tadi", "barusan", "ingat", "kok kamu bilang", "kenapa tadi"]):
+        if any(token in lowered for token in ["tadi", "barusan", "ingat", "kok kamu bilang", "kenapa tadi", "ngelantur", "nggak nyambung", "maksudku"]):
             message_pressure += 3
         if any(token in lowered for token in ["janji", "hubungan", "lanjut", "masih", "kemarin", "besok"]):
             story_pressure += 2
@@ -130,17 +132,17 @@ class MemoryOrchestrator:
     def _budget_for_mode(self, mode: str) -> ContextBudget:
         if mode == "story_dominant":
             return ContextBudget(
-                message_memory_chars=340,
-                story_memory_chars=420,
-                scene_chars=120,
-                emotion_chars=220,
+                message_memory_chars=420,
+                story_memory_chars=520,
+                scene_chars=220,
+                emotion_chars=240,
             )
         if mode == "message_dominant":
             return ContextBudget(
-                message_memory_chars=520,
-                story_memory_chars=220,
-                scene_chars=110,
-                emotion_chars=200,
+                message_memory_chars=620,
+                story_memory_chars=260,
+                scene_chars=220,
+                emotion_chars=220,
             )
         return self.default_budget
 
@@ -180,16 +182,20 @@ class MemoryOrchestrator:
     @staticmethod
     def _render_scene(role_state) -> str:
         scene = role_state.scene
+        intimacy = role_state.intimacy_detail
         bits = [
             f"lokasi={getattr(role_state, 'current_location_name', '') or scene.location or '-'}",
             f"aktivitas={scene.activity or '-'}",
+            f"postur={scene.posture or '-'}",
             f"jarak={scene.physical_distance or '-'}",
             f"sentuhan={scene.last_touch or '-'}",
             f"outfit={scene.outfit or '-'}",
             f"fase={getattr(role_state.intimacy_phase, 'value', '-')}",
+            f"posisi={getattr(intimacy.position, 'value', '-') if intimacy.position else '-'}",
+            f"intensitas={getattr(intimacy.intensity, 'value', '-') if intimacy.intensity else '-'}",
+            f"user_lepas={', '.join(intimacy.user_clothing_removed) or '-'}",
+            f"role_lepas={', '.join(intimacy.role_clothing_removed) or '-'}",
         ]
-        if getattr(role_state, "role_id", "") == "ipar_tasha":
-            bits.append(f"nova_status={getattr(role_state, 'known_nova_status', '-')}")
         return "; ".join(bits)
 
     @staticmethod
