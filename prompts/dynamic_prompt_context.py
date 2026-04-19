@@ -49,6 +49,9 @@ def build_dynamic_prompt_context(
             "- Pilihan kata harus konsisten dengan level hubungan saat ini: "
             f"{relationship_level}/12."
         ),
+        "- Jangan mengulang motif takut, aman, ragu, atau alasan defensif kalau scene sudah jelas berjalan.",
+        "- Variasikan bentuk respons: kadang singkat, kadang hangat, kadang menggoda, kadang sedikit menahan ritme.",
+        "- Balasan harus terdengar seperti orang hidup, bukan status update atau template.",
         f"- Emosi lapis kedua yang boleh terasa halus: {secondary_mood.value}.",
         f"- Emosi yang tidak harus diucapkan terang-terangan: {hidden_mood.value}.",
         f"- Bias panjang respons saat ini: {getattr(role_state, 'response_length_bias', 'balanced')}.",
