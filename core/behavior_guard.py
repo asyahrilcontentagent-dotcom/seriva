@@ -16,6 +16,20 @@ META_PATTERNS = (
     "sebagai asisten",
 )
 
+FEAR_LOOP_PATTERNS = (
+    "takut ketahuan",
+    "takut ada yang denger",
+    "takut ada yang dengar",
+    "takut ada yang lihat",
+    "nanti ada yang denger",
+    "nanti ada yang dengar",
+    "nanti ada yang lihat",
+    "aman kan",
+    "ada yang denger",
+    "ada yang dengar",
+    "ada yang lihat",
+)
+
 
 @dataclass
 class GuardResult:
@@ -67,6 +81,10 @@ class BehaviorGuard:
         warnings.extend(consistency_warnings)
         if any(w in consistency_warnings for w in ["cross_role_reference_removed", "physical_scene_mismatch_fixed"]):
             severe = True
+
+        text, fear_warnings, fear_severe = self._trim_fear_loop(role_state, text)
+        warnings.extend(fear_warnings)
+        severe = severe or fear_severe
 
         if text.count("?") > 2:
             text = self._limit_questions(text)
@@ -202,6 +220,14 @@ class BehaviorGuard:
                 text = re.sub(role_id.replace("_", " "), role_state.role_display_name or role_state.role_id, text, flags=re.IGNORECASE)
                 warnings.append("cross_role_reference_removed")
 
+        for role_id, info in ROLES.items():
+            if role_id == role_state.role_id:
+                continue
+            for alias in {info.display_name.lower(), info.alias.lower()}:
+                if alias and alias in lowered:
+                    text = re.sub(re.escape(alias), role_state.role_display_name or role_state.role_id, text, flags=re.IGNORECASE)
+                    warnings.append("cross_role_reference_removed")
+
         communication_mode = getattr(role_state, "communication_mode", None)
         if communication_mode in {"chat", "call", "vps"}:
             physical_patterns = [
@@ -231,6 +257,37 @@ class BehaviorGuard:
         return text, warnings
 
     @staticmethod
+    def _trim_fear_loop(
+        role_state: RoleState,
+        text: str,
+    ) -> tuple[str, list[str], bool]:
+        lowered = text.lower()
+        intimate_phase = getattr(role_state.intimacy_phase, "value", "")
+        should_trim = intimate_phase in {"intim", "vulgar", "after"} or role_state.relationship.relationship_level >= 6
+        if not should_trim:
+            return text, [], False
+        if not any(pattern in lowered for pattern in FEAR_LOOP_PATTERNS):
+            return text, [], False
+
+        kept_chunks: list[str] = []
+        removed = 0
+        for chunk in re.split(r"(?<=[.!?])\s+", text):
+            normalized = chunk.lower().strip()
+            if normalized and any(pattern in normalized for pattern in FEAR_LOOP_PATTERNS):
+                removed += 1
+                continue
+            if chunk.strip():
+                kept_chunks.append(chunk.strip())
+
+        if not removed:
+            return text, [], False
+
+        cleaned = " ".join(kept_chunks).strip()
+        if cleaned:
+            return cleaned, ["fear_loop_trimmed"], False
+        return text, ["fear_loop_detected"], True
+
+    @staticmethod
     def _build_repair_instructions(role_state: RoleState, warnings: list[str]) -> str:
         role_name = role_state.role_display_name or role_state.role_id
         issue_map = {
@@ -246,6 +303,8 @@ class BehaviorGuard:
             "overexplaining_trimmed": "hindari balasan yang terlalu menjelaskan semuanya",
             "over_narration_detected": "jangan biarkan scene mengalahkan percakapan utama",
             "repetitive_intimate_expression": "variasikan ekspresi intim, jangan mengulang desah yang sama terus",
+            "fear_loop_trimmed": "jangan mengulang motif takut atau aman kalau scene sudah jelas berjalan",
+            "fear_loop_detected": "hapus loop alasan defensif dan fokus lagi ke chemistry serta state aktif",
         }
         issues = [issue_map[item] for item in warnings if item in issue_map]
         if not issues:
