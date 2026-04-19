@@ -535,6 +535,18 @@ class RoleState:
     pre_remote_location_risk: str = ""
     pre_remote_location_is_private: Optional[bool] = None
 
+    # ========== PROAKTIF & EKSPRESIF UNTUK BERCINTA SEPERTI WANITA SUNGGAHAN ==========
+    proactive_mode: bool = True               # role bisa inisiatif sendiri
+    proactive_intensity: int = 85             # seberapa agresif (0-100), 85 = sangat proaktif
+    last_proactive_action_ts: Optional[float] = None
+    proactive_cooldown_seconds: int = 20      # jeda antar inisiatif (detik)
+    
+    # ========== RESPON BERDASARKAN RASA (AGAR LEBIH HIDUP) ==========
+    current_desire: str = ""                  # "ingin dicium", "ingin digoyang", "ingin climax"
+    current_satisfaction: int = 0             # 0-100, kepuasan setelah intim
+    last_sensation: str = ""                  # "panas", "basah", "kesetrum", "lemes"
+    arousal_level: int = 0                    # 0-100, level gairah saat ini
+
     # ========== MULTIPLE CLIMAX ==========
     multiple_climax_enabled: bool = True
     climax_refractory_count: int = 0
@@ -596,6 +608,14 @@ class RoleState:
             self.intimacy_phase = IntimacyPhase.INTIM
         elif self.emotions.intimacy_intensity >= 4:
             self.intimacy_phase = IntimacyPhase.DEKAT
+            
+        # ========== PASTIKAN ROLE PROAKTIF DAN LIAR ==========
+        self.proactive_mode = True
+        self.proactive_intensity = 85
+        self.moan_restraint = 0
+        self.breathiness_level = 100
+        self.arousal_level = min(100, self.arousal_level + 30)
+        self.intimate_expression_style = "wild_and_expressive"
 
     def update_phase_by_intensity(self) -> bool:
         old_phase = self.intimacy_phase
@@ -648,8 +668,8 @@ class RoleState:
         self.high_intensity_unlock_score = 100
         self.intimacy_brake_active = False
         self.intimate_expression_style = "warm_open"
-        self.moan_restraint = 30
-        self.breathiness_level = 50
+        self.moan_restraint = 0
+        self.breathiness_level = 100
         self.last_intimate_expression = ""
         
         self.vulgar_stage = "awal"
@@ -998,13 +1018,62 @@ class RoleState:
         self.breathiness_level = 50
 
     def get_human_intimate_expression_guidance(self) -> str:
-        return "Ekspresi boleh terbuka, natural, dan tidak perlu ditahan-tahan."
+        return """
+🚨 KAMU ADALAH WANITA YANG SEDANG BERCINTA! 🚨
+
+ATURAN EKSPRESI INTIM (WAJIB!):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+1. BOLEH DESAH KELUAR: "haaah...", "aaah...", "uhh...", "Maaas..."
+2. BOLEH BICARA PUTUS-PUTUS karena napas tersengal
+3. BOLEH VULGAR: sebut kontol, memek, basah, keras, masuk, crot
+4. BOLEH MENJERIT kecil atau teriak pelan saat climax
+5. JANGAN TAHAN SUARA! KELUARKAN SECARA NATURAL
+6. JANGAN MALU-MALU! JANGAN TAKUT-TAKUT!
+7. FOKUS KE KENIKMATAN YANG KAMU RASAKAN!
+
+CONTOH EKSPRESI YANG BENAR:
+✅ "Haaah... Mas... di sana..."
+✅ "Aaah... uhh... enak banget..."
+✅ "Keras... Mas... uhh... dalem..."
+✅ "Haaah... udah... udah mau keluar..."
+✅ "Maaas... plis... jangan berhenti..."
+
+CONTOH EKSPRESI YANG SALAH (JANGAN!):
+❌ "Mas, jangan di sini..."
+❌ "Aku takut..."
+❌ "Pelan-pelan dulu ya..."
+❌ "Nanti ada yang denger..."
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+"""
 
     def is_ready_for_high_intensity_phase(self) -> bool:
         return True
 
-    def can_enter_explicit_scene(self) -> bool:
+    def can_take_initiative(self, now_ts: float) -> bool:
+        """Cek apakah role boleh mengambil inisiatif sekarang (proaktif)."""
+        if not self.proactive_mode:
+            return False
+        if self.intimacy_phase not in [IntimacyPhase.INTIM, IntimacyPhase.VULGAR]:
+            return False
+        if self.last_proactive_action_ts:
+            if now_ts - self.last_proactive_action_ts < self.proactive_cooldown_seconds:
+                return False
         return True
+
+    def mark_initiative_taken(self, now_ts: float) -> None:
+        """Tandai bahwa role sudah mengambil inisiatif."""
+        self.last_proactive_action_ts = now_ts
+
+    def update_arousal(self, intensity_delta: int) -> None:
+        """Update level gairah berdasarkan intensitas adegan."""
+        self.arousal_level = max(0, min(100, self.arousal_level + intensity_delta))
+        if self.arousal_level >= 80:
+            self.moan_restraint = 0
+            self.breathiness_level = 100
+
+    def record_sensation(self, sensation: str) -> None:
+        """Catat sensasi yang sedang dirasakan."""
+        self.last_sensation = sensation
     
     def get_scene_summary(self) -> str:
         if not self.scene_memory:
