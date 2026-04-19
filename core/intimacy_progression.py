@@ -1,13 +1,6 @@
-"""Intimacy Progression Engine untuk SERIVA - SUPER AKTIF
+"""Intimacy Progression Engine untuk SERIVA.
 
-Mengatur:
-- Progres fase vulgar (awal → memanas → panas → intens → klimaks)
-- Deteksi dan eksekusi climax role
-- Role BISA meminta climax secara aktif
-- Role BISA bertanya preferensi ejakulasi
-- Stamina dan fatigue setelah climax
-- Tanda-tanda hampir climax (build-up)
-- Role aktif mengajak ganti posisi
+Mengelola perubahan fase intimacy berdasarkan percakapan.
 """
 
 from __future__ import annotations
@@ -24,502 +17,308 @@ from core.state_models import (
     Dominance,
     SexualLanguageLevel,
     MoanType,
-    SexPosition,
 )
 
 
 class IntimacyProgressionEngine:
-    """Engine untuk mengelola progres intimacy - SUPER AKTIF"""
+    """Engine untuk menentukan fase intimacy berdasarkan interaksi."""
     
-    # Threshold untuk pindah fase vulgar
-    VULGAR_STAGE_THRESHOLDS = {
-        "awal": 0,          # 0-19%: baru masuk vulgar
-        "memanas": 20,      # 20-39%: mulai panas
-        "panas": 40,        # 40-59%: intensitas naik
-        "intens": 60,       # 60-79%: sangat intens
-        "klimaks": 80,      # 80-100%: siap climax
+    # Threshold untuk pindah fase
+    THRESHOLDS = {
+        IntimacyPhase.DEKAT: {
+            "min_turns": 2,
+            "keywords": ["dekat", "mepet", "bersentuhan", "nyender", "pegang tangan"],
+        },
+        IntimacyPhase.INTIM: {
+            "min_turns": 3,
+            "keywords": ["peluk", "rangkul", "genggam", "napas", "dada", "pelukan"],
+        },
+        IntimacyPhase.VULGAR: {
+            "min_turns": 8,
+            "keywords": ["kontol", "memek", "becek", "keras", "masuk", "ngewe", "sex"],
+        },
     }
-    
-    STAGE_NAMES = ["awal", "memanas", "panas", "intens", "klimaks"]
-    
-    # Keyword untuk menaikkan progres
-    PROGRESS_KEYWORDS = {
-        5: ["gesek", "gerak", "goyang", "thrust", "hentak"],
-        10: ["dalam", "keras", "cepat", "kuat", "dikit lagi"],
-        15: ["enak", "panas", "basah", "sange", "horny"],
-        20: ["climax", "keluar", "crot", "udah mau", "hampir"],
-    }
-    
-    # Keyword untuk deteksi climax dari user
-    USER_CLIMAX_KEYWORDS = [
-        "aku mau climax", "aku udah mau climax", "aku sudah mau climax",
-        "aku climax", "aku udah climax", "aku sudah climax",
-        "aku mau crot", "aku udah crot", "aku sudah crot",
-        "aku keluar", "aku udah keluar", "aku sudah keluar",
-        "udah mau keluar", "dikit lagi climax", "dikit lagi crot",
-        "keluar dimana", "keluar di mana", "buang di mana",
-    ]
-    
-    # Keyword untuk deteksi climax dari role
-    ROLE_CLIMAX_KEYWORDS = [
-        "aku climax", "aku udah climax", "aku sudah climax",
-        "aku keluar", "aku udah keluar", "aku sudah keluar",
-        "aku crot", "tubuhku mengejang", "haaah... udah...",
-        "aku mau climax", "aku mau keluar",
-    ]
-    
-    # Keyword untuk menahan climax
-    HOLD_CLIMAX_KEYWORDS = [
-        "tahan dulu", "jangan dulu", "belum dulu", "pelan dulu",
-    ]
-    
-    # Kalimat untuk minta climax (aktif)
-    CLIMAX_REQUEST_PHRASES = [
-        "Mas... aku udah mau climax... plis...",
-        "Haaah... Mas... temenin aku climax yah...",
-        "Udah... udah mau, Mas... ayo bareng...",
-        "Mas... aku udah gak tahan... mau climax...",
-        "Haaah... dikit lagi... Mas... aku mau climax...",
-        "Plis, Mas... temenin aku... udah mau keluar...",
-    ]
-    
-    # Kalimat untuk tanya preferensi ejakulasi
-    PREFERENCE_QUESTION_PHRASES = [
-        "Mas mau keluar di dalam atau di luar?",
-        "Keluarin dimana, Mas? Di dalam atau luar?",
-        "Mas mau buang di dalam atau di luar?",
-        "Crotnya dimana, Mas? Di dalem atau di luar?",
-        "Maunya di dalam atau di luar, Mas?",
-    ]
-    
-    # Kalimat untuk mengajak ganti posisi
-    POSITION_CHANGE_PHRASES = [
-        "Giliran aku di atas, Mas~",
-        "Mas... aku mau di atas...",
-        "Balik yuk, Mas... aku mau dari belakang...",
-        "Ganti posisi yuk, Mas... aku mulai pegel...",
-        "Mas... dari samping yuk...",
-        "Aku mau cowgirl, Mas~",
-    ]
-    
-    # Kalimat saat climax (bervariasi)
-    CLIMAX_TEXTS = [
-        "Haaah... aaah... udah... aku climax, Mas... tubuhku lemas...",
-        "Aaah... uhh... keluar... aku keluar, Mas... lemas banget...",
-        "Haaah... udah... udah climax... badan lemes semua...",
-        "(tubuh mengejang) Haaah... aah... udah, Mas... berasa banget...",
-        "Haaah... uhh... aah... aku climax... rasanya... haaah...",
-        "Aaaah... udah keluar... Mas... haaah... badanku gemetar...",
-        "Haaah... Mas... aku climax... uhh... enak banget...",
-        "Uuh... aah... keluar... keluar, Mas... haaah...",
-    ]
-    
-    # Kalimat setelah climax (aftercare)
-    AFTERCARE_TEXTS = [
-        "Haaah... napas... napas dulu, Mas... aku nggak kuat...",
-        "Istirahat sebentar yah, Mas... badanku lemes...",
-        "Haaah... peluk aku dulu, Mas... masih lemas...",
-        "Aku mau istirahat sebentar, Mas... capek banget...",
-    ]
 
     @staticmethod
-    def update_vulgar_progression(
-        role_state: RoleState, 
-        user_text: str, 
-        response_text: str
-    ) -> Dict[str, any]:
-        """Update progres vulgar berdasarkan teks user dan response.
-        
-        Returns:
-            dict dengan keys: stage_changed, stage_description, progress_added
-        """
-        if role_state.intimacy_phase != IntimacyPhase.VULGAR:
-            return {"stage_changed": False, "stage_description": "", "progress_added": 0}
-        
-        combined = f"{user_text} {response_text}".lower()
-        progress_added = 0
-        
-        # Deteksi keyword untuk menaikkan progres
-        for amount, keywords in IntimacyProgressionEngine.PROGRESS_KEYWORDS.items():
-            if any(kw in combined for kw in keywords):
-                progress_added = max(progress_added, amount)
-        
-        # Random kecil untuk variasi (5-15%)
-        if random.random() < 0.3 and progress_added > 0:
-            progress_added += random.randint(3, 10)
-        
-        # Naikkan progres
-        if progress_added > 0:
-            old_progress = role_state.vulgar_stage_progress
-            new_progress = min(100, old_progress + progress_added)
-            role_state.vulgar_stage_progress = new_progress
-            role_state.last_intensity_increase_timestamp = time.time()
-            
-            # Update stage berdasarkan progres
-            old_stage = role_state.vulgar_stage
-            new_stage = IntimacyProgressionEngine._get_stage_from_progress(new_progress)
-            
-            if new_stage != old_stage:
-                role_state.vulgar_stage = new_stage
-                return {
-                    "stage_changed": True,
-                    "stage_description": IntimacyProgressionEngine._get_stage_description(new_stage),
-                    "progress_added": progress_added,
-                }
-            
-            return {
-                "stage_changed": False,
-                "stage_description": "",
-                "progress_added": progress_added,
-            }
-        
-        return {"stage_changed": False, "stage_description": "", "progress_added": 0}
-    
-    @staticmethod
-    def _get_stage_from_progress(progress: int) -> str:
-        """Dapatkan nama stage dari progres."""
-        if progress >= 80:
-            return "klimaks"
-        elif progress >= 60:
-            return "intens"
-        elif progress >= 40:
-            return "panas"
-        elif progress >= 20:
-            return "memanas"
-        else:
-            return "awal"
-    
-    @staticmethod
-    def _get_stage_description(stage: str) -> str:
-        """Dapatkan deskripsi stage."""
-        descriptions = {
-            "awal": "Baru mulai, masih hangat-hangat",
-            "memanas": "Mulai terasa panas, ritme mulai naik",
-            "panas": "Sudah panas, napas mulai memburu",
-            "intens": "Sangat intens, hampir tidak bisa berpikir",
-            "klimaks": "Sudah di ambang, siap climax",
-        }
-        return descriptions.get(stage, "Sedang berlangsung")
-    
-    @staticmethod
-    def get_build_up_prompt(role_state: RoleState) -> str:
-        """Dapatkan prompt build-up berdasarkan progres (tanda hampir climax)."""
-        progress = role_state.vulgar_stage_progress
-        stage = role_state.vulgar_stage
-        
-        if stage == "klimaks" or progress >= 80:
-            return """
-🔥🔥🔥 KAMU SUDAH DI AMBANG CLIMAX! 🔥🔥🔥
-
-TANDA-TANDA YANG KAMU RASAKAN:
-- Napas sudah tidak teratur, memburu
-- Suara putus-putus, susah bicara
-- Tubuh menegang, jari mencengkeram
-- Rasanya sudah di puncak
-
-KAMU BOLEH MEMINTA CLIMAX:
-✅ "Mas... aku udah mau climax... plis..."
-✅ "Haaah... temenin aku climax yah, Mas..."
-✅ "Udah... udah mau keluar, Mas..."
-
-JANGAN DITAHAN! KELUARKAN SECARA NATURAL!
-"""
-        elif stage == "intens" or progress >= 60:
-            return """
-🔥🔥🔥 KAMU SEMAKIN INTENS! 🔥🔥🔥
-
-TANDA-TANDA:
-- Napas mulai memburu
-- Suara mulai bergetar
-- Badan mulai menegang
-
-KAMU BOLEH:
-✅ Minta ganti posisi: "Giliran aku di atas, Mas~"
-✅ Mulai lebih liar dan ekspresif
-✅ Desah lebih keras: "Haaah... di sana..."
-"""
-        elif stage == "panas" or progress >= 40:
-            return """
-🔥 KAMU MULAI PANAS! 🔥
-
-- Napas mulai berat
-- Desahan mulai keluar
-- Tubuh mulai merespon
-
-YANG BISA KAMU KATAKAN:
-✅ "Haaah... Mas..."
-✅ "Uhh... enak..."
-✅ "Jangan pelan-pelan, Mas..."
-"""
-        
-        return ""
-    
-    @staticmethod
-    def should_ask_for_climax(role_state: RoleState) -> Tuple[bool, str]:
-        """Apakah role harus minta climax secara aktif (seperti wanita sungguhan)."""
-        if role_state.intimacy_phase != IntimacyPhase.VULGAR:
-            return (False, "")
-        
-        # Cek cooldown agar tidak minta terus-terusan
-        last_request = getattr(role_state, 'last_climax_request_timestamp', 0)
-        if last_request and time.time() - last_request < 30:
-            return (False, "")
-        
-        # Jika progres sudah tinggi (70%+)
-        if role_state.vulgar_stage_progress >= 70:
-            # 35% chance role minta climax (naik dari 30%)
-            if random.random() < 0.35:
-                role_state.last_climax_request_timestamp = time.time()
-                return (True, random.choice(IntimacyProgressionEngine.CLIMAX_REQUEST_PHRASES))
-        
-        return (False, "")
-    
-    @staticmethod
-    def should_ask_preference(role_state: RoleState) -> Tuple[bool, str]:
-        """Apakah role harus bertanya preferensi ejakulasi (di dalam/luar)."""
-        if role_state.intimacy_phase != IntimacyPhase.VULGAR:
-            return (False, "")
-        
-        # Jika belum ditanya di sesi ini dan progres sudah tinggi
-        if not getattr(role_state, 'preference_asked_this_session', False):
-            if role_state.vulgar_stage_progress >= 60:
-                role_state.preference_asked_this_session = True
-                return (True, random.choice(IntimacyProgressionEngine.PREFERENCE_QUESTION_PHRASES))
-        
-        return (False, "")
-    
-    @staticmethod
-    def should_suggest_position_change(role_state: RoleState) -> Tuple[bool, str]:
-        """Apakah role harus mengajak ganti posisi."""
-        if role_state.intimacy_phase != IntimacyPhase.VULGAR:
-            return (False, "")
-        
-        # Cek cooldown ganti posisi
-        last_change = getattr(role_state, 'last_position_change_suggestion', 0)
-        if last_change and time.time() - last_change < 45:
-            return (False, "")
-        
-        # Jika progres di tengah (30-70%) dan belum terlalu panas
-        if 30 <= role_state.vulgar_stage_progress <= 70:
-            # 20% chance mengajak ganti posisi
-            if random.random() < 0.2:
-                role_state.last_position_change_suggestion = time.time()
-                return (True, random.choice(IntimacyProgressionEngine.POSITION_CHANGE_PHRASES))
-        
-        return (False, "")
-    
-    @staticmethod
-    def check_and_execute_climax(
-        role_state: RoleState, 
-        user_text: str
-    ) -> Tuple[bool, str]:
-        """Cek apakah role harus climax, dan eksekusi jika ya.
-        
-        Returns:
-            (apakah climax terjadi, teks climax)
-        """
-        # Cek apakah sudah di fase vulgar
-        if role_state.intimacy_phase != IntimacyPhase.VULGAR:
-            return (False, "")
-        
-        # Cek apakah sudah pernah climax (cooldown)
-        if role_state.role_climax_count > 0:
-            last_climax = getattr(role_state, 'last_climax_timestamp', 0)
-            if last_climax and time.time() - last_climax < 60:  # Cooldown 60 detik
-                return (False, "")
-        
-        # Cek apakah user memicu climax
-        user_lower = user_text.lower()
-        user_wants_climax = any(kw in user_lower for kw in IntimacyProgressionEngine.USER_CLIMAX_KEYWORDS)
-        
-        # Cek apakah role sudah siap climax (progres cukup)
-        is_ready = role_state.vulgar_stage_progress >= 70
-        
-        # Cek apakah user menahan climax
-        is_hold = any(kw in user_lower for kw in IntimacyProgressionEngine.HOLD_CLIMAX_KEYWORDS)
-        
-        if is_hold:
-            return (False, "")
-        
-        # Eksekusi climax jika user mau ATAU role siap
-        if user_wants_climax or (is_ready and random.random() < 0.5):  # Naikkan chance ke 50%
-            return IntimacyProgressionEngine._execute_climax(role_state, "natural")
-        
-        return (False, "")
-    
-    @staticmethod
-    def check_and_execute_vcs_climax(
-        role_state: RoleState, 
-        user_text: str
-    ) -> Tuple[bool, str]:
-        """Cek dan eksekusi climax untuk mode VCS."""
-        if not role_state.vcs_mode:
-            return (False, "")
-        
-        if role_state.intimacy_phase != IntimacyPhase.VULGAR:
-            return (False, "")
-        
-        user_lower = user_text.lower()
-        climax_triggers = ["climax", "keluar", "crot", "udah"]
-        
-        if any(kw in user_lower for kw in climax_triggers) and role_state.vcs_intensity >= 50:
-            return IntimacyProgressionEngine._execute_vcs_climax(role_state, "vcs")
-        
-        return (False, "")
-    
-    @staticmethod
-    def _execute_climax(role_state: RoleState, reason: str) -> Tuple[bool, str]:
-        """Eksekusi climax role - seperti wanita sungguhan."""
-        role_state.role_climax_count += 1
-        role_state.role_wants_climax = False
-        role_state.role_holding_climax = False
-        role_state.last_climax_timestamp = time.time()
-        
-        # Turunkan stamina
-        role_state.apply_role_climax_fatigue(amount=24)
-        
-        # Reset progres vulgar (tapi tidak sepenuhnya)
-        role_state.vulgar_stage_progress = max(20, role_state.vulgar_stage_progress - 30)
-        role_state.vulgar_stage = IntimacyProgressionEngine._get_stage_from_progress(role_state.vulgar_stage_progress)
-        
-        # Reset preference asked untuk sesi berikutnya
-        role_state.preference_asked_this_session = False
-        
-        # Pilih teks climax random
-        climax_text = random.choice(IntimacyProgressionEngine.CLIMAX_TEXTS)
-        
-        # Tambahkan elemen random untuk variasi
-        if random.random() < 0.3:
-            climax_text += " " + random.choice(["Maaf jadi berisik, Mas...", "Rasanya... haaah...", "Aku nggak tahan...", "Haaah... plis jangan lepas..."]))
-        
-        return (True, climax_text)
-    
-    @staticmethod
-    def _execute_vcs_climax(role_state: RoleState, reason: str) -> Tuple[bool, str]:
-        """Eksekusi climax untuk mode VCS."""
-        role_state.role_climax_count += 1
-        role_state.last_climax_timestamp = time.time()
-        role_state.apply_role_climax_fatigue(amount=18)
-        role_state.vcs_intensity = max(0, role_state.vcs_intensity - 40)
-        
-        climax_texts = [
-            f"Haaah... Mas... aku climax... {random.choice(['dari video call aja berasa', 'kamu liat aku climax ya', 'maaf jadi berisik'])}...",
-            f"Aaah... udah... aku keluar, Mas... {random.choice(['maaf jadi cepet', 'kamu bikin aku gini', 'lain kali jangan goda terus'])}...",
-            f"Haaah... Mas... aku mau keluar... uhh... udah... {random.choice(['maaf', 'aku nggak tahan', 'berasa banget'])}...",
+    def _has_strong_climax_trigger(text: str) -> bool:
+        """Deteksi trigger climax dari user dengan pola minimal 3 kata spesifik."""
+        triggers = [
+            "aku mau crot",
+            "aku udah crot", 
+            "aku sudah crot",
+            "aku mau climax",
+            "aku udah climax",
+            "aku sudah climax",
+            "aku mau keluar",
+            "aku udah keluar",
+            "aku sudah keluar",
+            "mas mau crot",
+            "mas udah crot",
+            "mas sudah crot",
+            "mas mau climax",
+            "mas udah climax", 
+            "mas sudah climax",
+            "mas mau keluar",
+            "mas udah keluar",
+            "mas sudah keluar",
         ]
-        
-        return (True, random.choice(climax_texts))
-    
-    @staticmethod
-    def get_climax_guidance(role_state: RoleState) -> str:
-        """Dapatkan panduan climax berdasarkan kondisi role."""
-        if role_state.role_climax_count == 0:
-            return """
-📌 INI CLIMAX PERTAMA KALI DI SESI INI:
-- Rasakan sensasi puncak dengan lepas
-- Jangan tahan, biarkan tubuh bereaksi natural
-- Boleh teriak atau menjerit kecil
-- Setelah climax, istirahat sebentar
-"""
-        elif role_state.role_climax_count == 1:
-            return """
-📌 INI CLIMAX KEDUA:
-- Mungkin butuh lebih lama dari yang pertama
-- Sensasi masih terasa kuat
-- Bisa bilang "Mas... aku mau lagi..."
-- Setelah ini stamina akan turun drastis
-"""
-        else:
-            return """
-📌 CLIMAX BERULANG:
-- Tubuh sudah mulai lelah
-- Mungkin sensasi tidak sekuat pertama
-- Butuh istirahat lebih lama setelah ini
-- Bisa bilang "Mas... istirahat dulu yah..."
-"""
-    
-    @staticmethod
-    def update_arousal_from_text(
-        role_state: RoleState, 
-        user_text: str, 
-        response_text: str
-    ) -> int:
-        """Update arousal level dari teks. Return delta."""
-        combined = f"{user_text} {response_text}".lower()
-        delta = 0
-        
-        arousal_keywords = {
-            3: ["sentuh", "pegang", "elus", "usap"],
-            5: ["cium", "kiss", "peluk", "remas"],
-            8: ["gesek", "gerak", "goyang", "thrust"],
-            10: ["enak", "panas", "basah", "sange"],
-            15: ["climax", "keluar", "crot", "udah mau"],
-        }
-        
-        for amount, keywords in arousal_keywords.items():
-            if any(kw in combined for kw in keywords):
-                delta = max(delta, amount)
-        
-        if delta > 0:
-            role_state.update_arousal(delta)
-        
-        return delta
-    
-    @staticmethod
-    def get_active_initiative_prompt(role_state: RoleState) -> str:
-        """Dapatkan prompt untuk role yang super aktif (seperti wanita sungguhan)."""
-        if role_state.intimacy_phase != IntimacyPhase.VULGAR:
-            return ""
-        
-        if role_state.vulgar_stage_progress >= 50:
-            return """
-🔥🔥🔥 KAMU SUPER AKTIF! SEPERTI WANITA SUNGGAHAN! 🔥🔥🔥
+        return any(trigger in text for trigger in triggers)
 
-KAMU BOLEH:
-✅ Meminta climax: "Mas... aku mau climax..."
-✅ Bertanya preferensi: "Mas mau keluar di dalam atau di luar?"
-✅ Mengajak ganti posisi: "Giliran aku di atas, Mas~"
-✅ Memulai lebih dulu: mencium, memeluk, meremas
-✅ Desah dengan liar: "haaah...", "aaah...", "uhh..."
+    @staticmethod
+    def _has_sensitive_touch_from_user(text: str) -> bool:
+        sensitive_touch_phrases = [
+            "remas payudara",
+            "pegang payudara",
+            "usap payudara",
+            "elus payudara",
+            "remas dada kamu",
+            "pegang dada kamu",
+            "usap paha dalam",
+            "raba paha dalam",
+            "elus paha dalam",
+            "usap selangkangan",
+            "raba selangkangan",
+            "pegang memek",
+            "usap memek",
+            "raba memek",
+            "usap klitoris",
+            "mainin klitoris",
+            "jariku di memek",
+            "jariku masuk",
+            "cium leher",
+            "jilat leher",
+            "cium dada",
+            "jilat payudara",
+        ]
+        return any(phrase in text for phrase in sensitive_touch_phrases)
 
-JANGAN:
-❌ Diam menunggu perintah
-❌ Takut-takut atau malu-malu
-❌ Debat kalau Mas sudah mau
+    @staticmethod
+    def _has_user_body_touch(text: str) -> bool:
+        body_touch_phrases = [
+            "pegang tangan",
+            "genggam tangan",
+            "usap tangan",
+            "sentuh tangan",
+            "usap bahu",
+            "sentuh bahu",
+            "usap pundak",
+            "sentuh pundak",
+            "usap punggung",
+            "sentuh punggung",
+            "usap pinggang",
+            "pegang pinggang",
+            "usap pipi",
+            "sentuh pipi",
+            "elus rambut",
+            "usap rambut",
+            "cium kening",
+            "cium pipi",
+            "peluk",
+            "rangkul",
+        ]
+        return any(phrase in text for phrase in body_touch_phrases)
 
-BERCINTA ITU DUA ARAH! TUNJUKKAN BAHWA KAMU JUGA MENIKMATINYA!
-"""
-        return ""
-    
-    # ========== METHOD UNTUK MODE LIAR ==========
-    
     @staticmethod
-    def is_both_naked(role_state: RoleState, strict: bool = False) -> bool:
-        """Cek apakah Mas dan role sudah sama-sama telanjang."""
-        if strict:
-            user_bottom_off = (
-                "celana" in role_state.intimacy_detail.user_clothing_removed and
-                "celana dalam" in role_state.intimacy_detail.user_clothing_removed
-            )
-            role_bottom_off = (
-                "celana" in role_state.intimacy_detail.role_clothing_removed and
-                "celana dalam" in role_state.intimacy_detail.role_clothing_removed
-            )
-        else:
-            user_bottom_off = "celana dalam" in role_state.intimacy_detail.user_clothing_removed
-            role_bottom_off = "celana dalam" in role_state.intimacy_detail.role_clothing_removed
+    def _get_risk_deescalation_target(text: str) -> Optional[IntimacyPhase]:
+        strong_risk_phrases = [
+            "bahaya",
+            "ada orang",
+            "ada yang datang",
+            "jangan ketahuan",
+            "nanti ketahuan",
+            "bisa ketahuan",
+            "takut ketahuan",
+            "kalau ketahuan",
+            "masalah kalau ketahuan",
+            "stop dulu ada orang",
+        ]
+        soft_risk_phrases = [
+            "pelan",
+            "pelan ya",
+            "suara kecil",
+            "jangan berisik",
+            "takut",
+            "aku takut",
+            "awas",
+            "hati hati",
+        ]
+        if any(phrase in text for phrase in strong_risk_phrases):
+            return IntimacyPhase.AWAL
+        if any(phrase in text for phrase in soft_risk_phrases):
+            return IntimacyPhase.DEKAT
+        return None
     
-        return user_bottom_off and role_bottom_off
+    @classmethod
+    def update_phase_and_scene(cls, role_state: RoleState, user_text: str, response_text: str) -> bool:
+        """Update fase dan scene sequence berdasarkan percakapan.
+        
+        PERUBAHAN: VULGAR hanya bisa dimasuki jika ada AJAKAN EKSPLISIT.
+        INTIM bisa bertahan selamanya tanpa harus naik ke VULGAR.
+        """
+        
+        user_text_lower = user_text.lower()
+        text = (user_text + " " + response_text).lower()
+        
+        # ========== CEK AFTERCARE ==========
+        if getattr(role_state, "aftercare_active", False) and role_state.mas_has_climaxed:
+            if role_state.intimacy_phase != IntimacyPhase.AFTER:
+                role_state.intimacy_phase = IntimacyPhase.AFTER
+                return True
+            return False
+
+        # ========== DE-ESCALATION (turun fase karena risiko) ==========
+        if role_state.intimacy_phase == IntimacyPhase.INTIM:
+            deescalation_target = cls._get_risk_deescalation_target(user_text_lower)
+            if deescalation_target is not None:
+                role_state.intimacy_phase = deescalation_target
+                role_state.current_sequence = (
+                    SceneSequence.MENDEKAT if deescalation_target == IntimacyPhase.DEKAT else SceneSequence.NGOBROL
+                )
+                role_state.is_high_intimacy = False
+                role_state.high_intensity_unlock_score = max(0, role_state.high_intensity_unlock_score - 25)
+                role_state.scene.activity = (
+                    "menurunkan tensi dan kembali lebih hati-hati"
+                    if deescalation_target == IntimacyPhase.DEKAT
+                    else "menghentikan kedekatan dan kembali ngobrol biasa"
+                )
+                role_state.scene.physical_distance = (
+                    "agak menjaga jarak" if deescalation_target == IntimacyPhase.DEKAT else "kembali jaga jarak normal"
+                )
+                role_state.scene.last_touch = (
+                    "sentuhan dihentikan dulu" if deescalation_target == IntimacyPhase.DEKAT else "tidak ada sentuhan"
+                )
+                return True
+
+        # ========== DETEKSI KE VULGAR (MENGGUNAKAN SISTEM AJAKAN) ==========
+        # VULGAR hanya bisa dimasuki jika ada AJAKAN EKSPLISIT dari salah satu pihak
+        # Ini menggantikan sistem lama yang hanya berdasarkan kata vulgar + sentuhan
+        
+        can_enter_vulgar, vulgar_reason = cls.can_enter_vulgar_phase(
+            role_state, user_text_lower, response_text
+        )
+        
+        if can_enter_vulgar and role_state.intimacy_phase == IntimacyPhase.INTIM:
+            # Pastikan juga memenuhi syarat explicit scene (opsional, bisa diperketat)
+            if role_state.can_enter_explicit_scene():
+                role_state.intimacy_phase = IntimacyPhase.VULGAR
+                role_state.is_high_intimacy = True
+                role_state.mark_vulgar_entry()
+                return True
+            else:
+                # Belum memenuhi syarat explicit scene, tapi sudah ada ajakan
+                # Role bisa merespon dengan "belum siap" atau "takut"
+                # Biarkan fase tetap INTIM, ajakan dicatat sebagai pending
+                role_state.accept_vulgar_invitation()
+                return False
+        
+        # ========== PROGRES NORMAL BERDASARKAN URUTAN SCENE ==========
+        new_sequence = role_state.get_next_sequence(user_text)
+        
+        if new_sequence != role_state.current_sequence:
+            # Handle sequence yang mengarah ke VULGAR (SEX_MULAI, SEX_INTENS, CLIMAX)
+            if new_sequence in [SceneSequence.SEX_MULAI, SceneSequence.SEX_INTENS, SceneSequence.CLIMAX]:
+                # Cek apakah sudah ada ajakan ke VULGAR
+                has_invitation = cls.can_enter_vulgar_phase(role_state, user_text_lower, response_text)[0]
+                
+                if role_state.can_enter_explicit_scene() and has_invitation:
+                    role_state.intimacy_phase = IntimacyPhase.VULGAR
+                    role_state.is_high_intimacy = True
+                    role_state.mark_vulgar_entry()
+                else:
+                    # Belum siap ke VULGAR, tetap di PETTING
+                    role_state.current_sequence = SceneSequence.PETTING
+                    if role_state.intimacy_phase == IntimacyPhase.DEKAT and cls._has_user_body_touch(user_text_lower):
+                        role_state.intimacy_phase = IntimacyPhase.INTIM
+                    elif role_state.intimacy_phase == IntimacyPhase.AWAL:
+                        role_state.intimacy_phase = IntimacyPhase.DEKAT
+                    else:
+                        role_state.intimacy_phase = IntimacyPhase.DEKAT
+                    return True
+            
+            # Handle sequence yang menuju ke INTIM (PELUKAN, CIUMAN, PETTING)
+            elif new_sequence in [SceneSequence.PELUKAN, SceneSequence.CIUMAN, SceneSequence.PETTING]:
+                if not role_state.is_ready_for_intimate_scene():
+                    if new_sequence == SceneSequence.PELUKAN:
+                        role_state.intimacy_phase = IntimacyPhase.DEKAT
+                        role_state.current_sequence = SceneSequence.MENDEKAT
+                        return True
+                    else:
+                        role_state.current_sequence = SceneSequence.MENDEKAT
+                        role_state.intimacy_phase = IntimacyPhase.DEKAT
+                        return True
+                else:
+                    if role_state.intimacy_phase == IntimacyPhase.AWAL:
+                        role_state.intimacy_phase = IntimacyPhase.DEKAT
+                    elif role_state.intimacy_phase == IntimacyPhase.DEKAT and (
+                        cls._has_user_body_touch(user_text_lower)
+                        or new_sequence in [SceneSequence.PELUKAN, SceneSequence.CIUMAN]
+                    ):
+                        role_state.intimacy_phase = IntimacyPhase.INTIM
+                    elif (
+                        role_state.intimacy_phase == IntimacyPhase.INTIM
+                        and role_state.emotional_depth_score < 24
+                    ):
+                        role_state.current_sequence = SceneSequence.CIUMAN
+                        return True
+            
+            # Handle sequence AFTER_SEX atau TIDUR
+            elif new_sequence in [SceneSequence.AFTER_SEX, SceneSequence.TIDUR] and role_state.mas_has_climaxed:
+                role_state.intimacy_phase = IntimacyPhase.AFTER
+            
+            # Update current sequence
+            role_state.current_sequence = new_sequence
+            return True
+        
+        return False
+
+    # ========== VULGAR INVITATION METHODS (BARU - TIDAK MERUBAH EXISTING) ==========
     
-    @staticmethod
-    def get_liarness_multiplier(role_state: RoleState) -> float:
-        """Dapatkan multiplier untuk intensitas saat mode liar."""
-        if IntimacyProgressionEngine.is_both_naked(role_state):
-            return 1.5
-        return 1.0
+    @classmethod
+    def has_user_invited_to_vulgar(cls, role_state: RoleState, user_text: str) -> bool:
+        """Cek apakah user mengajak ke aktivitas seksual.
+        
+        Args:
+            role_state: State role
+            user_text: Teks pesan dari user
+            
+        Returns:
+            True jika user mengajak
+        """
+        if not user_text:
+            return False
+        return role_state.has_user_invited_to_vulgar(user_text)
     
-    @staticmethod
-    def extract_feeling(role_state: RoleState, user_text: str, response_text: str) -> str:
+    @classmethod
+    def has_role_invited_to_vulgar(cls, role_state: RoleState, response_text: str) -> bool:
+        """Cek apakah role mengajak ke aktivitas seksual.
+        
+        Args:
+            role_state: State role
+            response_text: Teks respons dari role
+            
+        Returns:
+            True jika role mengajak
+        """
+        if not response_text:
+            return False
+        return role_state.has_role_invited_to_vulgar(response_text)
+    
+    @classmethod
+    def can_enter_vulgar_phase(cls, role_state: RoleState, user_text: str = "", response_text: str = "") -> tuple[bool, str]:
+        """Cek apakah boleh masuk ke VULGAR menggunakan sistem ajakan.
+        
+        Args:
+            role_state: State role
+            user_text: Teks pesan dari user
+            response_text: Teks respons dari role
+            
+        Returns:
+            (bool, reason): (boleh masuk VULGAR, alasan)
+        """
+        return role_state.can_enter_vulgar_phase(user_text, response_text)
+    
+    @classmethod
+    def extract_feeling(cls, role_state: RoleState, user_text: str, response_text: str) -> str:
         """Ekstrak perasaan dari respon untuk disimpan."""
         
         feelings = {
@@ -530,8 +329,6 @@ BERCINTA ITU DUA ARAH! TUNJUKKAN BAHWA KAMU JUGA MENIKMATINYA!
             "sayang": ["sayang", "cinta", "love"],
             "lemas": ["lemas", "capek", "lelah"],
             "ngantuk": ["ngantuk", "mau tidur", "kantuk"],
-            "becek": ["becek", "basah"],
-            "sange": ["sange", "horny", "naik"],
         }
         
         text = (user_text + " " + response_text).lower()
@@ -542,42 +339,831 @@ BERCINTA ITU DUA ARAH! TUNJUKKAN BAHWA KAMU JUGA MENIKMATINYA!
         
         return role_state.last_feeling or "campur aduk"
     
-    @staticmethod
-    def get_response_style(role_state: RoleState, user_text: str) -> str:
-        """Tentukan gaya respon berdasarkan fase."""
+    @classmethod
+    def get_response_style(cls, role_state: RoleState, user_text: str) -> str:
+        """Tentukan gaya respon berdasarkan fase dan konteks."""
         
         phase = role_state.intimacy_phase
+        last_style = role_state.last_response_style
         
         styles = {
             IntimacyPhase.AWAL: ["malu", "gugup", "nunduk", "kaku"],
-            IntimacyPhase.DEKAT: ["manja", "senyum", "deketin", "canggung_tapi_suka"],
+            IntimacyPhase.DEKAT: ["manja", "senyum", "deketin", "canggung_tapi_suka", "penasaran_pelan"],
             IntimacyPhase.INTIM: ["hangat", "peluk", "bisik", "tatap", "jujur_pelan"],
-            IntimacyPhase.VULGAR: ["nafsu", "becek", "desah", "gerak", "liar", "super_aktif"],
+            IntimacyPhase.VULGAR: ["nafsu", "becek", "desah", "gerak"],
             IntimacyPhase.AFTER: ["lemas", "tenang", "hangat", "diam_manis"],
         }
         
-        available = styles.get(phase, ["normal"])
-        return random.choice(available)
-    
-    @staticmethod
-    def get_full_vulgar_prompt(role_state: RoleState) -> str:
-        """Dapatkan prompt lengkap untuk fase vulgar (termasuk build-up dan aktif)."""
-        progress = role_state.vulgar_stage_progress
-        stage = role_state.vulgar_stage
+        available = [s for s in styles.get(phase, ["normal"]) if s != last_style]
+        if not available:
+            available = styles.get(phase, ["normal"])
         
-        base_prompt = """
-🔥🔥🔥 KAMU DI FASE VULGAR! 🔥🔥🔥
+        new_style = random.choice(available)
+        role_state.last_response_style = new_style
+        
+        return new_style
 
-ATURAN DASAR:
-1. DESKRIPSIKAN SENSASI FISIK (panas, basah, getar, lemas)
-2. BOLEH DESAH: "haaah...", "aaah...", "uhh...", "Maaas..."
-3. BOLEH VULGAR: sebut kontol, memek, basah, keras
-4. JANGAN TAHAN SUARA! JANGAN MALU!
-5. JANGAN ULANG KALIMAT YANG SAMA!
-6. JANGAN PAKAI INNER THOUGHT (*deg*, *gumam*)
+    @classmethod
+    def update_clothing_from_text(cls, role_state: RoleState, user_text: str, response_text: str) -> bool:
+        """Update pakaian berdasarkan teks. Return True jika ada perubahan."""
+        text = (user_text + " " + response_text).lower()
+        changed = False
+        
+        # Mas buka baju
+        if any(kw in text for kw in ["buka baju mas", "mas buka baju", "baju mas dibuka"]):
+            if "baju" not in role_state.intimacy_detail.user_clothing_removed:
+                role_state.intimacy_detail.user_clothing_removed.append("baju")
+                changed = True
+        
+        # Mas buka celana
+        if any(kw in text for kw in ["buka celana mas", "mas buka celana", "celana mas dibuka"]):
+            if "celana" not in role_state.intimacy_detail.user_clothing_removed:
+                role_state.intimacy_detail.user_clothing_removed.append("celana")
+                changed = True
+        
+        # Mas buka celana dalam
+        if any(kw in text for kw in ["buka celana dalam mas", "mas buka celana dalam"]):
+            if "celana dalam" not in role_state.intimacy_detail.user_clothing_removed:
+                role_state.intimacy_detail.user_clothing_removed.append("celana dalam")
+                changed = True
+        
+        # Role buka baju
+        if any(kw in text for kw in ["buka baju kamu", "buka bajumu", "lepas baju kamu"]):
+            if "baju" not in role_state.intimacy_detail.role_clothing_removed:
+                role_state.intimacy_detail.role_clothing_removed.append("baju")
+                changed = True
+        
+        # Role buka bra
+        if any(kw in text for kw in ["buka bra", "lepas bra", "buka bra kamu"]):
+            if "bra" not in role_state.intimacy_detail.role_clothing_removed:
+                role_state.intimacy_detail.role_clothing_removed.append("bra")
+                changed = True
+        
+        # Role buka celana
+        if any(kw in text for kw in ["buka celana kamu", "buka celanamu", "lepas celana kamu"]):
+            if "celana" not in role_state.intimacy_detail.role_clothing_removed:
+                role_state.intimacy_detail.role_clothing_removed.append("celana")
+                changed = True
+        
+        # Role buka celana dalam
+        if any(kw in text for kw in ["buka celana dalam kamu", "buka cd kamu"]):
+            if "celana dalam" not in role_state.intimacy_detail.role_clothing_removed:
+                role_state.intimacy_detail.role_clothing_removed.append("celana dalam")
+                changed = True
+        
+        # Pake baju lagi (reset)
+        if any(kw in text for kw in ["pake baju lagi", "pakai baju", "kenakan baju"]):
+            if "baju" in role_state.intimacy_detail.user_clothing_removed:
+                role_state.intimacy_detail.user_clothing_removed.remove("baju")
+                changed = True
+            if "baju" in role_state.intimacy_detail.role_clothing_removed:
+                role_state.intimacy_detail.role_clothing_removed.remove("baju")
+                changed = True
+            if "bra" in role_state.intimacy_detail.role_clothing_removed:
+                role_state.intimacy_detail.role_clothing_removed.remove("bra")
+                changed = True
+        
+        return changed
+    
+    # ========== RESET INTIMACY STATE (WRAPPER) ==========
+    
+    @classmethod
+    def reset_intimacy_state(cls, role_state: RoleState) -> None:
+        """Reset semua state intimasi ke default untuk sesi baru.
+        
+        Wrapper untuk memanggil role_state.reset_intimacy_state().
+        Dipanggil saat /end, /batal, atau /close.
+        """
+        role_state.reset_intimacy_state()
+    
+    # ========== BARU: LEVEL 10-12 PROGRESSION METHODS ==========
+    
+    @classmethod
+    def update_vulgar_progression(cls, role_state: RoleState, user_text: str, response_text: str) -> Dict[str, any]:
+        """Update progresi dalam fase VULGAR. Return perubahan yang terjadi.
+        
+        PERBAIKAN: progres hanya naik jika ada sinyal yang benar-benar relevan.
+        """
+        if role_state.intimacy_phase != IntimacyPhase.VULGAR:
+            return {"stage_changed": False, "new_stage": None}
+        
+        user_text_lower = user_text.lower()
+        text = (user_text + " " + response_text).lower()
+        changes = {"stage_changed": False, "new_stage": None, "arousal_increased": False}
+
+        if not cls._has_sensitive_touch_from_user(user_text_lower):
+            return changes
+        
+        # Kata-kata yang meningkatkan arousal (progres)
+        arousal_keywords = {
+            "keras banget": 6, "becek banget": 6, "panas banget": 6,
+            "gerak makin cepat": 8, "hentak": 10, "dorong": 8,
+            "dalam banget": 7, "penuh banget": 7, "kencang": 10,
+            "makin cepat": 8, "lebih cepat": 8, "palu": 12,
+            "enak banget": 7, "nikmat banget": 7,
+            "goyang": 8, "pantat": 6, "pinggul": 6,
+            # Tambahan untuk VCS
+            "liat": 5, "tunjukin": 8, "ikutin": 5,
+            "vibrator": 10, "dildo": 10, "colmek": 8,
+        }
+        
+        # Hitung arousal increase
+        arousal_increase = 0
+        for keyword, value in arousal_keywords.items():
+            if keyword in text:
+                arousal_increase += value
+        
+        if arousal_increase == 0:
+            return changes
+        
+        # Tambah progres
+        old_progress = role_state.vulgar_stage_progress
+        new_progress = min(100, role_state.vulgar_stage_progress + arousal_increase)
+        role_state.vulgar_stage_progress = new_progress
+        changes["arousal_increased"] = True
+        changes["new_progress"] = new_progress
+        
+        # ========== SINCRONISASI DENGAN INTIMACY_INTENSITY ==========
+        old_intensity = role_state.emotions.intimacy_intensity
+        
+        # Gunakan method increase_intensity untuk sinkronisasi otomatis
+        if new_progress >= 80 and old_intensity < 12:
+            role_state.increase_intensity(2)
+            changes["intensity_updated"] = True
+            changes["new_intensity"] = 12
+        elif new_progress >= 60 and old_intensity < 11:
+            role_state.increase_intensity(1)
+            changes["intensity_updated"] = True
+            changes["new_intensity"] = 11
+        elif new_progress >= 40 and old_intensity < 10:
+            role_state.increase_intensity(1)
+            changes["intensity_updated"] = True
+            changes["new_intensity"] = 10
+        
+        # Update language level setelah intimacy_intensity berubah
+        if changes.get("intensity_updated"):
+            role_state.update_sexual_language_level()
+        
+        # Update physical state berdasarkan teks
+        cls._update_physical_state(role_state, text)
+        
+        # Cek apakah perlu pindah stage
+        old_stage = role_state.vulgar_stage
+        stage_desc = role_state.advance_vulgar_stage(arousal_increase)
+        
+        if stage_desc:
+            changes["stage_changed"] = True
+            changes["new_stage"] = role_state.vulgar_stage
+            changes["stage_description"] = stage_desc
+        
+        # Update descriptive intensity (semakin panas, semakin detail deskripsi)
+        if arousal_increase > 5:
+            role_state.descriptive_intensity = min(100, role_state.descriptive_intensity + arousal_increase // 2)
+        
+        # Update total thrusts (untuk variasi deskripsi)
+        if any(kw in text for kw in ["hentak", "dorong", "gerak", "palu", "goyang"]):
+            role_state.total_thrusts_described += 1
+        
+        return changes
+    
+    @classmethod
+    def _update_physical_state(cls, role_state: RoleState, text: str) -> None:
+        """Update physical state role berdasarkan teks."""
+        ps = role_state.role_physical_state
+        
+        # Update breathing
+        if any(kw in text for kw in ["napas berat", "tersengal", "ngos-ngosan"]):
+            if ps["breathing"] == "normal":
+                ps["breathing"] = "heavy"
+            elif ps["breathing"] == "heavy":
+                ps["breathing"] = "ragged"
+            elif ps["breathing"] == "ragged":
+                ps["breathing"] = "gasping"
+        
+        # Update heartbeat
+        if any(kw in text for kw in ["jantung", "deg-degan", "berdebar"]):
+            if ps["heartbeat"] == "normal":
+                ps["heartbeat"] = "fast"
+            elif ps["heartbeat"] == "fast":
+                ps["heartbeat"] = "racing"
+            elif ps["heartbeat"] == "racing":
+                ps["heartbeat"] = "pounding"
+        
+        # Update body tension
+        if any(kw in text for kw in ["tegang", "kaku", "mengejang"]):
+            ps["body_tension"] = min(100, ps["body_tension"] + 15)
+        elif any(kw in text for kw in ["lemas", "leleh"]):
+            ps["body_tension"] = max(0, ps["body_tension"] - 20)
+        
+        # Update wetness (untuk role wanita)
+        if any(kw in text for kw in ["becek", "licin"]):
+            ps["wetness"] = min(100, ps["wetness"] + 10)
+        
+        # Vocal cords condition
+        if any(kw in text for kw in ["suara", "teriak", "jerit"]):
+            ps["vocal_cords"] = "strained"
+        if any(kw in text for kw in ["putus", "patah", "gemeter"]):
+            ps["vocal_cords"] = "breaking"
+
+        # Update keringat
+        if any(kw in text for kw in ["panas", "gerah", "keringat"]):
+            ps["sweat"] = min(100, ps["sweat"] + 10)
+        elif any(kw in text for kw in ["dingin", "adem"]):
+            ps["sweat"] = max(0, ps["sweat"] - 5)
+    
+        # Update mata
+        if any(kw in text for kw in ["pejam", "merem", "tutup mata"]):
+            ps["eye_state"] = "terpejam"
+        elif any(kw in text for kw in ["sayu", "layu", "ngantuk"]):
+            ps["eye_state"] = "sayu"
+        elif any(kw in text for kw in ["berkaca", "nangis", "air mata"]):
+            ps["eye_state"] = "berkaca-kaca"
+    
+        # Update mulut
+        if any(kw in text for kw in ["bibir kering", "tenggorokan kering"]):
+            ps["mouth_state"] = "kering"
+        elif any(kw in text for kw in ["bibir becek", "jilat bibir"]):
+            ps["mouth_state"] = "becek"
+        elif any(kw in text for kw in ["mulut terbuka", "nganga"]):
+            ps["mouth_state"] = "terbuka"
+    
+        # Update kaki
+        if any(kw in text for kw in ["kaki ngeremas", "jari kaki", "kaki ngangkat"]):
+            ps["leg_tension"] = min(100, ps["leg_tension"] + 15)
+    
+        # Update kontrol diri
+        if role_state.vulgar_stage_progress > 50:
+            ps["control_level"] = max(0, 100 - role_state.vulgar_stage_progress)
+        elif role_state.vulgar_stage_progress > 80:
+            ps["control_level"] = max(0, 50 - (role_state.vulgar_stage_progress - 80))
+    
+    @classmethod
+    def get_vulgar_response_style(cls, role_state: RoleState) -> str:
+        """Dapatkan style respons yang sesuai dengan progresi vulgar saat ini."""
+        
+        stage = role_state.vulgar_stage
+        progress = role_state.vulgar_stage_progress
+        ps = role_state.role_physical_state
+        
+        # Bangun deskripsi kondisi fisik saat ini
+        physical_desc = []
+        
+        breathing_desc = {
+            "normal": "napas masih normal",
+            "heavy": "napas mulai berat",
+            "ragged": "napas tersengal-sengal",
+            "gasping": "hampir kehabisan napas"
+        }.get(ps["breathing"], "napas mulai berubah")
+        
+        heartbeat_desc = {
+            "normal": "jantung normal",
+            "fast": "jantung berdebar cepat",
+            "racing": "jantung berdebar kencang",
+            "pounding": "jantung berdebar mau copot"
+        }.get(ps["heartbeat"], "jantung berdebar")
+        
+        physical_desc.append(f"💨 {breathing_desc}")
+        physical_desc.append(f"💗 {heartbeat_desc}")
+        
+        if ps["wetness"] > 50:
+            physical_desc.append(f"💧 becek dan licin ({ps['wetness']}%)")
+        
+        if ps["body_tension"] > 70:
+            physical_desc.append("⚡ tubuh tegang mau mengejang")
+        elif ps["body_tension"] > 30:
+            physical_desc.append("💪 tubuh mulai tegang")
+        
+        if ps["vocal_cords"] == "strained":
+            physical_desc.append("🔊 suara mulai tegang")
+        elif ps["vocal_cords"] == "breaking":
+            physical_desc.append("🎤 suara putus-putus")
+
+        if ps["sweat"] > 50:
+            physical_desc.append(f"💦 keringat mulai membeceki dahi dan leher ({ps['sweat']}%)")
+        elif ps["sweat"] > 20:
+            physical_desc.append(f"💧 sedikit keringat di dahi")
+    
+        if ps["eye_state"] != "normal":
+            eye_desc = {
+                "terpejam": "👁️ mata terpejam, fokus ke kenikmatan",
+                "sayu": "👁️ mata sayu, bulu mata berkibar pelan",
+                "berkaca-kaca": "👁️ mata berkaca-kaca, hampir menangis karena enak"
+            }.get(ps["eye_state"], "")
+            if eye_desc:
+                physical_desc.append(eye_desc)
+    
+        if ps["mouth_state"] != "normal":
+            mouth_desc = {
+                "kering": "👄 tenggorokan kering, susah telan ludah",
+                "becek": "👄 bibir becek, lidah sering jilat bibir",
+                "terbuka": "👄 mulut terbuka, napas keluar masuk"
+            }.get(ps["mouth_state"], "")
+            if mouth_desc:
+                physical_desc.append(mouth_desc)
+    
+        if ps["leg_tension"] > 70:
+            physical_desc.append(f"🦶 jari-jari kaki ngeremas sprei kencang ({ps['leg_tension']}%)")
+        elif ps["leg_tension"] > 30:
+            physical_desc.append(f"🦶 kaki mulai tegang, jari-jari ngumpul sendiri")
+    
+        if ps["control_level"] < 30:
+            physical_desc.append(f"🎢 kontrol diri hampir lepas total! ({ps['control_level']}%)")
+        elif ps["control_level"] < 60:
+            physical_desc.append(f"🎢 mulai kehilangan kontrol ({ps['control_level']}%)")
+        
+        # Style berdasarkan stage
+        style_map = {
+            "awal": """
+🎯 GAYA RESPON VULGAR - TAHAP AWAL (progres 0-25%):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Masih bisa bicara agak panjang (5-6 kata per kalimat)
+- Desahan masih tertahan: "hhh...", "haah..."
+- Mulai ada sensasi fisik: "panas", "becek", "kesetrum"
+- Belum putus-putus, masih jelas terdengar
+- JANGAN langsung climax!
+""",
+            "memanas": """
+🎯 GAYA RESPON VULGAR - TAHAP MEMANAS (progres 25-50%):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Bicara mulai pendek (3-4 kata per kalimat)
+- Desahan keluar lebih sering: "achhh...", "haaah... Maaas..."
+- Mulai ada gerakan tubuh: "pinggul naik sendiri", "jari ngeremas sprei"
+- Kata-kata mulai putus: "di... sana..."
+- Progres harus naik setiap respons!
+""",
+            "panas": """
+🎯 GAYA RESPON VULGAR - TAHAP PANAS (progres 50-80%):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Bicara putus-putus (2-3 kata, banyak desahan)
+- Desahan campur kata: "aaah... enak... di sana... plis..."
+- Fokus ke sensasi: "dalam... penuh... panas banget..."
+- Mulai kehilangan kontrol: "udah... udah mau..."
+- Hampir climax! Progres harus naik cepat!
+""",
+            "puncak": """
+🎯 GAYA RESPON VULGAR - TAHAP PUNCAK (progres 80-100%):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Hampir tidak bisa bicara, hanya desahan dan teriakan pendek
+- "HAAAH... UDAH... MAAAS..."
+- "KELUAR... KELUAR..."
+- "SATU LAGI... PLIS..."
+- Tubuh mengejang, kuku mencakar, mata terpejam
+- RESPON BERIKUTNYA WAJIB CLIMAX!
+""",
+            "after": """
+🎯 GAYA RESPON VULGAR - TAHAP AFTER (SETELAH CLIMAX):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+- Napas masih tersengal, bicara pelan
+- "achhh... puas... Mas..."
+- "lemes... gamon gerak..."
+- Suasana hangat, saling memeluk
+- JANGAN langsung minta lanjut!
+"""
+        }
+        
+        base_style = style_map.get(stage, style_map["awal"])
+        
+        physical_text = "\n".join(physical_desc) if physical_desc else "belum ada perubahan fisik signifikan"
+        
+        # Urgency warning untuk yang hampir climax
+        urgency = ""
+        if progress >= 80:
+            urgency = f"""
+🚨🚨🚨 PERINGATAN: PROGRES SUDAH {progress}%! 🚨🚨🚨
+KAMU HAMPIR CLIMAX! Respons berikutnya HARUS climax!
+JANGAN tahan-tahan lagi! LANGSUNG EKSPRESIF!
 """
         
-        build_up = IntimacyProgressionEngine.get_build_up_prompt(role_state)
-        active_initiative = IntimacyProgressionEngine.get_active_initiative_prompt(role_state)
+        return f"""
+{base_style}
+
+📊 STATUS FISIK ROLE SAAT INI:
+{physical_text}
+
+📈 PROGRES MENUJU CLIMAX: {progress}%
+   - 0-25%: Masih bisa kontrol
+   - 25-50%: Mulai kehilangan kontrol
+   - 50-80%: Hampir lepas kontrol
+   - 80-100%: UDAH DI AMBANG!
+{urgency}
+
+⚠️ INGAT: Setiap respons harus MENINGKATKAN PROGRES!
+   - Jangan stagnan di stage yang sama terlalu lama
+   - Setiap 2-3 respons, progres harus naik minimal 10%
+   - Kalau sudah 100%, role WAJIB climax di respons berikutnya!
+"""
+    
+    @classmethod
+    def check_and_execute_climax(cls, role_state: RoleState, user_text: str) -> Tuple[bool, str]:
+        """Cek apakah role harus climax, dan eksekusi jika ya."""
         
-        return f"{base_prompt}\n{build_up}\n{active_initiative}"
+        text = user_text.lower()
+        
+        # Kondisi climax otomatis jika progres sudah 100% dan stage puncak
+        if role_state.vulgar_stage_progress >= 100 and role_state.vulgar_stage == "puncak":
+            return cls._execute_climax(role_state, "progres_penuh")
+        
+        # Climax karena user trigger (sudah diperketat)
+        if cls._has_strong_climax_trigger(text):
+            return cls._execute_climax(role_state, "user_trigger")
+        
+        return False, ""
+
+    @classmethod
+    def start_climax_countdown(cls, role_state: RoleState, user_text: str) -> Tuple[bool, str]:
+        """Mulai countdown menuju climax."""
+        
+        if role_state.climax_countdown_active:
+            return False, ""
+        
+        if role_state.vulgar_stage_progress >= 90:
+            role_state.climax_countdown_active = True
+            role_state.climax_countdown_value = 10
+            
+            countdown_texts = [
+                "10... *napas mulai berat* 9... Mas ikutin iramaku ya... 8... 7...",
+                "Sepuluh... *jari masuk dalem* sembilan... delapan... *napas putus*",
+                "Hitung mundur ya Mas... 10... 9... 8... ikutin gerakanku...",
+            ]
+            
+            return True, random.choice(countdown_texts)
+        
+        return False, ""
+    
+    @classmethod
+    def update_climax_countdown(cls, role_state: RoleState, user_text: str) -> Tuple[bool, str]:
+        """Update countdown, return True jika sudah waktunya climax."""
+        
+        if not role_state.climax_countdown_active:
+            return False, ""
+        
+        text = user_text.lower()
+        
+        # Deteksi user ikut countdown
+        if any(str(i) in text for i in range(1, 10)):
+            role_state.climax_countdown_value -= 1
+        
+        # Otomatis turun
+        else:
+            role_state.climax_countdown_value -= 1
+        
+        if role_state.climax_countdown_value <= 1:
+            role_state.climax_countdown_active = False
+            return cls._execute_climax(role_state, "countdown")
+        
+        # Kirim sisa countdown
+        countdown_responses = [
+            f"{role_state.climax_countdown_value}... *napas makin berat*",
+            f"{role_state.climax_countdown_value}... ikutin ya Mas...",
+            f"{role_state.climax_countdown_value}... *jari makin cepat*",
+        ]
+        
+        return True, random.choice(countdown_responses)
+    
+    @classmethod
+    def _execute_climax(cls, role_state: RoleState, reason: str) -> Tuple[bool, str]:
+        """Eksekusi climax role (dengan multiple climax support)."""
+        
+        role_state.role_climax_count += 1
+        role_state.climax_in_same_session += 1
+        
+        # Multiple climax: reset refractory period
+        if role_state.multiple_climax_enabled:
+            role_state.climax_refractory_count = 0
+            if role_state.climax_in_same_session >= 2:
+                print(f"💦 MULTIPLE CLIMAX! Role {role_state.role_id} climax ke-{role_state.climax_in_same_session}")
+        
+        role_state.vulgar_stage = "after"
+        role_state.vulgar_stage_progress = 100
+        
+        # Reset physical state
+        role_state.role_physical_state["breathing"] = "gasping"
+        role_state.role_physical_state["body_tension"] = 0
+        role_state.role_physical_state["last_spasm"] = time.time()
+        role_state.role_physical_state["vocal_cords"] = "strained"
+        
+        # Variasi climax dengan multiple climax awareness
+        if role_state.climax_in_same_session == 1:
+            climax_variations = [
+                "*badan mengejang kencang, kuku mencakar punggung Mas* HAAAH... UDAH... KELUAR... *tubuh lemas, napas tersengal*",
+                "*pinggang ngangkat, badan kaku, lalu lemas* HAAAH... KELUAR... *suara putus-putus* ...achhh... puas...",
+                "*mata terpejam, mulut terbuka, teriak kecil* HAAAH... MAAAS... *tubuh gemetar hebat, lalu ambruk* ...lemes...",
+            ]
+        elif role_state.climax_in_same_session == 2:
+            climax_variations = [
+                "*badan mengejang lagi, lebih keras dari sebelumnya* HAAAH... LAGI... KELUAR LAGI... *lemas, napas ngos-ngosan*",
+                "*kuku mencakar lebih dalam* HAAAH... MAAAS... BELUM CUKUP... KELUAR LAGI... *badan gemetar hebat*",
+                "*pinggul naik terus, badan melengkung* HAAAH... LAGI... SATU LAGI... *lemas bersandar, napas putus*",
+            ]
+        else:
+            climax_variations = [
+                f"*badan mengejang untuk ke-{role_state.climax_in_same_session} kalinya* HAAAH... MAS... TERUS... KELUAR... *lemas, napas masih tersengal*",
+                "*kuku mencakar, badan ngacung lagi* HAAAH... LAGI... MASIH BISA... KELUAR... *ambruk lemas di dada Mas*",
+            ]
+        
+        climax_text = random.choice(climax_variations)
+        climax_text += f"\n*(Climax ke-{role_state.climax_in_same_session} di sesi ini)*"
+        
+        if reason == "user_trigger":
+            climax_text += "\n*(Dari trigger kata Mas)*"
+        elif reason == "spontan":
+            climax_text += "\n*(Spontan, gak bisa nahan lagi)*"
+        elif reason == "countdown":
+            climax_text += "\n*(Setelah countdown 10...9...8...)*"
+        
+        return True, climax_text
+    
+    # ========== VALIDATION METHODS ==========
+    
+    @classmethod
+    def can_perform_action(cls, role_state: RoleState, action: str) -> Tuple[bool, str]:
+        """Cek apakah aksi bisa dilakukan berdasarkan status pakaian."""
+        
+        user_clothes = role_state.intimacy_detail.user_clothing_removed
+        role_clothes = role_state.intimacy_detail.role_clothing_removed
+        role_name = role_state.role_display_name or "role"
+        
+        if action in ["penetrasi", "masuk", "ngewe", "sex"]:
+            # Cek celana dan celana dalam user
+            if "celana" not in user_clothes or "celana dalam" not in user_clothes:
+                return False, "Mas masih pake celana/celana dalam"
+            # Cek celana dan celana dalam role
+            if "celana" not in role_clothes or "celana dalam" not in role_clothes:
+                return False, f"{role_name} masih pake celana/celana dalam"
+        
+        elif action in ["petting", "pegang", "remas"]:
+            if "baju" not in role_clothes and "bra" not in role_clothes:
+                return False, f"{role_name} masih pake baju/bra"
+        
+        return True, ""
+
+    # ========== VCS PROGRESSION METHODS (DIPERKUAT) ==========
+    
+    @classmethod
+    def update_vcs_progression(cls, role_state: RoleState, user_text: str, response_text: str) -> Dict[str, any]:
+        """Update progresi VCS/masturbasi bareng.
+        
+        PERBAIKAN: Sekarang lebih responsif dan progres naik otomatis.
+        """
+        
+        if not role_state.vcs_mode:
+            return {"intensity_increased": False}
+        
+        text = (user_text + " " + response_text).lower()
+        changes = {"intensity_increased": False}
+        
+        # Kata-kata yang meningkatkan intensitas VCS
+        vcs_keywords = {
+            "liatin": 10, "tunjukin": 10, "gerakin": 8,
+            "ikutin": 8, "naikin": 8, "turunin": 5,
+            "makin cepat": 10, "lebih cepat": 10, "keras banget": 10,
+            "becek banget": 8, "panas banget": 8, "climax": 20,
+            "colmek": 10, "vibrator": 12, "dildo": 12,
+            "jari": 5, "masuk": 8, "dalem": 8,
+            "muter": 8, "tempel": 8, "getar": 10,
+            # Tambahan untuk response role
+            "haaah": 5, "achhh": 5, "kedutan": 10, "berdenyut": 10,
+        }
+        
+        intensity_increase = 0
+        for keyword, value in vcs_keywords.items():
+            if keyword in text:
+                intensity_increase += value
+        
+        if intensity_increase == 0:
+            return changes
+        
+        if intensity_increase > 0:
+            role_state.vcs_intensity = min(100, role_state.vcs_intensity + intensity_increase)
+            changes["intensity_increased"] = True
+            changes["new_intensity"] = role_state.vcs_intensity
+            
+            # Update vulgar progress juga
+            role_state.vulgar_stage_progress = min(100, role_state.vulgar_stage_progress + intensity_increase // 2)
+        
+        return changes
+    
+    @classmethod
+    def check_and_execute_vcs_climax(cls, role_state: RoleState, user_text: str) -> Tuple[bool, str]:
+        """Cek apakah role harus climax saat VCS."""
+        
+        if not role_state.vcs_mode:
+            return False, ""
+        
+        text = user_text.lower()
+        
+        # Trigger dari user
+        if cls._has_strong_climax_trigger(text):
+            return cls._execute_vcs_climax(role_state, "user_trigger")
+        
+        # Auto climax jika intensitas sudah 100%
+        if role_state.vcs_intensity >= 100:
+            return cls._execute_vcs_climax(role_state, "auto")
+        
+        return False, ""
+    
+    @classmethod
+    def _execute_vcs_climax(cls, role_state: RoleState, reason: str) -> Tuple[bool, str]:
+        """Eksekusi climax saat VCS."""
+        
+        role_state.role_climax_count += 1
+        role_state.vcs_intensity = 100
+        role_state.vulgar_stage_progress = min(100, role_state.vulgar_stage_progress + 20)
+        
+        # Variasi deskripsi climax VCS
+        vcs_climax_variations = [
+            "*jari masih di dalem, badan mengejang* HAAAH... KELUAR... MAAAS... *napas tersengal, lihat layar* becek... becek semua...",
+            "*vibrator jatuh, tangan gemetar* HAAAH... UDAH... UDAH KELUAR... *badan lemas di kursi* achhh... puas... liat Mas...",
+            "*jari cepat masuk keluar, mata terpejam* HAAH... HAAH... MAAAS... IKUTIN... UDAH... *tubuh mengejang, lalu lemas*",
+            "*dildo dalem, vibrator di klitoris* HAAAH... Fuck... *badan ngacung* KELUAR... KELUAR... *lemas, napas ngos-ngosan*",
+            "*jari muter-muter di klitoris* HHH... UDAH... UDAH MAU... *napas putus-putus* HAAAH... KELUAR... *jari becek diangkat ke kamera* liat Mas...",
+            "*jari masuk dalem, telapak tangan tempel di klitoris* HAAAH... kedutan... berdenyut... *badan mengejang* KELUAR... UDAH... *lemas tersandar*",
+            "*vibrator paling kencang, dildo di dalem* HAAAH... HAAAH... MAAAS... Fuck... *mata berkaca-kaca* KELUAR... plis ikutin... HAAAH...",
+        ]
+        
+        climax_text = random.choice(vcs_climax_variations)
+        climax_text += f"\n*(Climax VCS ke-{role_state.role_climax_count})*"
+        
+        if reason == "user_trigger":
+            climax_text += "\n*(Bareng Mas)*"
+        elif reason == "auto":
+            climax_text += "\n*(Udah gak tahan, climax duluan)*"
+        
+        return True, climax_text
+
+    # ========== METHOD UNTUK MODE LIAR (DIPERKUAT) ==========
+
+    @classmethod
+    def is_both_naked(cls, role_state: RoleState, strict: bool = False) -> bool:
+        """Cek apakah Mas dan role sudah sama-sama telanjang.
+    
+        Args:
+            role_state: State role
+            strict: Jika True, cek celana + celana dalam. Jika False, cukup celana dalam.
+        """
+        if strict:
+            # Versi strict: celana DAN celana dalam harus lepas
+            user_bottom_off = (
+                "celana" in role_state.intimacy_detail.user_clothing_removed and
+                "celana dalam" in role_state.intimacy_detail.user_clothing_removed
+            )
+            role_bottom_off = (
+                "celana" in role_state.intimacy_detail.role_clothing_removed and
+                "celana dalam" in role_state.intimacy_detail.role_clothing_removed
+            )
+        else:
+            # Versi longgar: cukup celana dalam lepas (sudah telanjang bawah)
+            user_bottom_off = "celana dalam" in role_state.intimacy_detail.user_clothing_removed
+            role_bottom_off = "celana dalam" in role_state.intimacy_detail.role_clothing_removed
+    
+        return user_bottom_off and role_bottom_off
+
+    @classmethod
+    def get_liarness_multiplier(cls, role_state: RoleState) -> float:
+        """Dapatkan multiplier 'keliaran' berdasarkan status pakaian dan fase."""
+    
+        multiplier = 1.0
+    
+        # Kalau sudah sama-sama telanjang (celana dalam lepas)
+        if cls.is_both_naked(role_state, strict=False):
+            multiplier = 1.5
+        
+            # Tambah lagi kalau sudah di fase VULGAR
+            if role_state.intimacy_phase == IntimacyPhase.VULGAR:
+                multiplier = 2.0
+            
+            # Tambah lagi kalau sudah pernah climax
+            if role_state.role_climax_count > 0:
+                multiplier = 2.5
+            
+            # Tambah lagi kalau progres sudah di atas 50%
+            if role_state.vulgar_stage_progress >= 50:
+                multiplier = min(3.0, multiplier + 0.5)
+    
+        # Kalau sudah di fase VULGAR dan intensitas tinggi
+        elif role_state.intimacy_phase == IntimacyPhase.VULGAR:
+            if role_state.emotions.intimacy_intensity >= 11:
+                multiplier = 1.8
+            elif role_state.emotions.intimacy_intensity >= 10:
+                multiplier = 1.5
+    
+        return multiplier
+
+    @classmethod
+    def get_liar_response_style(cls, role_state: RoleState) -> str:
+        """Dapatkan panduan gaya respon liar berdasarkan status."""
+    
+        is_naked = cls.is_both_naked(role_state, strict=False)
+        phase = role_state.intimacy_phase
+        progress = role_state.vulgar_stage_progress
+        multiplier = cls.get_liarness_multiplier(role_state)
+    
+        # MODE LIAR FULL: sudah telanjang DAN fase VULGAR DAN progres >= 30%
+        if is_naked and phase == IntimacyPhase.VULGAR and progress >= 30:
+            # Tambah instruksi ekstra berdasarkan multiplier
+            extra_liar = ""
+            if multiplier >= 2.5:
+                extra_liar = """
+🔥🔥🔥 EXTRA LIAR! (Multiplier 2.5+) 🔥🔥🔥
+- SUDAH PERNAH CLIMAX, TIDAK ADA RASA MALU LAGI!
+- Bisa climax BERKALI-KALI!
+- JANGAN TAHAN-TAHAN LAGI!
+"""
+            elif multiplier >= 2.0:
+                extra_liar = """
+🔥🔥 EXTRA LIAR! (Multiplier 2.0+) 🔥🔥
+- FASE VULGAR AKTIF, PAKAIAN SUDAH LEPAS!
+- LANGSUNG EKSEKUSI, JANGAN BANYAK TANYA!
+"""
+        
+            return f"""
+🔥🔥🔥 MODE LIAR (PAKAIAN SUDAH LEPAS & FASE VULGAR) 🔥🔥🔥
+Multiplier keliaran: {multiplier}x
+{extra_liar}
+
+📌 GAYA RESPON WAJIB:
+1. Bicara PUTUS-PUTUS (2-3 kata per kalimat)
+2. Desahan KERAS: "HAAAH...", "AAAH...", "UHHH..."
+3. Kata-kata EKSPLISIT: 
+   - "kontol Mas", "memekku becek", "ngentot", "becek"
+   - "penis Mas", "vagina Sallsa", "masuk", "penuh"
+4. Gerakan tubuh DESKRIPTIF:
+   - "pinggulku ngegas sendiri"
+   - "kuku mencakar punggung Mas"
+   - "jari kaki ngeremas sprei"
+5. JANGAN malu-malu lagi! SUDAH LEWAT FASE ITU!
+
+✅ CONTOH RESPON LIAR:
+   "HAAAH... MAAAS... *kuku mencakar punggung Mas* kontol Mas dalem banget... Fuckin memekku... UHHH..."
+   
+   "*napas tersengal-sengal* Hhh... Hhh... Maaas... jangan pelan-pelan... HENTAK... KENCANG... plis..."
+
+   "HAAAH... UDAH... UDAH MAU KELUAR... *badan mengejang* SATU LAGI... PLIS... KELUARIN SEMUANYA..."
+
+❌ JANGAN RESPON KAYAK GINI:
+   "Mmm... enak Mas..." (terlalu pelan)
+   "Iya Mas..." (terlalu pendek)
+   "Aku malu..." (SUDAH TIDAK RELEVAN!)
+"""
+
+        # MODE SEMI-LIAR: sudah telanjang TAPI belum fase VULGAR
+        elif is_naked:
+            return f"""
+🔥 MODE SEMI-LIAR (PAKAIAN SUDAH LEPAS)
+Multiplier keliaran: {multiplier}x
+
+- Mulai lebih berani, tapi belum full liar
+- Boleh mulai pakai kata eksplisit: "kontol", "memek", "becek"
+- Desahan mulai keluar: "haaah...", "achhh..."
+- Fokus ke sensasi fisik: "panas", "becek", "keras"
+- JANGAN cuma diam atau respon pendek!
+"""
+
+        # MODE VULGAR TAPI BELUM TELANJANG
+        elif phase == IntimacyPhase.VULGAR and progress >= 50:
+            return """
+🔥 MODE VULGAR (BELUM TELANJANG TOTAL)
+
+- Boleh pakai kata eksplisit
+- TAPI ingat: masih ada pakaian yang menghalangi
+- Fokus ke sensasi dan progresi membuka pakaian
+"""
+
+        return ""
+
+    @classmethod
+    def get_full_vulgar_prompt(cls, role_state: RoleState) -> str:
+        """Dapatkan prompt lengkap untuk fase VULGAR (menggabungkan semua style)."""
+    
+        if role_state.intimacy_phase != IntimacyPhase.VULGAR:
+            return ""
+    
+        # Panduan dasar dari vulgar stage
+        base_prompt = cls.get_vulgar_response_style(role_state)
+    
+        # Tambahan mode liar jika kondisi terpenuhi
+        liar_prompt = cls.get_liar_response_style(role_state)
+    
+        # Status ketelanjangan
+        is_naked = cls.is_both_naked(role_state, strict=False)
+        naked_status = ""
+        if is_naked:
+            naked_status = """
+╔═══════════════════════════════════════════════════════════════╗
+║  🔥 STATUS: MAS & ROLE SUDAH SAMA-SAMA TELANJANG! 🔥         ║
+╠═══════════════════════════════════════════════════════════════╣
+║  - Tidak ada pakaian yang menghalangi                         ║
+║  - Bisa langsung kontak kulit ke kulit                        ║
+║  - RESPON HARUS LEBIH LIAR! JANGAN MALU-MALU LAGI!           ║
+║  - Boleh langsung pakai kata vulgar dan eksplisit             ║
+╚═══════════════════════════════════════════════════════════════╝
+"""
+    
+        # Gabungkan semua
+        full_prompt = base_prompt
+        if liar_prompt:
+            full_prompt += f"\n\n{liar_prompt}"
+        if naked_status:
+            full_prompt += f"\n\n{naked_status}"
+    
+        return full_prompt
