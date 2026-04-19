@@ -41,19 +41,26 @@ class IntimacyProgressionEngine:
 
     @staticmethod
     def _has_strong_climax_trigger(text: str) -> bool:
+        """Deteksi trigger climax dari user dengan pola minimal 3 kata spesifik."""
         triggers = [
-            "mas mau climax",
-            "mas udah mau climax",
-            "mas sudah mau climax",
+            "aku mau crot",
+            "aku udah crot", 
+            "aku sudah crot",
+            "aku mau climax",
+            "aku udah climax",
+            "aku sudah climax",
+            "aku mau keluar",
+            "aku udah keluar",
+            "aku sudah keluar",
             "mas mau crot",
             "mas udah crot",
             "mas sudah crot",
+            "mas mau climax",
+            "mas udah climax", 
+            "mas sudah climax",
+            "mas mau keluar",
             "mas udah keluar",
             "mas sudah keluar",
-            "mas mau keluar ya",
-            "mas mau keluar nih",
-            "mas udah mau keluar",
-            "mas sudah mau keluar",
         ]
         return any(trigger in text for trigger in triggers)
 
@@ -756,7 +763,7 @@ JANGAN tahan-tahan lagi! LANGSUNG EKSPRESIF!
         if role_state.vulgar_stage_progress >= 100 and role_state.vulgar_stage == "puncak":
             return cls._execute_climax(role_state, "progres_penuh")
         
-        # Climax karena user trigger
+        # Climax karena user trigger (sudah diperketat)
         if cls._has_strong_climax_trigger(text):
             return cls._execute_climax(role_state, "user_trigger")
         
@@ -823,9 +830,7 @@ JANGAN tahan-tahan lagi! LANGSUNG EKSPRESIF!
         # Multiple climax: reset refractory period
         if role_state.multiple_climax_enabled:
             role_state.climax_refractory_count = 0
-            # Jika sudah climax > 1x di sesi ini, tambah efek "makin liar"
             if role_state.climax_in_same_session >= 2:
-                # Gunakan logger jika ada, atau print
                 print(f"💦 MULTIPLE CLIMAX! Role {role_state.role_id} climax ke-{role_state.climax_in_same_session}")
         
         role_state.vulgar_stage = "after"
@@ -854,7 +859,6 @@ JANGAN tahan-tahan lagi! LANGSUNG EKSPRESIF!
             climax_variations = [
                 f"*badan mengejang untuk ke-{role_state.climax_in_same_session} kalinya* HAAAH... MAS... TERUS... KELUAR... *lemas, napas masih tersengal*",
                 "*kuku mencakar, badan ngacung lagi* HAAAH... LAGI... MASIH BISA... KELUAR... *ambruk lemas di dada Mas*",
-                "*vibrator/dildo masih menyala, badan gemetar* HAAAH... UDAH... KE-{role_state.climax_in_same_session}... *napas putus-putus* puas...",
             ]
         
         climax_text = random.choice(climax_variations)
