@@ -77,7 +77,7 @@ class WorldEngine:
         - Simpan event deskriptif di world.events.
         """
 
-        from seriva.config.constants import ROLES  # import lokal untuk hindari cycle
+        from config.constants import ROLES  # import lokal untuk hindari cycle
 
         base_spike = self.BASE_DRAMA_SPIKE
         extra = 0
