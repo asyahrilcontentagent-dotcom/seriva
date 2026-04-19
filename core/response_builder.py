@@ -179,6 +179,8 @@ class ResponseBuilder:
         if max_chars is None:
             if text.startswith("DYNAMIC BEHAVIOR RULES:"):
                 max_chars = 650
+            elif text.startswith("STRUCTURED CONTEXT OTORITATIF:"):
+                max_chars = 1000
             elif text.startswith("KONTEKS MEMORY DAN KONTINUITAS:"):
                 max_chars = 1200
             elif text.startswith("PROMPT PREFLIGHT"):
@@ -212,6 +214,7 @@ class ResponseBuilder:
         memory_summary = (getattr(role_state, "last_used_memory_summary", "") or "-").strip()[:160]
         story_summary = (getattr(role_state, "last_used_story_summary", "") or "-").strip()[:160]
         closure_summary = (getattr(role_state, "session_closure_summary", "") or "-").strip()[:120]
+        intimacy = role_state.intimacy_detail
 
         return (
             "PROMPT PREFLIGHT - STATE OTORITATIF:\n"
@@ -228,6 +231,10 @@ class ResponseBuilder:
             f"- Ambience: {scene.ambience or '-'}\n"
             f"- Jarak fisik: {scene.physical_distance or '-'}\n"
             f"- Sentuhan terakhir: {scene.last_touch or '-'}\n"
+            f"- Posisi intim: {intimacy.position.value if intimacy.position else '-'}\n"
+            f"- Intensitas intim: {intimacy.intensity.value if intimacy.intensity else '-'}\n"
+            f"- Pakaian Mas yang sudah lepas: {', '.join(intimacy.user_clothing_removed) or '-'}\n"
+            f"- Pakaian role yang sudah lepas: {', '.join(intimacy.role_clothing_removed) or '-'}\n"
             f"- Memory prioritas: {memory_summary or '-'}\n"
             f"- Continuity prioritas: {story_summary or '-'}\n"
             f"- Penutupan sesi terakhir: {closure_summary or '-'}\n"
@@ -248,8 +255,10 @@ class ResponseBuilder:
             f"- Kalau detail scene bentrok, prioritaskan lokasi {location}, scene aktif, dan pesan user terbaru.\n"
             f"- Medium komunikasi yang wajib diikuti: {communication_mode}.\n"
             f"- Continuity penting yang wajib dijaga: {story_summary or '-'}.\n"
+            "- Sebelum final menjawab, cek minimal 6 hal ini tetap nyambung: role, emosi, lokasi, aktivitas, posisi/intensitas, pakaian, dan ritme percakapan.\n"
             "- Kalau konteks belum cukup, balas dengan asumsi paling aman dan natural, bukan improvisasi liar.\n"
-            "- Respons boleh lambat diproses, tapi hasil akhir harus konsisten, in-character, dan continuity-safe."
+            "- Jangan mengulang motif takut, aman, atau penjelasan defensif kalau scene sudah jelas berjalan.\n"
+            "- Respons boleh lambat diproses, tapi hasil akhir harus konsisten, in-character, continuity-safe, dan tidak terasa template."
         )
 
     @staticmethod
